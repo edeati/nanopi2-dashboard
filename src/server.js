@@ -198,19 +198,67 @@ function scheduleExternalPolling(sources, externalState, dashboardConfig, timers
 }
 
 function scheduleRadarPolling(radarClient, radarState, radarConfig, timers) {
+  const refreshMs = Math.max(30, Number(radarConfig.refreshSeconds || 120)) * 1000;
+  const startupRetryMs = Math.max(2, Number(radarConfig.startupRetrySeconds || 5)) * 1000;
+  const startupRetryMaxAttempts = Math.max(0, Number(radarConfig.startupRetryMaxAttempts || 12));
+  let startupRetryAttempts = 0;
+  let startupRetryTimer = null;
+  let inFlight = false;
+
+  function hasFrames() {
+    return Array.isArray(radarState.frames) && radarState.frames.length > 0;
+  }
+
+  function clearStartupRetryTimer() {
+    if (startupRetryTimer === null) {
+      return;
+    }
+    timers.clearInterval(startupRetryTimer);
+    startupRetryTimer = null;
+  }
+
   async function tick() {
-    await radarClient.refresh();
-    const updated = radarClient.getState();
-    radarState.host = updated.host;
-    radarState.frames = updated.frames;
-    radarState.updatedAt = updated.updatedAt;
-    radarState.error = updated.error;
+    if (inFlight) {
+      return;
+    }
+    inFlight = true;
+    try {
+      await radarClient.refresh();
+      const updated = radarClient.getState();
+      radarState.host = updated.host;
+      radarState.frames = updated.frames;
+      radarState.updatedAt = updated.updatedAt;
+      radarState.error = updated.error;
+      if (hasFrames()) {
+        clearStartupRetryTimer();
+      }
+    } catch (error) {
+      radarState.error = error && error.message ? error.message : 'rainviewer_fetch_failed';
+    } finally {
+      inFlight = false;
+    }
   }
 
   tick();
-  const timer = timers.setInterval(tick, Math.max(30, Number(radarConfig.refreshSeconds || 120)) * 1000);
+  if (startupRetryMaxAttempts > 0) {
+    startupRetryTimer = timers.setInterval(async function onStartupRetryTick() {
+      if (hasFrames()) {
+        clearStartupRetryTimer();
+        return;
+      }
+      startupRetryAttempts += 1;
+      if (startupRetryAttempts > startupRetryMaxAttempts) {
+        clearStartupRetryTimer();
+        return;
+      }
+      await tick();
+    }, startupRetryMs);
+  }
+
+  const timer = timers.setInterval(tick, refreshMs);
   return function stop() {
     timers.clearInterval(timer);
+    clearStartupRetryTimer();
   };
 }
 

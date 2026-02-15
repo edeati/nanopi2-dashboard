@@ -71,6 +71,8 @@ function normalizeDashboardConfig(input) {
     apiUrl: 'https://api.rainviewer.com/public/weather-maps.json',
     sourceUrl: '',
     refreshSeconds: 120,
+    startupRetrySeconds: 5,
+    startupRetryMaxAttempts: 12,
     lat: -27.47,
     lon: 153.02,
     zoom: 8,
@@ -125,6 +127,8 @@ function validateDashboardConfig(config) {
     Array.isArray(config.map.fallbackTileUrlTemplates) &&
     typeof config.map.userAgent === 'string' &&
     typeof config.radar.refreshSeconds === 'number' &&
+    typeof config.radar.startupRetrySeconds === 'number' &&
+    typeof config.radar.startupRetryMaxAttempts === 'number' &&
     typeof config.radar.lat === 'number' &&
     typeof config.radar.lon === 'number' &&
     typeof config.radar.zoom === 'number' &&

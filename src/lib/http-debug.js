@@ -17,6 +17,19 @@ function createHttpStatusError(statusCode) {
   return error;
 }
 
+function extractErrorDetails(error) {
+  const err = error || {};
+  return {
+    error: err && err.message ? err.message : 'request_failed',
+    errorName: err && err.name ? err.name : null,
+    errorCode: err && err.code ? String(err.code) : null,
+    errorSyscall: err && err.syscall ? String(err.syscall) : null,
+    errorHostname: err && err.hostname ? String(err.hostname) : null,
+    errorAddress: err && err.address ? String(err.address) : null,
+    errorPort: Number.isFinite(Number(err && err.port)) ? Number(err.port) : null
+  };
+}
+
 function requestWithDebug(options) {
   const opts = options || {};
   const method = String(opts.method || 'GET').toUpperCase();
@@ -113,14 +126,14 @@ function requestWithDebug(options) {
 
     req.on('error', (error) => {
       if (debugEnabled && logger && typeof logger.warn === 'function') {
-        logger.warn('external_http_error', {
+        logger.warn('external_http_error', Object.assign({
           requestId,
           service,
           method,
           url: url.toString(),
           durationMs: Date.now() - startedAt,
-          error: error && error.message ? error.message : 'request_failed'
-        });
+          responseReceived: false
+        }, extractErrorDetails(error)));
       }
       reject(error);
     });

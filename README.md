@@ -26,6 +26,7 @@ Node 14-compatible dashboard server and admin UI for NanoPi2, designed to replac
   - bins status from configured JSON endpoint
 - Radar integration (RainViewer API based):
   - server polls RainViewer metadata API (`radar.apiUrl`)
+  - startup recovery retries metadata fetch every few seconds (`radar.startupRetrySeconds`, `radar.startupRetryMaxAttempts`) before settling into normal `radar.refreshSeconds` cadence
   - browser only requests local endpoints `/api/radar/meta` and `/api/radar/tile/...`
   - browser also requests local OSM basemap endpoint `/api/map/tile/...`
   - radar is rendered with local map+radar tile compositing at configured lat/lon/zoom

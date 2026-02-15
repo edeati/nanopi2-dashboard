@@ -77,6 +77,32 @@ module.exports = async function run() {
     assert.strictEqual(fullResponse.responseBodyTruncated, true);
     assert.strictEqual(fullResponse.responseBodyLoggedBytes, 4);
     assert.strictEqual(fullResponse.responseBodyBytes, 6);
+
+    const errorEntries = [];
+    const errorLogger = createLogger({
+      level: 'debug',
+      debugExternal: true,
+      externalBodyMode: 'metadata',
+      sink: (entry) => errorEntries.push(entry),
+      now: () => '2026-02-15T01:00:00.000Z'
+    });
+
+    await assert.rejects(async () => {
+      await requestWithDebug({
+        urlString: 'http://127.0.0.1:1/unreachable',
+        logger: errorLogger,
+        service: 'error-service',
+        responseType: 'buffer'
+      });
+    });
+
+    const errorEntry = errorEntries.find((entry) => entry.event === 'external_http_error' && entry.service === 'error-service');
+    assert.ok(errorEntry, 'expected error telemetry entry');
+    assert.strictEqual(errorEntry.responseReceived, false);
+    assert.ok(Object.prototype.hasOwnProperty.call(errorEntry, 'errorCode'));
+    assert.ok(Object.prototype.hasOwnProperty.call(errorEntry, 'errorSyscall'));
+    assert.ok(Object.prototype.hasOwnProperty.call(errorEntry, 'errorAddress'));
+    assert.ok(Object.prototype.hasOwnProperty.call(errorEntry, 'errorPort'));
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
