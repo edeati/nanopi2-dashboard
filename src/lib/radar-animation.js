@@ -439,7 +439,7 @@ function createRadarAnimationRenderer(options) {
       z: context.z,
       width: context.width,
       height: context.height,
-      extraTiles: 2
+      extraTiles: 3
     });
 
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'radar-gif-'));
