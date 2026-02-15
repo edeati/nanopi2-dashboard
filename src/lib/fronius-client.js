@@ -9,6 +9,38 @@ function formatDateLocal(value) {
     '-' + String(date.getDate()).padStart(2, '0');
 }
 
+function resolveTimeZone(timeZone) {
+  const candidate = String(timeZone || '').trim();
+  if (!candidate) {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  }
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone: candidate }).format(new Date(0));
+    return candidate;
+  } catch (_error) {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  }
+}
+
+function formatDateInTimeZone(value, timeZone) {
+  const date = value instanceof Date ? value : new Date(value);
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: resolveTimeZone(timeZone),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  const parts = {};
+  formatter.formatToParts(date).forEach((part) => {
+    if (part.type !== 'literal') {
+      parts[part.type] = part.value;
+    }
+  });
+  return String(parts.year || '1970') +
+    '-' + String(parts.month || '01').padStart(2, '0') +
+    '-' + String(parts.day || '01').padStart(2, '0');
+}
+
 async function getJson(urlString, logger, serviceName) {
   const result = await requestWithDebug({
     urlString,
@@ -21,6 +53,7 @@ async function getJson(urlString, logger, serviceName) {
 
 function createFroniusClient(baseUrl, options) {
   const logger = options && options.logger;
+  const timeZone = options && options.timeZone;
   const root = String(baseUrl || '').replace(/\/$/, '');
 
   function getSeriesLast(series) {
@@ -102,7 +135,7 @@ function createFroniusClient(baseUrl, options) {
     },
 
     async fetchDailySum(dayISO) {
-      const date = dayISO || formatDateLocal(new Date());
+      const date = dayISO || formatDateInTimeZone(new Date(), timeZone);
       const payload = await getJson(
         root +
         '/solar_api/v1/GetArchiveData.cgi?Scope=System&SeriesType=DailySum&StartDate=' +
@@ -133,7 +166,7 @@ function createFroniusClient(baseUrl, options) {
     },
 
     async fetchDailyDetail(dayISO) {
-      const date = dayISO || formatDateLocal(new Date());
+      const date = dayISO || formatDateInTimeZone(new Date(), timeZone);
       const url = root +
         '/solar_api/v1/GetArchiveData.cgi?Scope=System&SeriesType=Detail' +
         '&StartDate=' + date +

@@ -124,6 +124,8 @@ cp .env.example .env.local
 
 `OPENWEATHER_APPID` (or `OPENWEATHER_APP_ID`), `OPENWEATHER_LOCATION_ID`, `RADAR_SOURCE_URL`, `RADAR_LAT`, `RADAR_LON`, and `INSECURE_TLS` from `.env`/`.env.local` override values from `config/dashboard.json`.
 
+Set `timeZone` in `config/dashboard.json` (for example `Australia/Brisbane`) or `DASHBOARD_TIMEZONE` in env to keep daily solar bins/charts aligned on servers with different host timezones.
+
 Open on LAN:
 
 - Dashboard: `http://192.168.0.27:8090/`

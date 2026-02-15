@@ -46,6 +46,10 @@ module.exports = async function run() {
   assert.ok(html.indexOf('.g-overlay {') > -1, 'gauge overlay text layer should exist');
   assert.ok(html.indexOf('id="generationGaugeText"') > -1, 'generation gauge overlay node missing');
   assert.ok(html.indexOf('id="usageGaugeText"') > -1, 'usage gauge overlay node missing');
+  assert.ok(html.indexOf('font-size: clamp(22px, 3.9vh, 32px);') > -1, 'gauge primary text should be larger for distance readability');
+  assert.ok(html.indexOf('-webkit-text-stroke: 1.6px rgba(5, 8, 12, 0.98);') > -1, 'gauge primary text needs stronger border contrast');
+  assert.ok(html.indexOf('0 0 14px rgba(0, 0, 0, 0.7),') > -1, 'gauge text should include a stronger outer glow/halo');
+  assert.ok(html.indexOf('-webkit-text-stroke: 1.2px rgba(5, 8, 12, 0.95);') > -1, 'gauge secondary text needs a stronger border contrast');
   assert.strictEqual(html.indexOf('.g-value {'), -1, 'legacy side-value gauge text should be removed');
   assert.ok(html.indexOf('.solar-status-card {\n        min-height: 86px;') > -1, 'tablet solar status cards should be larger for readability');
   assert.ok(html.indexOf('.solar-status-value {\n        font-size: 40px;') > -1, 'tablet solar status values should be larger');

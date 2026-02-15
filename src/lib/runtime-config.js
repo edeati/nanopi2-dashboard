@@ -83,6 +83,10 @@ function applyEnvOverrides(config, envMap) {
     config.insecureTLS = env.INSECURE_TLS === '1' || env.INSECURE_TLS.toLowerCase() === 'true';
   }
 
+  if (env.DASHBOARD_TIMEZONE || env.TIME_ZONE) {
+    config.timeZone = String(env.DASHBOARD_TIMEZONE || env.TIME_ZONE || '').trim() || config.timeZone;
+  }
+
   return config;
 }
 

@@ -1,6 +1,7 @@
 {
   "host": "0.0.0.0",
   "port": 8090,
+  "timeZone": "Australia/Brisbane",
   "fronius": {
     "baseUrl": "http://192.168.0.18",
     "estimatedAfterMinutes": 10,

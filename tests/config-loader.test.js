@@ -53,6 +53,7 @@ module.exports = async function run() {
     assert.strictEqual(config.pricing.feedInCentsPerKwh, 3);
     assert.strictEqual(config.pricing.dailySupplyCents, 142);
     assert.strictEqual(config.pricing.inverterCapacityKw, 6);
+    assert.strictEqual(config.timeZone, 'Australia/Brisbane');
     assert.strictEqual(config.ui.themePreset, 'matte');
     assert.strictEqual(config.fronius.realtimeRefreshSeconds, 8);
     assert.strictEqual(config.fronius.archiveRefreshSeconds, 1800);

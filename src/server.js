@@ -15,11 +15,83 @@ const { createRadarGifRenderer } = require('./lib/radar-gif');
 const { createLogger, readDebugConfig } = require('./lib/logger');
 const { createDebugEventStore } = require('./lib/debug-events');
 
-function formatDateLocal(value) {
+const formatterCache = new Map();
+
+function resolveTimeZone(timeZone) {
+  const candidate = String(timeZone || '').trim();
+  if (!candidate) {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  }
+  try {
+    new Intl.DateTimeFormat('en-CA', { timeZone: candidate }).format(new Date(0));
+    return candidate;
+  } catch (_error) {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  }
+}
+
+function getTimeFormatter(timeZone) {
+  const tz = resolveTimeZone(timeZone);
+  const key = 'dtf:' + tz;
+  if (!formatterCache.has(key)) {
+    formatterCache.set(key, new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }));
+  }
+  return formatterCache.get(key);
+}
+
+function getDateTimeParts(value, timeZone) {
   const date = value instanceof Date ? value : new Date(value);
-  return date.getFullYear() +
-    '-' + String(date.getMonth() + 1).padStart(2, '0') +
-    '-' + String(date.getDate()).padStart(2, '0');
+  const formatter = getTimeFormatter(timeZone);
+  const raw = {};
+  formatter.formatToParts(date).forEach((part) => {
+    if (part.type !== 'literal') {
+      raw[part.type] = part.value;
+    }
+  });
+  return {
+    year: raw.year,
+    month: raw.month,
+    day: raw.day,
+    hour: Number(raw.hour || 0),
+    minute: Number(raw.minute || 0),
+    second: Number(raw.second || 0)
+  };
+}
+
+function formatDateLocal(value, timeZone) {
+  const parts = getDateTimeParts(value, timeZone);
+  return parts.year +
+    '-' + String(parts.month).padStart(2, '0') +
+    '-' + String(parts.day).padStart(2, '0');
+}
+
+function secondOfDayLocal(value, timeZone) {
+  const parts = getDateTimeParts(value, timeZone);
+  return (parts.hour * 3600) + (parts.minute * 60) + parts.second;
+}
+
+function normalizeSeriesSecond(secondKey, dayKey, timeZone) {
+  const secRaw = Number(secondKey || 0);
+  if (!Number.isFinite(secRaw) || secRaw < 0) {
+    return null;
+  }
+  if (secRaw <= (2 * 24 * 60 * 60)) {
+    return Math.floor(secRaw % (24 * 60 * 60));
+  }
+  const tsMs = Math.floor(secRaw * 1000);
+  if (formatDateLocal(tsMs, timeZone) !== String(dayKey || '')) {
+    return null;
+  }
+  return secondOfDayLocal(tsMs, timeZone);
 }
 
 function createEmptyDailyBins(dayKey) {
@@ -59,11 +131,14 @@ function aggregateDailyToHourlyBins(dailyBins) {
   return out;
 }
 
-function aggregateDetailToDailyBins(detail, dayKey) {
+function aggregateDetailToDailyBins(detail, dayKey, timeZone) {
   const bins = createEmptyDailyBins(dayKey);
   function addSeriesAsValue(series, field) {
     Object.keys(series || {}).forEach((secondKey) => {
-      const sec = Number(secondKey || 0);
+      const sec = normalizeSeriesSecond(secondKey, dayKey, timeZone);
+      if (sec === null) {
+        return;
+      }
       const idx = Math.min(47, Math.max(0, Math.floor(sec / 1800)));
       bins[idx][field] += Number(series[secondKey] || 0);
     });
@@ -71,7 +146,11 @@ function aggregateDetailToDailyBins(detail, dayKey) {
 
   function addSeriesAsDelta(series, field) {
     const points = Object.keys(series || {})
-      .map((k) => ({ sec: Number(k || 0), value: Number(series[k] || 0) }))
+      .map((k) => ({
+        sec: normalizeSeriesSecond(k, dayKey, timeZone),
+        value: Number(series[k] || 0)
+      }))
+      .filter((p) => p.sec !== null)
       .sort((a, b) => a.sec - b.sec);
     if (points.length < 2) {
       return;
@@ -99,14 +178,12 @@ function aggregateDetailToDailyBins(detail, dayKey) {
   return bins;
 }
 
-function aggregateHistoryToDailyBins(solarHistory, nowMs) {
-  const now = new Date(nowMs);
-  const dayStart = new Date(now);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayStartMs = dayStart.getTime();
-  const dayKey = formatDateLocal(dayStart);
+function aggregateHistoryToDailyBins(solarHistory, nowMs, timeZone) {
+  const dayKey = formatDateLocal(nowMs, timeZone);
   const bins = createEmptyDailyBins(dayKey);
-  const points = (solarHistory || []).filter((p) => p.ts >= dayStartMs).sort((a, b) => a.ts - b.ts);
+  const points = (solarHistory || [])
+    .filter((p) => formatDateLocal(p.ts, timeZone) === dayKey)
+    .sort((a, b) => a.ts - b.ts);
   if (points.length < 2) {
     return bins;
   }
@@ -118,7 +195,7 @@ function aggregateHistoryToDailyBins(solarHistory, nowMs) {
     if (dtHours <= 0) {
       continue;
     }
-    const secOfDay = Math.floor((prev.ts - dayStartMs) / 1000);
+    const secOfDay = secondOfDayLocal(prev.ts, timeZone);
     const idx = Math.min(47, Math.max(0, Math.floor(secOfDay / 1800)));
     const generatedWh = Math.max(0, Number(prev.generatedW || 0)) * dtHours;
     const loadWh = Math.max(0, Number(prev.loadW || 0)) * dtHours;
@@ -135,7 +212,7 @@ function aggregateHistoryToDailyBins(solarHistory, nowMs) {
   return bins;
 }
 
-function scheduleFroniusPolling(client, froniusState, froniusConfig, onRealtime, onArchiveDetail, timers) {
+function scheduleFroniusPolling(client, froniusState, froniusConfig, onRealtime, onArchiveDetail, timers, timeZone) {
   async function realtimeTick() {
     const now = Date.now();
     try {
@@ -148,7 +225,7 @@ function scheduleFroniusPolling(client, froniusState, froniusConfig, onRealtime,
   async function archiveTick() {
     const now = Date.now();
     try {
-      const dayISO = formatDateLocal(now);
+      const dayISO = formatDateLocal(now, timeZone);
       const daily = await client.fetchDailySum(dayISO);
       froniusState.applyArchive(daily, now);
       if (typeof client.fetchDailyDetail === 'function') {
@@ -289,6 +366,11 @@ function createServer(options) {
   const baseDir = (options && options.baseDir) || process.cwd();
   const configDir = (options && options.configDir) || path.join(baseDir, 'config');
   const dashboardConfig = loadRuntimeConfig({ configDir, envDir: baseDir });
+  const dashboardTimeZone = resolveTimeZone(
+    (dashboardConfig && dashboardConfig.timeZone) ||
+    (dashboardConfig && dashboardConfig.ui && dashboardConfig.ui.timeZone) ||
+    process.env.TZ
+  );
   const debugConfig = readDebugConfig((options && options.env) || process.env);
   const debugEventStore = (options && options.debugEventStore) || createDebugEventStore({
     maxEntries: debugConfig.eventMaxEntries
@@ -459,7 +541,10 @@ function createServer(options) {
   stoppers.push(scheduleGitAutoSync(gitSync, dashboardConfig.git, timers));
 
   if (!(options && options.disablePolling)) {
-    const client = (options && options.froniusClient) || createFroniusClient(dashboardConfig.fronius.baseUrl, { logger });
+    const client = (options && options.froniusClient) || createFroniusClient(
+      dashboardConfig.fronius.baseUrl,
+      { logger, timeZone: dashboardTimeZone }
+    );
     stoppers.push(scheduleFroniusPolling(client, froniusState, dashboardConfig.fronius, function onRealtime(realtime, now) {
       solarHistory.push({
         ts: now,
@@ -474,19 +559,19 @@ function createServer(options) {
       }
       const earlyStartup = (now - startupMs) < 5 * 60 * 1000;
       if (!solarDailyBins.length || earlyStartup) {
-        solarDailyBins = aggregateHistoryToDailyBins(solarHistory, now);
+        solarDailyBins = aggregateHistoryToDailyBins(solarHistory, now, dashboardTimeZone);
         solarHourlyBins = aggregateDailyToHourlyBins(solarDailyBins);
       }
     }, function onArchiveDetail(detail, now) {
-      const dayKey = formatDateLocal(now);
+      const dayKey = formatDateLocal(now, dashboardTimeZone);
       const hasArchive = detail &&
         Object.keys(detail.producedWhBySecond || {}).length > 0 &&
         Object.keys(detail.importWhBySecond || {}).length > 0;
       solarDailyBins = hasArchive
-        ? aggregateDetailToDailyBins(detail, dayKey)
-        : aggregateHistoryToDailyBins(solarHistory, now);
+        ? aggregateDetailToDailyBins(detail, dayKey, dashboardTimeZone)
+        : aggregateHistoryToDailyBins(solarHistory, now, dashboardTimeZone);
       solarHourlyBins = aggregateDailyToHourlyBins(solarDailyBins);
-    }, timers));
+    }, timers, dashboardTimeZone));
 
     const sources = (options && options.externalSources) || createExternalSources(Object.assign({}, dashboardConfig, { logger }));
     stoppers.push(scheduleExternalPolling(sources, externalState, dashboardConfig, timers));
@@ -529,5 +614,9 @@ if (require.main === module) {
 module.exports = {
   createServer,
   startServer,
-  formatDateLocal
+  formatDateLocal,
+  resolveTimeZone,
+  secondOfDayLocal,
+  aggregateHistoryToDailyBins,
+  aggregateDetailToDailyBins
 };

@@ -86,7 +86,7 @@ module.exports = async function run() {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   try {
     const baseUrl = 'http://127.0.0.1:' + server.address().port;
-    const client = createFroniusClient(baseUrl);
+    const client = createFroniusClient(baseUrl, { timeZone: 'Australia/Brisbane' });
     const daily = await client.fetchDailySum('2026-02-14');
     assert.strictEqual(daily.dayGeneratedKwh, 23.456);
     assert.strictEqual(daily.dayImportKwh, 7);
@@ -102,39 +102,9 @@ module.exports = async function run() {
       constructor(...args) {
         if (args.length === 0) {
           super('2026-02-15T14:31:00.000Z');
-          this.__fakeNow = true;
           return;
         }
         super(...args);
-        this.__fakeNow = false;
-      }
-
-      getFullYear() {
-        if (this.__fakeNow) {
-          return 2026;
-        }
-        return super.getFullYear();
-      }
-
-      getMonth() {
-        if (this.__fakeNow) {
-          return 1;
-        }
-        return super.getMonth();
-      }
-
-      getDate() {
-        if (this.__fakeNow) {
-          return 16;
-        }
-        return super.getDate();
-      }
-
-      toISOString() {
-        if (this.__fakeNow) {
-          return '2026-02-15T14:31:00.000Z';
-        }
-        return super.toISOString();
       }
 
       static now() {

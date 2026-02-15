@@ -13,6 +13,7 @@ const testModules = [
   './map-tiles.test.js',
   './fronius-client.test.js',
   './fronius-service.test.js',
+  './server-timezone.test.js',
   './server-routes.test.js',
   './admin-api.test.js',
   './git-autosync.test.js',

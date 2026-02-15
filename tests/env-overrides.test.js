@@ -23,7 +23,8 @@ module.exports = async function run() {
       'OPENWEATHER_LOCATION_ID=2174003\n' +
       'RADAR_SOURCE_URL=http://example/radar.png\n' +
       'RADAR_LAT=-27.5\n' +
-      'RADAR_LON=153.1\n'
+      'RADAR_LON=153.1\n' +
+      'DASHBOARD_TIMEZONE=Australia/Brisbane\n'
     );
 
     const cfg = loadRuntimeConfig({ configDir: dir, envDir: dir });
@@ -32,6 +33,7 @@ module.exports = async function run() {
     assert.strictEqual(cfg.radar.sourceUrl, 'http://example/radar.png');
     assert.strictEqual(cfg.radar.lat, -27.5);
     assert.strictEqual(cfg.radar.lon, 153.1);
+    assert.strictEqual(cfg.timeZone, 'Australia/Brisbane');
 
     fs.writeFileSync(
       path.join(dir, '.env'),

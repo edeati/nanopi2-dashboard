@@ -20,6 +20,9 @@ function normalizeDashboardConfig(input) {
   const config = Object.assign({}, input);
   config.host = typeof config.host === 'string' ? config.host : '0.0.0.0';
   config.port = Number(config.port || 8090);
+  config.timeZone = typeof config.timeZone === 'string' && config.timeZone.trim()
+    ? config.timeZone.trim()
+    : 'Australia/Brisbane';
   config.insecureTLS = !!config.insecureTLS;
   config.fronius = Object.assign({
     baseUrl: '',
@@ -90,6 +93,8 @@ function validateDashboardConfig(config) {
     typeof config.host === 'string' &&
     typeof config.port === 'number' &&
     config.port > 0 &&
+    typeof config.timeZone === 'string' &&
+    config.timeZone.length > 0 &&
     config.fronius &&
     typeof config.fronius.baseUrl === 'string' &&
     typeof config.fronius.realtimeRefreshSeconds === 'number' &&
