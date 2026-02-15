@@ -8,7 +8,6 @@ const path = require('path');
 const { pbkdf2Sync } = require('crypto');
 
 const { createServer } = require('../src/server');
-const { buildGifCacheFilename } = require('../src/lib/radar-animation');
 
 function createHash(password, salt, iterations) {
   return pbkdf2Sync(password, salt, iterations, 64, 'sha512').toString('hex');
@@ -249,17 +248,14 @@ module.exports = async function run() {
     assert.strictEqual(degradedTile.headers['content-type'], 'image/png');
     assert.ok(degradedTile.bodyBuffer.length > 0);
 
+    // --- Cached GIF fallback server ---
     gifCacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanopi2-gif-cache-'));
     const fallbackGif = Buffer.from('GIF89a-fallback');
-    fs.writeFileSync(
-      path.join(gifCacheDir, buildGifCacheFilename('fallback-any', Date.now())),
-      fallbackGif
-    );
+    fs.writeFileSync(path.join(gifCacheDir, 'radar-latest.gif'), fallbackGif);
     cachedGifFallbackServer = createServer({
       configDir: dir,
       gitRunner: async () => ({ ok: true }),
       disablePolling: true,
-      ffmpegBinary: '/definitely-missing-ffmpeg',
       radarGifCacheDir: gifCacheDir,
       initialExternalState: {
         weather: { summary: 'Cloudy', tempC: 23 },
@@ -268,7 +264,7 @@ module.exports = async function run() {
       },
       initialRadarState: {
         host: 'https://tilecache.rainviewer.com',
-        frames: [{ time: 100, path: '/v2/radar/100' }],
+        frames: [],
         updatedAt: '2026-02-14T12:30:00.000Z'
       }
     });
@@ -276,14 +272,33 @@ module.exports = async function run() {
     const fallbackGifResponse = await request(cachedGifFallbackServer, { path: '/api/radar/animation.gif?width=800&height=480' });
     assert.strictEqual(fallbackGifResponse.statusCode, 200);
     assert.strictEqual(fallbackGifResponse.headers['content-type'], 'image/gif');
-    assert.strictEqual(fallbackGifResponse.headers['x-radar-gif-fallback'], '1');
     assert.strictEqual(fallbackGifResponse.bodyBuffer.toString('utf8'), fallbackGif.toString('utf8'));
 
-    const strictGifResponse = await request(cachedGifFallbackServer, { path: '/api/radar/animation.gif?width=800&height=480&strict=1' });
-    assert.strictEqual(strictGifResponse.statusCode, 503);
-    const strictPayload = JSON.parse(strictGifResponse.body);
-    assert.strictEqual(strictPayload.error, 'radar_gif_unavailable');
-    assert.strictEqual(strictPayload.detail, 'ffmpeg_unavailable');
+    // When no static file and no frames, should get 503
+    const emptyGifDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanopi2-gif-empty-'));
+    const noGifServer = createServer({
+      configDir: dir,
+      gitRunner: async () => ({ ok: true }),
+      disablePolling: true,
+      radarGifCacheDir: emptyGifDir,
+      initialExternalState: {
+        weather: { summary: 'Cloudy', tempC: 23 },
+        news: { headlines: [] },
+        bins: { nextType: 'Recycle', nextDate: '2026-02-20' }
+      },
+      initialRadarState: {
+        host: 'https://tilecache.rainviewer.com',
+        frames: [],
+        updatedAt: '2026-02-14T12:30:00.000Z'
+      }
+    });
+    await new Promise((resolve) => noGifServer.listen(0, '127.0.0.1', resolve));
+    const noGifResponse = await request(noGifServer, { path: '/api/radar/animation.gif?width=800&height=480' });
+    assert.strictEqual(noGifResponse.statusCode, 503);
+    const noGifPayload = JSON.parse(noGifResponse.body);
+    assert.strictEqual(noGifPayload.error, 'radar_gif_unavailable');
+    await new Promise((resolve) => noGifServer.close(resolve));
+    fs.rmSync(emptyGifDir, { recursive: true, force: true });
   } finally {
     if (gifCacheDir) {
       fs.rmSync(gifCacheDir, { recursive: true, force: true });

@@ -9,5 +9,9 @@
   "scripts": {
     "start": "node src/server.js",
     "test": "node tests/run-tests.js"
+  },
+  "dependencies": {
+    "gif-encoder-2": "^1.0.5",
+    "sharp": "^0.34.5"
   }
 }

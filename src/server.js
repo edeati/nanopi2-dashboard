@@ -11,7 +11,7 @@ const { createGitSyncService } = require('./lib/git-sync');
 const { createExternalSources } = require('./lib/external-sources');
 const { createRainViewerClient } = require('./lib/rainviewer');
 const { createMapTileClient } = require('./lib/map-tiles');
-const { createRadarAnimationRenderer } = require('./lib/radar-animation');
+const { createRadarGifRenderer } = require('./lib/radar-gif');
 const { createLogger, readDebugConfig } = require('./lib/logger');
 const { createDebugEventStore } = require('./lib/debug-events');
 
@@ -362,25 +362,34 @@ function createServer(options) {
 
   const radarAnimationRenderer = (options && options.radarAnimationProvider)
     ? {
-      canRenderGif: function canRenderGif() { return true; },
-      renderGif: options.radarAnimationProvider,
+      canRender: function canRender() { return true; },
+      getLatestGif: function getLatestGif() { return null; },
+      renderOnce: options.radarAnimationProvider,
+      startSchedule: function startSchedule() { return function stop() {}; },
       warmGif: function warmGifNoop() { return false; }
     }
-    : createRadarAnimationRenderer({
+    : createRadarGifRenderer({
       config: dashboardConfig,
       fetchMapTile,
       fetchRadarTile,
       getRadarState: function getRadarStateRef() { return radarState; },
-      ffmpegBinary: options && options.ffmpegBinary,
-      gifCacheDir: options && options.radarGifCacheDir,
-      logger
+      gifCacheDir: options && options.radarGifCacheDir
     });
 
   async function fetchRadarAnimation(params) {
-    if (!radarAnimationRenderer || typeof radarAnimationRenderer.renderGif !== 'function') {
+    if (!radarAnimationRenderer) {
       throw new Error('radar_animation_unavailable');
     }
-    return radarAnimationRenderer.renderGif(params);
+    // Try serving the static file first
+    const cached = radarAnimationRenderer.getLatestGif();
+    if (cached) {
+      return cached;
+    }
+    // No static file yet — render on demand as fallback
+    if (typeof radarAnimationRenderer.renderOnce === 'function') {
+      return radarAnimationRenderer.renderOnce(params);
+    }
+    throw new Error('radar_animation_unavailable');
   }
 
   function warmRadarAnimation(params) {
@@ -392,8 +401,8 @@ function createServer(options) {
 
   function canRenderRadarGif() {
     return !!(radarAnimationRenderer &&
-      typeof radarAnimationRenderer.canRenderGif === 'function' &&
-      radarAnimationRenderer.canRenderGif());
+      typeof radarAnimationRenderer.canRender === 'function' &&
+      radarAnimationRenderer.canRender());
   }
 
   const app = createApp({
@@ -474,6 +483,16 @@ function createServer(options) {
     stoppers.push(scheduleExternalPolling(sources, externalState, dashboardConfig, timers));
 
     stoppers.push(scheduleRadarPolling(radarClient, radarState, dashboardConfig.radar, timers));
+
+    // Start periodic GIF rendering (fires first render immediately)
+    if (canRenderRadarGif()) {
+      const gifStop = radarAnimationRenderer.startSchedule({
+        width: 800,
+        height: 480,
+        intervalMs: Math.max(30, Number(dashboardConfig.radar.refreshSeconds || 120)) * 1000
+      });
+      stoppers.push(gifStop);
+    }
   }
 
   server.on('close', function onClose() {

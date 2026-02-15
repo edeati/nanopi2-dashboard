@@ -9,6 +9,7 @@ const testModules = [
   './rainviewer.test.js',
   './radar-startup-retry.test.js',
   './radar-animation-cache.test.js',
+  './radar-gif.test.js',
   './map-tiles.test.js',
   './fronius-client.test.js',
   './fronius-service.test.js',
