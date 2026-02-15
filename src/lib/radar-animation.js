@@ -206,6 +206,7 @@ function createRadarAnimationRenderer(options) {
   const fetchRadarTile = options.fetchRadarTile;
   const getRadarState = options.getRadarState;
   const config = options.config || {};
+  const logger = options.logger;
   const ffmpegBinary = options.ffmpegBinary || process.env.FFMPEG_PATH || 'ffmpeg';
   const gifCacheDir = options.gifCacheDir || path.join(os.tmpdir(), 'nanopi2-dashboard-radar-gifs');
   const gifDiskMaxAgeMs = Number(options.gifDiskMaxAgeMs || DISK_GIF_RETENTION_MS);
@@ -215,9 +216,33 @@ function createRadarAnimationRenderer(options) {
   let ffmpegSupported = null;
   let lastDiskCleanupAt = 0;
 
+  function isGifDebugEnabled() {
+    if (!logger) {
+      return false;
+    }
+    if (typeof logger.isGifDebugEnabled === 'function') {
+      return !!logger.isGifDebugEnabled();
+    }
+    return true;
+  }
+
+  function logGif(level, event, fields) {
+    if (!isGifDebugEnabled()) {
+      return;
+    }
+    if (!logger || typeof logger[level] !== 'function') {
+      return;
+    }
+    logger[level](event, fields || {});
+  }
+
   function canRenderGif() {
     if (ffmpegSupported === null) {
       ffmpegSupported = supportsFfmpeg(ffmpegBinary);
+      logGif('info', 'radar_gif_ffmpeg_check', {
+        ffmpegBinary,
+        supported: ffmpegSupported
+      });
     }
     return ffmpegSupported;
   }
@@ -353,6 +378,7 @@ function createRadarAnimationRenderer(options) {
     const now = Date.now();
     const cached = cache.get(cacheKey);
     if (cached && (now - cached.at) < 120000) {
+      logGif('debug', 'radar_gif_cache_hit_memory', { cacheKey });
       return cached.value;
     }
 
@@ -371,13 +397,17 @@ function createRadarAnimationRenderer(options) {
       };
       cache.set(cacheKey, { at: now, value });
       pruneCache();
+      logGif('debug', 'radar_gif_cache_hit_disk', {
+        cacheKey,
+        filePath
+      });
       return value;
     } catch (error) {
       return null;
     }
   }
 
-  function readLatestCached() {
+  function readLatestCached(reason) {
     const now = Date.now();
     maybeCleanupDiskCache(now);
     if (!ensureGifCacheDir()) {
@@ -388,10 +418,15 @@ function createRadarAnimationRenderer(options) {
       return null;
     }
     try {
-      return {
+      const fallback = {
         contentType: 'image/gif',
         body: fs.readFileSync(filePath)
       };
+      logGif('warn', 'radar_gif_fallback_served', {
+        reason: reason || 'fallback_latest',
+        filePath
+      });
+      return fallback;
     } catch (error) {
       return null;
     }
@@ -408,6 +443,13 @@ function createRadarAnimationRenderer(options) {
     });
 
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'radar-gif-'));
+    const renderStartedAt = Date.now();
+    logGif('debug', 'radar_gif_render_started', {
+      width: context.width,
+      height: context.height,
+      frameCount: context.framesSubset.length,
+      tileCount: tiles.length
+    });
     try {
       const mapFiles = [];
       for (let i = 0; i < tiles.length; i += 1) {
@@ -479,6 +521,11 @@ function createRadarAnimationRenderer(options) {
       };
       cache.set(context.cacheKey, { at: now, value });
       pruneCache();
+      logGif('info', 'radar_gif_render_completed', {
+        cacheKey: context.cacheKey,
+        durationMs: Date.now() - renderStartedAt,
+        bytes: body.length
+      });
       return value;
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
@@ -490,10 +537,15 @@ function createRadarAnimationRenderer(options) {
     try {
       context = buildRenderContext(params);
     } catch (error) {
-      const fallback = readLatestCached();
+      const fallback = readLatestCached(error && error.message);
       if (fallback) {
         return fallback;
       }
+      logGif('warn', 'radar_gif_render_failed', {
+        error: error && error.message ? error.message : 'render_failed',
+        stage: 'build_context',
+        stderrSnippet: String(error && error.message ? error.message : '').slice(0, 240)
+      });
       throw error;
     }
     const cached = readCached(context.cacheKey);
@@ -508,10 +560,15 @@ function createRadarAnimationRenderer(options) {
 
     const task = renderGifWithContext(context)
       .catch((error) => {
-        const fallback = readLatestCached();
+        const fallback = readLatestCached(error && error.message);
         if (fallback) {
           return fallback;
         }
+        logGif('warn', 'radar_gif_render_failed', {
+          error: error && error.message ? error.message : 'render_failed',
+          stage: 'render',
+          stderrSnippet: String(error && error.message ? error.message : '').slice(0, 240)
+        });
         throw error;
       })
       .finally(() => {
@@ -526,6 +583,9 @@ function createRadarAnimationRenderer(options) {
     try {
       context = buildRenderContext(params);
     } catch (error) {
+      logGif('debug', 'radar_gif_warm_skipped', {
+        reason: error && error.message ? error.message : 'warm_unavailable'
+      });
       return false;
     }
 

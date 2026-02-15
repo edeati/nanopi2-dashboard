@@ -1,41 +1,19 @@
 'use strict';
 
-const http = require('http');
-const https = require('https');
-const { URL } = require('url');
+const { requestWithDebug } = require('./http-debug');
 
-function requestBuffer(urlString, insecureTLS) {
-  return new Promise((resolve, reject) => {
-    const url = new URL(urlString);
-    const client = url.protocol === 'https:' ? https : http;
-    const options = { method: 'GET' };
-
-    if (url.protocol === 'https:' && insecureTLS) {
-      options.rejectUnauthorized = false;
-    }
-
-    const req = client.request(url, options, (res) => {
-      const chunks = [];
-      res.on('data', (chunk) => chunks.push(chunk));
-      res.on('end', () => {
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          reject(new Error('HTTP ' + res.statusCode));
-          return;
-        }
-        resolve({
-          body: Buffer.concat(chunks),
-          contentType: res.headers['content-type'] || 'application/octet-stream'
-        });
-      });
-    });
-
-    req.on('error', reject);
-    req.end();
+function requestBuffer(urlString, insecureTLS, logger, serviceName) {
+  return requestWithDebug({
+    urlString,
+    method: 'GET',
+    insecureTLS,
+    logger,
+    service: serviceName || 'radar.rainviewer'
   });
 }
 
-async function requestJson(urlString, insecureTLS) {
-  const result = await requestBuffer(urlString, insecureTLS);
+async function requestJson(urlString, insecureTLS, logger, serviceName) {
+  const result = await requestBuffer(urlString, insecureTLS, logger, serviceName);
   return JSON.parse(result.body.toString('utf8'));
 }
 
@@ -64,6 +42,7 @@ function buildRainViewerTileUrl(host, framePath, options) {
 function createRainViewerClient(config) {
   const apiUrl = (config.radar && config.radar.apiUrl) || 'https://api.rainviewer.com/public/weather-maps.json';
   const insecureTLS = !!config.insecureTLS;
+  const logger = config.logger;
 
   const state = {
     host: 'https://tilecache.rainviewer.com',
@@ -74,7 +53,7 @@ function createRainViewerClient(config) {
 
   async function refresh() {
     try {
-      const payload = await requestJson(apiUrl, insecureTLS);
+      const payload = await requestJson(apiUrl, insecureTLS, logger, 'external.rainviewer.meta');
       const parsed = parseRainViewerMeta(payload);
       state.host = parsed.host;
       state.frames = parsed.frames;
@@ -101,7 +80,7 @@ function createRainViewerClient(config) {
       options: styleOptions
     });
 
-    return requestBuffer(tileUrl, insecureTLS);
+    return requestBuffer(tileUrl, insecureTLS, logger, 'external.rainviewer.tile');
   }
 
   function getState() {

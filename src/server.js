@@ -12,6 +12,8 @@ const { createExternalSources } = require('./lib/external-sources');
 const { createRainViewerClient } = require('./lib/rainviewer');
 const { createMapTileClient } = require('./lib/map-tiles');
 const { createRadarAnimationRenderer } = require('./lib/radar-animation');
+const { createLogger, readDebugConfig } = require('./lib/logger');
+const { createDebugEventStore } = require('./lib/debug-events');
 
 function createEmptyDailyBins(dayKey) {
   const bins = [];
@@ -232,6 +234,18 @@ function createServer(options) {
   const baseDir = (options && options.baseDir) || process.cwd();
   const configDir = (options && options.configDir) || path.join(baseDir, 'config');
   const dashboardConfig = loadRuntimeConfig({ configDir, envDir: baseDir });
+  const debugConfig = readDebugConfig((options && options.env) || process.env);
+  const debugEventStore = (options && options.debugEventStore) || createDebugEventStore({
+    maxEntries: debugConfig.eventMaxEntries
+  });
+  const logger = (options && options.logger) || createLogger({
+    level: debugConfig.level,
+    debugExternal: debugConfig.debugExternal,
+    debugGif: debugConfig.debugGif,
+    externalBodyMode: debugConfig.externalBodyMode,
+    bodyMaxBytes: debugConfig.bodyMaxBytes,
+    eventStore: debugEventStore
+  });
   const authConfig = loadAuthConfig(configDir);
 
   const froniusState = createFroniusStateManager({
@@ -260,10 +274,11 @@ function createServer(options) {
   let solarDailyBins = ((options && options.initialSolarDailyBins) || []).slice();
   let solarHourlyBins = aggregateDailyToHourlyBins(solarDailyBins);
 
-  const radarClient = (options && options.radarClient) || createRainViewerClient(dashboardConfig);
+  const sharedConfig = Object.assign({}, dashboardConfig, { logger });
+  const radarClient = (options && options.radarClient) || createRainViewerClient(sharedConfig);
   const radarTileCache = new Map();
   const mapTileCache = new Map();
-  const mapClient = (options && options.mapClient) || createMapTileClient(dashboardConfig);
+  const mapClient = (options && options.mapClient) || createMapTileClient(sharedConfig);
 
   async function fetchRadarTile(params) {
     if (options && options.radarTileProvider) {
@@ -309,7 +324,8 @@ function createServer(options) {
       fetchRadarTile,
       getRadarState: function getRadarStateRef() { return radarState; },
       ffmpegBinary: options && options.ffmpegBinary,
-      gifCacheDir: options && options.radarGifCacheDir
+      gifCacheDir: options && options.radarGifCacheDir,
+      logger
     });
 
   async function fetchRadarAnimation(params) {
@@ -348,6 +364,21 @@ function createServer(options) {
     warmRadarAnimation,
     canRenderRadarGif,
     fetchMapTile,
+    getDebugEvents: function getDebugEvents(limit) { return debugEventStore.list(limit); },
+    clearDebugEvents: function clearDebugEvents() {
+      const before = debugEventStore.size();
+      debugEventStore.clear();
+      return before;
+    },
+    getDebugConfig: function getDebugConfig() {
+      return {
+        logLevel: logger.level || debugConfig.level,
+        debugExternal: typeof logger.isExternalDebugEnabled === 'function' ? logger.isExternalDebugEnabled() : !!debugConfig.debugExternal,
+        debugGif: typeof logger.isGifDebugEnabled === 'function' ? logger.isGifDebugEnabled() : !!debugConfig.debugGif,
+        externalBodyMode: typeof logger.getExternalBodyMode === 'function' ? logger.getExternalBodyMode() : debugConfig.externalBodyMode,
+        bodyMaxBytes: typeof logger.getBodyMaxBytes === 'function' ? logger.getBodyMaxBytes() : debugConfig.bodyMaxBytes
+      };
+    },
     publicDir: path.join(baseDir, 'public')
   });
 
@@ -363,7 +394,7 @@ function createServer(options) {
   stoppers.push(scheduleGitAutoSync(gitSync, dashboardConfig.git, timers));
 
   if (!(options && options.disablePolling)) {
-    const client = (options && options.froniusClient) || createFroniusClient(dashboardConfig.fronius.baseUrl);
+    const client = (options && options.froniusClient) || createFroniusClient(dashboardConfig.fronius.baseUrl, { logger });
     stoppers.push(scheduleFroniusPolling(client, froniusState, dashboardConfig.fronius, function onRealtime(realtime, now) {
       solarHistory.push({
         ts: now,
@@ -391,7 +422,7 @@ function createServer(options) {
       solarHourlyBins = aggregateDailyToHourlyBins(solarDailyBins);
     }, timers));
 
-    const sources = (options && options.externalSources) || createExternalSources(dashboardConfig);
+    const sources = (options && options.externalSources) || createExternalSources(Object.assign({}, dashboardConfig, { logger }));
     stoppers.push(scheduleExternalPolling(sources, externalState, dashboardConfig, timers));
 
     stoppers.push(scheduleRadarPolling(radarClient, radarState, dashboardConfig.radar, timers));

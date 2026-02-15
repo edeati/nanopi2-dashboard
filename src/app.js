@@ -99,6 +99,21 @@ function parseDimension(raw, fallback) {
   return Math.min(1920, Math.max(240, Math.floor(n)));
 }
 
+function parsePositiveInt(raw, fallback, min, max) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) {
+    return fallback;
+  }
+  const out = Math.floor(n);
+  if (Number.isFinite(min) && out < min) {
+    return min;
+  }
+  if (Number.isFinite(max) && out > max) {
+    return max;
+  }
+  return out;
+}
+
 function createApp(options) {
   let dashboardConfig = options.dashboardConfig;
   const authConfig = options.authConfig;
@@ -116,6 +131,9 @@ function createApp(options) {
   const warmRadarAnimation = options.warmRadarAnimation || function warmRadarAnimationDefault() { return false; };
   const canRenderRadarGif = options.canRenderRadarGif || function canRenderRadarGifDefault() { return false; };
   const fetchMapTile = options.fetchMapTile;
+  const getDebugEvents = options.getDebugEvents || function getDebugEventsDefault() { return []; };
+  const clearDebugEvents = options.clearDebugEvents || function clearDebugEventsDefault() { return 0; };
+  const getDebugConfig = options.getDebugConfig || function getDebugConfigDefault() { return {}; };
   const sessions = new Map();
 
   function requireAuth(req, res) {
@@ -364,6 +382,29 @@ function createApp(options) {
       };
       dashboardConfig = saveDashboardConfig(configDir, merged);
       return sendJson(res, 200, { ok: true, config: dashboardConfig });
+    }
+
+    if (req.method === 'GET' && urlPath === '/api/admin/debug/events') {
+      if (!requireAuth(req, res)) {
+        return;
+      }
+      const limit = parsePositiveInt(requestUrl.searchParams.get('limit'), 200, 1, 5000);
+      const events = getDebugEvents(limit);
+      return sendJson(res, 200, {
+        events,
+        count: events.length,
+        config: getDebugConfig()
+      });
+    }
+
+    if (req.method === 'POST' && urlPath === '/api/admin/debug/clear') {
+      if (!requireAuth(req, res)) {
+        return;
+      }
+      return sendJson(res, 200, {
+        ok: true,
+        cleared: clearDebugEvents()
+      });
     }
 
     if (req.method === 'GET' && urlPath === '/') {

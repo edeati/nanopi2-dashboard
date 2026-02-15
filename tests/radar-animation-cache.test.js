@@ -47,6 +47,14 @@ module.exports = async function run() {
     const fallbackBody = Buffer.from('GIF89a-fallback');
     const fallbackFile = path.join(dir, buildGifCacheFilename('fallback-only', now - 500));
     fs.writeFileSync(fallbackFile, fallbackBody);
+    const events = [];
+    const logger = {
+      debug: (event, fields) => events.push({ level: 'debug', event, fields: fields || {} }),
+      info: (event, fields) => events.push({ level: 'info', event, fields: fields || {} }),
+      warn: (event, fields) => events.push({ level: 'warn', event, fields: fields || {} }),
+      error: (event, fields) => events.push({ level: 'error', event, fields: fields || {} }),
+      isGifDebugEnabled: () => true
+    };
 
     const renderer = createRadarAnimationRenderer({
       config: { radar: { zoom: 7, providerMaxZoom: 7, lat: -27.47, lon: 153.02 } },
@@ -54,11 +62,27 @@ module.exports = async function run() {
       fetchRadarTile: async () => ({ contentType: 'image/png', body: Buffer.alloc(0) }),
       getRadarState: function getRadarState() { return { frames: [] }; },
       ffmpegBinary: '/definitely-missing-ffmpeg',
-      gifCacheDir: dir
+      gifCacheDir: dir,
+      logger
     });
     const fallback = await renderer.renderGif({ width: 800, height: 480 });
     assert.ok(fallback && Buffer.isBuffer(fallback.body), 'renderer should return cached gif when rendering unavailable');
     assert.strictEqual(fallback.body.toString('utf8'), fallbackBody.toString('utf8'));
+    assert.ok(events.some((entry) => entry.event === 'radar_gif_fallback_served' && entry.fields.reason === 'ffmpeg_unavailable'));
+
+    const noFallbackRenderer = createRadarAnimationRenderer({
+      config: { radar: { zoom: 7, providerMaxZoom: 7, lat: -27.47, lon: 153.02 } },
+      fetchMapTile: async () => ({ contentType: 'image/png', body: Buffer.alloc(0) }),
+      fetchRadarTile: async () => ({ contentType: 'image/png', body: Buffer.alloc(0) }),
+      getRadarState: function getRadarStateEmpty() { return { frames: [] }; },
+      ffmpegBinary: '/definitely-missing-ffmpeg',
+      gifCacheDir: path.join(dir, 'missing-cache'),
+      logger
+    });
+    await assert.rejects(async () => {
+      await noFallbackRenderer.renderGif({ width: 800, height: 480 });
+    }, /ffmpeg_unavailable/);
+    assert.ok(events.some((entry) => entry.event === 'radar_gif_render_failed' && entry.fields.error === 'ffmpeg_unavailable'));
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

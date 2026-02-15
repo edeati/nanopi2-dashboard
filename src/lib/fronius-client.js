@@ -1,39 +1,19 @@
 'use strict';
 
-const http = require('http');
-const https = require('https');
-const { URL } = require('url');
+const { requestWithDebug } = require('./http-debug');
 
-function getJson(urlString) {
-  return new Promise((resolve, reject) => {
-    const url = new URL(urlString);
-    const client = url.protocol === 'https:' ? https : http;
-
-    const req = client.request(url, { method: 'GET' }, (res) => {
-      let data = '';
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-      res.on('end', () => {
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          reject(new Error('HTTP ' + res.statusCode));
-          return;
-        }
-
-        try {
-          resolve(JSON.parse(data));
-        } catch (error) {
-          reject(error);
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.end();
+async function getJson(urlString, logger, serviceName) {
+  const result = await requestWithDebug({
+    urlString,
+    method: 'GET',
+    logger,
+    service: serviceName || 'external.fronius'
   });
+  return JSON.parse(result.body.toString('utf8'));
 }
 
-function createFroniusClient(baseUrl) {
+function createFroniusClient(baseUrl, options) {
+  const logger = options && options.logger;
   const root = String(baseUrl || '').replace(/\/$/, '');
 
   function getSeriesLast(series) {
@@ -101,7 +81,7 @@ function createFroniusClient(baseUrl) {
 
   return {
     async fetchRealtime() {
-      const payload = await getJson(root + '/solar_api/v1/GetPowerFlowRealtimeData.fcgi');
+      const payload = await getJson(root + '/solar_api/v1/GetPowerFlowRealtimeData.fcgi', logger, 'external.fronius.realtime');
       const body = payload && payload.Body && payload.Body.Data ? payload.Body.Data : {};
       const inverters = body.Inverters || {};
       const inverterKeys = Object.keys(inverters);
@@ -127,7 +107,9 @@ function createFroniusClient(baseUrl) {
         '&Channel=EnergyReal_WAC_Minus_Absolute' +
         '&Channel=EnergyReal_WAC_Phase_1_Consumed' +
         '&Channel=EnergyReal_WAC_Phase_2_Consumed' +
-        '&Channel=EnergyReal_WAC_Phase_3_Consumed'
+        '&Channel=EnergyReal_WAC_Phase_3_Consumed',
+        logger,
+        'external.fronius.daily_sum'
       );
       const data = payload && payload.Body && payload.Body.Data ? payload.Body.Data : {};
       const importAbsoluteWh = collectSeriesLast(data, 'EnergyReal_WAC_Plus_Absolute');
@@ -155,7 +137,7 @@ function createFroniusClient(baseUrl) {
         '&Channel=EnergyReal_WAC_Phase_1_Consumed' +
         '&Channel=EnergyReal_WAC_Phase_2_Consumed' +
         '&Channel=EnergyReal_WAC_Phase_3_Consumed';
-      const payload = await getJson(url);
+      const payload = await getJson(url, logger, 'external.fronius.daily_detail');
       const data = payload && payload.Body && payload.Body.Data ? payload.Body.Data : {};
       const keys = Object.keys(data);
       const inverterKey = keys.find((key) => key.indexOf('inverter/') === 0);

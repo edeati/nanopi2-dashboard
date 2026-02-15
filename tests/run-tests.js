@@ -4,6 +4,8 @@ const testModules = [
   './config-loader.test.js',
   './external-sources.test.js',
   './env-overrides.test.js',
+  './logger.test.js',
+  './http-debug.test.js',
   './rainviewer.test.js',
   './radar-animation-cache.test.js',
   './map-tiles.test.js',

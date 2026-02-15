@@ -1,44 +1,26 @@
 'use strict';
 
-const http = require('http');
-const https = require('https');
-const { URL } = require('url');
+const { requestWithDebug } = require('./http-debug');
 
 function createFetcher(options) {
   const insecureTLS = !!(options && options.insecureTLS);
+  const logger = options && options.logger;
 
-  return function fetchText(urlString) {
+  return function fetchText(urlString, serviceName) {
     return new Promise((resolve, reject) => {
       if (!urlString) {
         resolve('');
         return;
       }
-
-      const url = new URL(urlString);
-      const client = url.protocol === 'https:' ? https : http;
-      const requestOptions = {
-        method: 'GET'
-      };
-
-      if (url.protocol === 'https:' && insecureTLS) {
-        requestOptions.rejectUnauthorized = false;
-      }
-
-      const req = client.request(url, requestOptions, (res) => {
-        let data = '';
-        res.on('data', (chunk) => {
-          data += chunk;
-        });
-        res.on('end', () => {
-          if (res.statusCode < 200 || res.statusCode >= 300) {
-            reject(new Error('HTTP ' + res.statusCode));
-            return;
-          }
-          resolve(data);
-        });
-      });
-      req.on('error', reject);
-      req.end();
+      requestWithDebug({
+        urlString,
+        method: 'GET',
+        insecureTLS,
+        logger,
+        service: serviceName || 'external.fetch_text'
+      }).then((result) => {
+        resolve(result.body.toString('utf8'));
+      }).catch(reject);
     });
   };
 }
@@ -434,7 +416,8 @@ function parseBinsPayload(json, nowDate) {
 
 function createExternalSources(config, overrides) {
   const fetchText = (overrides && overrides.fetchText) || createFetcher({
-    insecureTLS: !!config.insecureTLS
+    insecureTLS: !!config.insecureTLS,
+    logger: (overrides && overrides.traceLogger) || config.logger
   });
   const nowProvider = (overrides && overrides.now) || function defaultNow() { return new Date(); };
   const logger = (overrides && overrides.logger) || console;
@@ -479,9 +462,9 @@ function createExternalSources(config, overrides) {
 
         try {
           const url = buildOpenWeatherUrl(weatherConfig);
-          const raw = await fetchText(url);
+          const raw = await fetchText(url, 'external.weather.current');
           const json = JSON.parse(raw);
-          const forecastRaw = await fetchText(buildOpenWeatherForecastUrl(weatherConfig));
+          const forecastRaw = await fetchText(buildOpenWeatherForecastUrl(weatherConfig), 'external.weather.forecast');
           const forecastJson = JSON.parse(forecastRaw);
           const summary = (json.weather && json.weather[0] && (json.weather[0].description || json.weather[0].main)) || 'Unknown';
           const temp = Number(json.main && json.main.temp ? json.main.temp : 0);
@@ -507,7 +490,7 @@ function createExternalSources(config, overrides) {
 
       if (weatherConfig.endpoint) {
         try {
-          const raw = await fetchText(weatherConfig.endpoint);
+          const raw = await fetchText(weatherConfig.endpoint, 'external.weather.custom');
           const json = JSON.parse(raw);
           return {
             summary: json.summary || 'Unknown',
@@ -542,7 +525,7 @@ function createExternalSources(config, overrides) {
       if (!config.news.feedUrl) {
         return { headlines: [] };
       }
-      const xml = await fetchText(config.news.feedUrl);
+      const xml = await fetchText(config.news.feedUrl, 'external.news');
       return { headlines: parseNewsTitles(xml, Number(config.news.maxItems || 5)) };
     },
 
@@ -555,7 +538,7 @@ function createExternalSources(config, overrides) {
       }
       let raw;
       try {
-        raw = await fetchText(binsUrl);
+        raw = await fetchText(binsUrl, 'external.bins');
       } catch (error) {
         logBinsDebug('fetch failed: ' + (error && error.message ? error.message : 'bins_fetch_failed'));
         return {

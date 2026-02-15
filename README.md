@@ -51,6 +51,27 @@ If HTTPS certificate validation fails due to old CA/cipher support, set:
 
 This allows server-side HTTPS fetches without certificate verification. Use only on trusted networks.
 
+## Debugging external calls and GIF rendering
+
+Debugging is off by default. Enable with env vars:
+
+```bash
+LOG_LEVEL=debug
+DEBUG_EXTERNAL=1
+DEBUG_GIF=1
+DEBUG_EXTERNAL_BODY_MODE=full
+DEBUG_BODY_MAX_BYTES=65536
+```
+
+Supported body modes:
+- `metadata` (status/timing only)
+- `metadata_response` (adds response size and content-type)
+- `full` (adds capped request/response bodies; binary is base64)
+
+Debug events are buffered in memory and available after admin login:
+- `GET /api/admin/debug/events?limit=200`
+- `POST /api/admin/debug/clear`
+
 ## Repository layout
 
 - `src/` server and runtime logic

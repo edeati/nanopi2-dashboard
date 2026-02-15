@@ -8,6 +8,7 @@ const path = require('path');
 const { pbkdf2Sync } = require('crypto');
 
 const { createServer } = require('../src/server');
+const { createDebugEventStore } = require('../src/lib/debug-events');
 
 function createHash(password, salt, iterations) {
   return pbkdf2Sync(password, salt, iterations, 64, 'sha512').toString('hex');
@@ -84,12 +85,20 @@ module.exports = async function run() {
     }));
 
     const calls = [];
+    const debugEventStore = createDebugEventStore({ maxEntries: 10 });
+    debugEventStore.push({
+      ts: '2026-02-15T00:00:00.000Z',
+      level: 'info',
+      event: 'seed_debug_event'
+    });
     server = createServer({
       configDir: dir,
+      disablePolling: true,
       gitRunner: async (args) => {
         calls.push(args.join(' '));
         return { ok: true, stdout: 'ok', stderr: '' };
-      }
+      },
+      debugEventStore
     });
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 
@@ -134,6 +143,35 @@ module.exports = async function run() {
       }
     }));
     assert.strictEqual(updateRes.statusCode, 200);
+
+    const debugEventsRes = await request(server, {
+      path: '/api/admin/debug/events?limit=5',
+      headers: { cookie }
+    });
+    assert.strictEqual(debugEventsRes.statusCode, 200);
+    const debugEventsPayload = JSON.parse(debugEventsRes.body);
+    assert.ok(Array.isArray(debugEventsPayload.events));
+    assert.ok(debugEventsPayload.events.some((entry) => entry.event === 'seed_debug_event'));
+
+    const debugClearRes = await request(server, {
+      path: '/api/admin/debug/clear',
+      method: 'POST',
+      headers: {
+        cookie,
+        'content-type': 'application/json'
+      }
+    }, JSON.stringify({}));
+    assert.strictEqual(debugClearRes.statusCode, 200);
+    const debugClearPayload = JSON.parse(debugClearRes.body);
+    assert.ok(debugClearPayload.cleared >= 1);
+
+    const debugEventsAfterRes = await request(server, {
+      path: '/api/admin/debug/events?limit=5',
+      headers: { cookie }
+    });
+    assert.strictEqual(debugEventsAfterRes.statusCode, 200);
+    const debugEventsAfterPayload = JSON.parse(debugEventsAfterRes.body);
+    assert.strictEqual(debugEventsAfterPayload.events.length, 0);
 
     const persisted = JSON.parse(fs.readFileSync(path.join(dir, 'dashboard.json'), 'utf8'));
     assert.strictEqual(persisted.rotation.focusSeconds, 45);
