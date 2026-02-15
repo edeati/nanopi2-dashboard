@@ -393,7 +393,8 @@ function createRadarAnimationRenderer(options) {
     try {
       const value = {
         contentType: 'image/gif',
-        body: fs.readFileSync(filePath)
+        body: fs.readFileSync(filePath),
+        isFallback: false
       };
       cache.set(cacheKey, { at: now, value });
       pruneCache();
@@ -420,7 +421,8 @@ function createRadarAnimationRenderer(options) {
     try {
       const fallback = {
         contentType: 'image/gif',
-        body: fs.readFileSync(filePath)
+        body: fs.readFileSync(filePath),
+        isFallback: true
       };
       logGif('warn', 'radar_gif_fallback_served', {
         reason: reason || 'fallback_latest',
@@ -517,7 +519,8 @@ function createRadarAnimationRenderer(options) {
 
       const value = {
         contentType: 'image/gif',
-        body: body
+        body: body,
+        isFallback: false
       };
       cache.set(context.cacheKey, { at: now, value });
       pruneCache();
@@ -533,12 +536,13 @@ function createRadarAnimationRenderer(options) {
   }
 
   async function renderGif(params) {
+    const allowFallbackLatest = !params || !params.strict;
     let context;
     try {
       context = buildRenderContext(params);
     } catch (error) {
-      const fallback = readLatestCached(error && error.message);
-      if (fallback) {
+      const fallback = allowFallbackLatest ? readLatestCached(error && error.message) : null;
+      if (fallback && allowFallbackLatest) {
         return fallback;
       }
       logGif('warn', 'radar_gif_render_failed', {
@@ -550,6 +554,9 @@ function createRadarAnimationRenderer(options) {
     }
     const cached = readCached(context.cacheKey);
     if (cached) {
+      if (typeof cached.isFallback === 'undefined') {
+        cached.isFallback = false;
+      }
       return cached;
     }
 
@@ -560,8 +567,8 @@ function createRadarAnimationRenderer(options) {
 
     const task = renderGifWithContext(context)
       .catch((error) => {
-        const fallback = readLatestCached(error && error.message);
-        if (fallback) {
+        const fallback = allowFallbackLatest ? readLatestCached(error && error.message) : null;
+        if (fallback && allowFallbackLatest) {
           return fallback;
         }
         logGif('warn', 'radar_gif_render_failed', {

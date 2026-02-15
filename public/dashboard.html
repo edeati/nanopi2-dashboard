@@ -240,7 +240,7 @@
 
     #mainSolar {
       display: grid;
-      grid-template-rows: auto 1fr auto;
+      grid-template-rows: auto auto 1fr;
       gap: 4px;
       min-height: 0;
     }
@@ -255,19 +255,19 @@
     .solar-gauge {
       position: relative;
       display: grid;
-      grid-template-columns: 70px 1fr;
+      grid-template-columns: 78px 1fr;
       align-items: center;
       gap: 8px;
       border: 1px solid rgba(96, 105, 118, 0.45);
       border-radius: 10px;
       background: rgba(15, 17, 22, 0.92);
       padding: 6px;
-      min-height: 76px;
+      min-height: 82px;
     }
 
     .solar-gauge canvas {
-      width: 64px;
-      height: 64px;
+      width: 70px;
+      height: 70px;
       border-radius: 50%;
       background: transparent;
       display: block;
@@ -305,13 +305,13 @@
       background: rgba(14, 16, 20, 0.9);
       margin-bottom: 0;
       overflow: hidden;
-      min-height: 122px;
-      height: 100%;
+      min-height: 104px;
+      height: 104px;
     }
 
     .chart {
       width: 100%;
-      height: 100%;
+      height: 104px;
       display: block;
       border: 0;
       background: transparent;
@@ -322,6 +322,7 @@
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 6px;
       min-height: 0;
+      align-content: stretch;
     }
 
     .solar-status-card {
@@ -329,31 +330,33 @@
       border: 1px solid rgba(92, 106, 122, 0.45);
       border-radius: 9px;
       background: rgba(12, 15, 20, 0.82);
-      padding: 8px 10px;
+      padding: 10px 10px;
       display: grid;
       align-content: center;
-      min-height: 74px;
+      justify-items: center;
+      min-height: 90px;
       overflow: hidden;
+      text-align: center;
     }
 
     .solar-status-icon {
       position: absolute;
-      right: 5px;
+      left: 50%;
       top: 50%;
-      transform: translateY(-50%);
+      transform: translate(-50%, -50%);
       width: auto;
       height: auto;
       border-radius: 0;
       display: block;
       background: transparent;
-      font-size: 54px;
+      font-size: 62px;
       line-height: 1;
-      opacity: 0.2;
+      opacity: 0.16;
       pointer-events: none;
     }
 
     .solar-status-label {
-      font-size: 10px;
+      font-size: 11px;
       color: #95a5b6;
       letter-spacing: 0.06em;
       text-transform: uppercase;
@@ -362,11 +365,12 @@
       text-overflow: ellipsis;
       position: relative;
       z-index: 1;
+      text-align: center;
     }
 
     .solar-status-value {
       font-family: var(--font-ui);
-      font-size: 34px;
+      font-size: 38px;
       color: #eef2f6;
       font-weight: 700;
       white-space: nowrap;
@@ -426,13 +430,13 @@
 
     .metric {
       font-family: var(--font-display);
-      font-size: 32px;
+      font-size: 36px;
       line-height: 1;
       color: #f0f3f7;
       text-transform: capitalize;
     }
 
-    .sub { font-family: var(--font-data); font-size: 16px; color: var(--muted); }
+    .sub { font-family: var(--font-data); font-size: 18px; color: var(--muted); }
 
     #binsIcon {
       position: absolute;
@@ -454,8 +458,9 @@
       align-content: center;
       position: relative;
       z-index: 1;
-      justify-self: start;
-      padding-left: 4px;
+      justify-self: center;
+      width: 100%;
+      text-align: center;
     }
 
     #binsType {
@@ -483,12 +488,15 @@
     }
 
     .weather-current {
-      display: block;
+      display: grid;
+      align-items: stretch;
       min-height: 0;
     }
 
     .weather-now-panel {
       position: relative;
+      display: grid;
+      place-items: center;
       border-radius: 14px;
       background:
         linear-gradient(165deg, rgba(11, 70, 103, 0.48), rgba(8, 34, 58, 0.42)),
@@ -501,6 +509,8 @@
       display: grid;
       gap: 3px;
       align-content: center;
+      justify-items: center;
+      text-align: center;
       min-width: 0;
       position: relative;
       z-index: 1;
@@ -508,13 +518,13 @@
 
     #weatherIcon {
       position: absolute;
-      right: 2px;
+      left: 50%;
       top: 50%;
-      transform: translateY(-50%);
-      font-size: 112px;
+      transform: translate(-50%, -50%);
+      font-size: 120px;
       line-height: 1;
       filter: drop-shadow(0 2px 7px rgba(0, 0, 0, 0.32));
-      opacity: 0.24;
+      opacity: 0.18;
       pointer-events: none;
     }
 
@@ -532,7 +542,7 @@
 
     .weather-temp-large {
       font-family: var(--font-ui);
-      font-size: clamp(34px, 5.2vh, 48px);
+      font-size: clamp(38px, 5.7vh, 52px);
       font-weight: 700;
       line-height: 1;
       color: #f8fdff;
@@ -777,7 +787,7 @@
       }
 
       .solar-status-value {
-        font-size: 30px;
+        font-size: 34px;
       }
 
       #solarStatusGrid {
@@ -785,12 +795,12 @@
       }
 
       .solar-status-card {
-        min-height: 74px;
+        min-height: 86px;
         padding: 7px 8px;
       }
 
       .metric {
-        font-size: 30px;
+        font-size: 33px;
       }
 
     }
@@ -928,6 +938,7 @@
       var RADAR_TILE_OVERDRAW = 2;
       var radarMeta = null;
       var mapTileCache = {};
+      var mapDerivedTileCache = {};
       var radarTileCache = {};
       var radarAnimStart = Date.now();
       var radarLastFrameKey = '';
@@ -939,10 +950,14 @@
       var radarGifLoadedOnce = false;
       var radarGifLastMetaStamp = '';
       var radarGifPendingMetaStamp = '';
+      var radarGifLoadingStartedAt = 0;
+      var radarGifMetaMissSinceMs = 0;
+      var radarGifStaleFallbackActive = false;
       var radarStartupPrefetchDone = false;
       var radarStartupHoldUntilMs = Date.now() + 6000;
       var radarAnimationModeKnown = false;
       var radarPreferredMode = 'png';
+      var RADAR_GIF_STALE_TIMEOUT_MS = 5 * 60 * 1000;
       var radarRainLikely = false;
       var radarHeavyRain = false;
       var rainLikelyConfidence = 0;
@@ -981,8 +996,11 @@
 
       radarGifImage.onload = function () {
         radarGifLoading = false;
+        radarGifLoadingStartedAt = 0;
         radarGifReady = true;
         radarGifLoadedOnce = true;
+        radarGifMetaMissSinceMs = 0;
+        radarGifStaleFallbackActive = false;
         radarGifLastMetaStamp = radarGifPendingMetaStamp || radarGifLastMetaStamp;
         radarStartupPrefetchDone = true;
         setRadarMode('gif');
@@ -991,6 +1009,23 @@
 
       radarGifImage.onerror = function () {
         radarGifLoading = false;
+        radarGifLoadingStartedAt = 0;
+        var pendingMetaMissing = !!radarGifPendingMetaStamp && radarGifPendingMetaStamp !== radarGifLastMetaStamp;
+        if (pendingMetaMissing && !radarGifMetaMissSinceMs) {
+          radarGifMetaMissSinceMs = Date.now();
+        }
+        if (radarGifLoadedOnce) {
+          if (pendingMetaMissing && (Date.now() - radarGifMetaMissSinceMs) >= RADAR_GIF_STALE_TIMEOUT_MS) {
+            radarGifStaleFallbackActive = true;
+            setRadarMode('png');
+          }
+          if (radarPreferredMode === 'gif') {
+            setTimeout(function () {
+              warmRadarGif(true);
+            }, 1200);
+          }
+          return;
+        }
         if (!radarGifLoadedOnce) {
           if (radarPreferredMode === 'gif' && Date.now() < radarStartupHoldUntilMs) {
             setTimeout(function () {
@@ -1115,6 +1150,7 @@
         fit(usageGaugeCanvas);
         fit(usageBarCanvas);
         fit(solarBarCanvas);
+        mapDerivedTileCache = {};
         lastSolarBarsSig = '';
         lastSolarGaugeSig = '';
         solarBarsDrawScheduled = false;
@@ -1202,10 +1238,61 @@
         return null;
       }
 
+      function buildDerivedMapTile(parentImg, childNormX, childNormY, z, parentDelta) {
+        var scale = Math.pow(2, parentDelta);
+        var localX = ((childNormX % scale) + scale) % scale;
+        var localY = ((childNormY % scale) + scale) % scale;
+        var key = 'md:' + z + ':' + childNormX + ':' + childNormY + ':' + parentDelta;
+        if (mapDerivedTileCache[key]) {
+          return mapDerivedTileCache[key];
+        }
+        var sampleSize = TILE_SIZE / scale;
+        var canvas = document.createElement('canvas');
+        canvas.width = TILE_SIZE;
+        canvas.height = TILE_SIZE;
+        var ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(
+          parentImg,
+          Math.round(localX * sampleSize),
+          Math.round(localY * sampleSize),
+          Math.max(1, Math.round(sampleSize)),
+          Math.max(1, Math.round(sampleSize)),
+          0,
+          0,
+          TILE_SIZE,
+          TILE_SIZE
+        );
+        mapDerivedTileCache[key] = canvas;
+        return canvas;
+      }
+
+      async function loadMapTileFromLowerZoom(z, x, y) {
+        var norm = normalizeTileCoords(z, x, y);
+        for (var delta = 1; delta <= 3; delta += 1) {
+          var parentZ = z - delta;
+          if (parentZ < 0) {
+            break;
+          }
+          var scale = Math.pow(2, delta);
+          var parentX = Math.floor(norm.x / scale);
+          var parentY = Math.floor(norm.y / scale);
+          var parent = await loadMapTile(parentZ, parentX, parentY);
+          if (parent) {
+            return buildDerivedMapTile(parent, norm.x, norm.y, z, delta);
+          }
+        }
+        return null;
+      }
+
       async function loadMapTileWithFallback(z, x, y) {
         var primary = await loadMapTile(z, x, y);
         if (primary) {
           return primary;
+        }
+        var derived = await loadMapTileFromLowerZoom(z, x, y);
+        if (derived) {
+          return derived;
         }
         for (var delta = 1; delta <= 3; delta += 1) {
           var left = getCachedMapTile(z, x - delta, y);
@@ -1450,7 +1537,7 @@
       }
 
       function setRadarMode(mode) {
-        radarRenderMode = (mode === 'gif' && radarGifReady) ? 'gif' : 'png';
+        radarRenderMode = (mode === 'gif' && radarGifReady && !radarGifStaleFallbackActive) ? 'gif' : 'png';
         if (radarRenderMode === 'gif') {
           radarGifImage.style.display = 'block';
           radarCanvas.style.display = 'none';
@@ -1478,21 +1565,26 @@
         if (!radarGifPath || radarGifLoading) {
           return false;
         }
+        var now = Date.now();
         var metaStamp = getRadarMetaStamp();
         var metaChanged = !!metaStamp && metaStamp !== radarGifLastMetaStamp;
         if (!force) {
           if (metaStamp && !metaChanged) {
             return false;
           }
-          if (!metaChanged && Date.now() < radarGifRefreshAt) {
+          if (!metaChanged && now < radarGifRefreshAt) {
             return false;
           }
         }
-        radarGifRefreshAt = Date.now() + (15 * 60 * 1000);
+        if (metaChanged && !radarGifMetaMissSinceMs) {
+          radarGifMetaMissSinceMs = now;
+        }
+        radarGifRefreshAt = now + (5 * 60 * 1000);
         radarGifLoading = true;
+        radarGifLoadingStartedAt = now;
         radarGifPendingMetaStamp = metaStamp;
         var sep = radarGifPath.indexOf('?') > -1 ? '&' : '?';
-        radarGifImage.src = radarGifPath + sep + '_=' + Date.now();
+        radarGifImage.src = radarGifPath + sep + 'strict=1&_=' + now;
         return true;
       }
 
@@ -1511,13 +1603,21 @@
               startupWarmStarted = warmRadarGif(true);
             }
             if (radarPreferredMode === 'gif') {
-              if (!radarGifReady) {
+              if (!radarGifLoadedOnce && !radarGifReady) {
                 setRadarMode('png');
                 warmRadarGif(true);
                 radarStartupPrefetchDone = false;
                 maybeStartRadarLoop();
                 return;
               }
+              if (radarGifStaleFallbackActive) {
+                setRadarMode('png');
+                warmRadarGif(true);
+                radarStartupPrefetchDone = true;
+                maybeStartRadarLoop();
+                return;
+              }
+              setRadarMode('gif');
               warmRadarGif(false);
               radarStartupPrefetchDone = true;
               maybeStartRadarLoop();
@@ -2101,6 +2201,21 @@
 
       function uiLoop() {
         var now = Date.now();
+        if (
+          radarGifLoading &&
+          radarGifPendingMetaStamp &&
+          radarGifPendingMetaStamp !== radarGifLastMetaStamp &&
+          !radarGifStaleFallbackActive
+        ) {
+          if (!radarGifMetaMissSinceMs) {
+            radarGifMetaMissSinceMs = radarGifLoadingStartedAt || now;
+          }
+          if ((now - radarGifMetaMissSinceMs) >= RADAR_GIF_STALE_TIMEOUT_MS) {
+            radarGifStaleFallbackActive = true;
+            setRadarMode('png');
+          }
+        }
+
         if (takeoverActive) {
           if (takeoverUntilMs > 0 && now >= takeoverUntilMs) {
             endTakeover();

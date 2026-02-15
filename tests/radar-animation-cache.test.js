@@ -70,6 +70,10 @@ module.exports = async function run() {
     assert.strictEqual(fallback.body.toString('utf8'), fallbackBody.toString('utf8'));
     assert.ok(events.some((entry) => entry.event === 'radar_gif_fallback_served' && entry.fields.reason === 'ffmpeg_unavailable'));
 
+    await assert.rejects(async () => {
+      await renderer.renderGif({ width: 800, height: 480, strict: true });
+    }, /ffmpeg_unavailable/);
+
     const noFallbackRenderer = createRadarAnimationRenderer({
       config: { radar: { zoom: 7, providerMaxZoom: 7, lat: -27.47, lon: 153.02 } },
       fetchMapTile: async () => ({ contentType: 'image/png', body: Buffer.alloc(0) }),

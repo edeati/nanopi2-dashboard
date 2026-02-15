@@ -252,11 +252,13 @@ function createApp(options) {
       }
       const width = parseDimension(requestUrl.searchParams.get('width'), 800);
       const height = parseDimension(requestUrl.searchParams.get('height'), 480);
+      const strict = ['1', 'true', 'yes'].indexOf(String(requestUrl.searchParams.get('strict') || '').toLowerCase()) > -1;
       try {
-        const result = await fetchRadarAnimation({ width, height });
+        const result = await fetchRadarAnimation({ width, height, strict });
         if (!result || !Buffer.isBuffer(result.body)) {
           throw new Error('radar_gif_invalid_payload');
         }
+        res.setHeader('X-Radar-Gif-Fallback', result.isFallback ? '1' : '0');
         return sendBinary(res, 200, result.contentType || 'image/gif', result.body);
       } catch (error) {
         return sendJson(res, 503, {

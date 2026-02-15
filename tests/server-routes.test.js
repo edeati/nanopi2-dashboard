@@ -270,7 +270,14 @@ module.exports = async function run() {
     const fallbackGifResponse = await request(cachedGifFallbackServer, { path: '/api/radar/animation.gif?width=800&height=480' });
     assert.strictEqual(fallbackGifResponse.statusCode, 200);
     assert.strictEqual(fallbackGifResponse.headers['content-type'], 'image/gif');
+    assert.strictEqual(fallbackGifResponse.headers['x-radar-gif-fallback'], '1');
     assert.strictEqual(fallbackGifResponse.bodyBuffer.toString('utf8'), fallbackGif.toString('utf8'));
+
+    const strictGifResponse = await request(cachedGifFallbackServer, { path: '/api/radar/animation.gif?width=800&height=480&strict=1' });
+    assert.strictEqual(strictGifResponse.statusCode, 503);
+    const strictPayload = JSON.parse(strictGifResponse.body);
+    assert.strictEqual(strictPayload.error, 'radar_gif_unavailable');
+    assert.strictEqual(strictPayload.detail, 'ffmpeg_unavailable');
   } finally {
     if (gifCacheDir) {
       fs.rmSync(gifCacheDir, { recursive: true, force: true });

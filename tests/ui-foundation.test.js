@@ -43,8 +43,8 @@ module.exports = async function run() {
   assert.ok(html.indexOf('grid-template-columns: minmax(0, 1.32fr) minmax(0, 0.78fr);') > -1, 'tablet weather layout should prioritize current conditions width');
   assert.ok(html.indexOf('#timeBig {\n        font-size: 66px;') > -1, 'tablet clock should be more legible at distance');
   assert.ok(html.indexOf('.g-value {\n        font-size: 38px;') > -1, 'tablet generation/usage values should be substantially larger');
-  assert.ok(html.indexOf('.solar-status-card {\n        min-height: 74px;') > -1, 'tablet solar status cards should be larger for readability');
-  assert.ok(html.indexOf('.solar-status-value {\n        font-size: 30px;') > -1, 'tablet solar status values should be larger');
+  assert.ok(html.indexOf('.solar-status-card {\n        min-height: 86px;') > -1, 'tablet solar status cards should be larger for readability');
+  assert.ok(html.indexOf('.solar-status-value {\n        font-size: 34px;') > -1, 'tablet solar status values should be larger');
   assert.ok(html.indexOf('#binsIcon {\n      position: absolute;') > -1, 'bins icon should become large background glyph');
   assert.ok(html.indexOf('font-size: 116px;') > -1, 'tablet bins icon should be oversized');
   assert.ok(html.indexOf('opacity: 0.2;') > -1, 'tablet bins icon should be subdued behind text');
@@ -52,21 +52,21 @@ module.exports = async function run() {
   assert.ok(html.indexOf('#weatherSummary {\n        font-size: clamp(20px, 3.3vh, 25px);') > -1, 'tablet weather summary should be larger');
   assert.ok(html.indexOf('.weather-temp-large {\n        font-size: clamp(34px, 5.4vh, 46px);') > -1, 'tablet weather temperature should be much larger');
   assert.ok(html.indexOf('function loadMapTileWithFallback(z, x, y) {') > -1, 'radar map tile fallback helper missing');
-  assert.ok(html.indexOf('for (var delta = 1; delta <= 3; delta += 1) {') > -1, 'radar map tile fallback should probe neighboring tiles');
+  assert.ok(html.indexOf('function loadMapTileFromLowerZoom(z, x, y) {') > -1, 'radar map tile fallback should support lower-zoom parent tiles');
 
   assert.ok(html.indexOf('id="solarChartsRow"') > -1, 'solar charts row container missing');
-  assert.ok(html.indexOf('min-height: 122px;') > -1, 'solar chart cards should be taller');
-  assert.ok(html.indexOf('height: 100%;') > -1, 'solar chart canvas should stretch to taller chart area');
+  assert.ok(html.indexOf('min-height: 104px;') > -1, 'solar chart cards should be tall while preserving room for lower KPIs');
+  assert.ok(html.indexOf('height: 104px;') > -1, 'solar chart canvas should match the chart card height');
   assert.ok(html.indexOf('id="solarStatusGrid"') > -1, 'solar status grid missing');
   assert.ok(html.indexOf('class="solar-status-card"') > -1, 'solar status cards missing');
   assert.strictEqual(html.indexOf('id="solarFooter"'), -1, 'legacy solar footer status line should be removed');
-  assert.ok(html.indexOf('min-height: 74px;') > -1, 'solar daily cards should be larger');
+  assert.ok(html.indexOf('min-height: 90px;') > -1, 'solar daily cards should be larger');
   assert.ok(html.indexOf('id="weatherMainRow"') > -1, 'weather main row layout missing');
   assert.ok(html.indexOf('weather-now-panel') > -1, 'weather current panel treatment missing');
   assert.ok(html.indexOf('class="weather-current weather-now-panel"') > -1, 'weather card should use featured current panel');
   assert.ok(html.indexOf('grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);') > -1, 'weather row should prioritize current conditions width');
   assert.ok(html.indexOf('font-size: clamp(13px, 2vh, 16px);') > -1, 'weather summary should remain readable while current temp grows');
-  assert.ok(html.indexOf('font-size: clamp(34px, 5.2vh, 48px);') > -1, 'weather temperature should be larger for at-distance readability');
+  assert.ok(html.indexOf('font-size: clamp(38px, 5.7vh, 52px);') > -1, 'weather temperature should be larger for at-distance readability');
   assert.ok(html.indexOf('weather-temp-large') > -1, 'large weather temperature style missing');
   assert.ok(html.indexOf('#weatherCard {') > -1 && html.indexOf('grid-template-rows: 1fr;') > -1, 'weather card should use full height without title row');
   assert.ok(html.indexOf('padding: 10px 10px;') > -1, 'forecast cards should use compact padding');
@@ -84,6 +84,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('var radarStartupHoldUntilMs = Date.now() + 6000;') > -1, 'radar startup gif hold window missing');
   assert.ok(html.indexOf('var radarAnimationModeKnown = false;') > -1, 'radar animation mode knowledge guard missing');
   assert.ok(html.indexOf("var radarPreferredMode = 'png';") > -1, 'radar preferred mode tracker missing');
+  assert.ok(html.indexOf('var RADAR_GIF_STALE_TIMEOUT_MS = 5 * 60 * 1000;') > -1, 'radar stale gif timeout should be 5 minutes');
   assert.ok(html.indexOf('function maybeStartRadarLoop(') > -1, 'radar startup loop gate missing');
   assert.ok(html.indexOf('if (!radarAnimationModeKnown) {') > -1, 'radar startup should wait for animation mode decision');
   assert.ok(html.indexOf("if (radarPreferredMode === 'gif' && !radarGifReady && !radarStartupPrefetchDone && Date.now() < radarStartupHoldUntilMs) {") > -1, 'radar startup should defer png while gif is pending');
@@ -94,6 +95,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf("if (radarPreferredMode === 'gif' && Date.now() < radarStartupHoldUntilMs) {") > -1, 'startup gif errors should retry before png fallback');
   assert.ok(html.indexOf('setTimeout(function () {') > -1 && html.indexOf('warmRadarGif(true);') > -1, 'startup gif retry timer missing');
   assert.ok(html.indexOf('if (!radarGifLoadedOnce && Date.now() < radarStartupHoldUntilMs) {') > -1, 'animation mode fetch errors should not immediately force png');
+  assert.ok(html.indexOf("radarGifImage.src = radarGifPath + sep + 'strict=1&_=' + now;") > -1, 'gif warm requests should enforce strict freshness checks');
   assert.ok(html.indexOf('function classifyRadarRain(') > -1, 'radar rain classification helper missing');
   assert.ok(html.indexOf('Heavy rain nearby') > -1, 'heavy rain indicator message missing');
   assert.ok(html.indexOf('importReady') > -1, 'solar import readiness gating missing');
