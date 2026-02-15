@@ -34,6 +34,10 @@ module.exports = async function run() {
   assert.ok(html.indexOf('Manrope') > -1, 'professional heading font missing');
   assert.ok(html.indexOf('--bg-panel') > -1, 'new dark panel palette missing');
   assert.ok(html.indexOf('grid-template-rows: 1fr 0.34fr;') > -1, 'top row should reclaim more vertical space');
+  assert.ok(html.indexOf('@media (max-width: 1100px) and (max-height: 820px) and (min-height: 700px) and (orientation: landscape)') > -1, 'tablet landscape breakpoint missing');
+  assert.ok(html.indexOf('grid-template-columns: 1.7fr 1fr 1fr;') > -1, 'tablet bottom row ratio should favor weather panel');
+  assert.ok(html.indexOf('--global-bar-clearance: 68px;') > -1, 'tablet status bar clearance should be taller');
+  assert.ok(html.indexOf('animation-duration: 52s;') > -1, 'tablet ticker should scroll slower for readability');
 
   assert.ok(html.indexOf('id="solarChartsRow"') > -1, 'solar charts row container missing');
   assert.ok(html.indexOf('min-height: 96px;') > -1, 'solar chart cards should be taller');
