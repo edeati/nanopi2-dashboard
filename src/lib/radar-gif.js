@@ -3,7 +3,13 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const sharp = require('sharp');
+let sharp = null;
+let sharpLoadError = null;
+try {
+  sharp = require('sharp');
+} catch (error) {
+  sharpLoadError = error;
+}
 const GIFEncoder = require('gif-encoder-2');
 
 const TILE_SIZE = 256;
@@ -25,6 +31,18 @@ function toInteger(value, fallback, min, max) {
     return max;
   }
   return out;
+}
+
+function ensureSharp(sharpImpl) {
+  if (sharpImpl) {
+    return sharpImpl;
+  }
+  const error = new Error('sharp_unavailable');
+  error.code = 'sharp_unavailable';
+  if (sharpLoadError) {
+    error.cause = sharpLoadError;
+  }
+  throw error;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,6 +115,7 @@ function computeVisibleTiles(params) {
  * Returns a raw RGBA Buffer of dimensions width x height.
  */
 async function compositeMapBackground(params) {
+  const sharpImpl = ensureSharp(params && params.sharpImpl ? params.sharpImpl : sharp);
   const { tiles, width, height, z, fetchMapTile } = params;
   const compositeInputs = [];
 
@@ -125,7 +144,7 @@ async function compositeMapBackground(params) {
 
     let buf = tileBuffer;
     if (srcLeft > 0 || srcTop > 0 || visibleWidth < TILE_SIZE || visibleHeight < TILE_SIZE) {
-      buf = await sharp(tileBuffer)
+      buf = await sharpImpl(tileBuffer)
         .extract({ left: srcLeft, top: srcTop, width: visibleWidth, height: visibleHeight })
         .toBuffer();
     }
@@ -137,7 +156,7 @@ async function compositeMapBackground(params) {
     });
   }));
 
-  const background = await sharp({
+  const background = await sharpImpl({
     create: {
       width,
       height,
@@ -157,6 +176,7 @@ async function compositeMapBackground(params) {
  * Returns a raw RGBA Buffer of dimensions width x height.
  */
 async function compositeRadarFrame(params) {
+  const sharpImpl = ensureSharp(params && params.sharpImpl ? params.sharpImpl : sharp);
   const { tiles, width, height, z, mapBackground, fetchRadarTile, frameIndex, color, options } = params;
 
   // Start from the map background (clone it)
@@ -193,7 +213,7 @@ async function compositeRadarFrame(params) {
 
     let buf = tileBuffer;
     if (srcLeft > 0 || srcTop > 0 || visibleWidth < TILE_SIZE || visibleHeight < TILE_SIZE) {
-      buf = await sharp(tileBuffer)
+      buf = await sharpImpl(tileBuffer)
         .extract({ left: srcLeft, top: srcTop, width: visibleWidth, height: visibleHeight })
         .toBuffer();
     }
@@ -206,7 +226,7 @@ async function compositeRadarFrame(params) {
   }));
 
   // Composite radar tiles on top of the map background
-  const frame = await sharp(mapBackground, { raw: { width, height, channels: 4 } })
+  const frame = await sharpImpl(mapBackground, { raw: { width, height, channels: 4 } })
     .composite(compositeInputs.length > 0 ? compositeInputs : [])
     .raw()
     .toBuffer();
@@ -219,6 +239,7 @@ async function compositeRadarFrame(params) {
 // ---------------------------------------------------------------------------
 
 function createRadarGifRenderer(options) {
+  const sharpImpl = Object.prototype.hasOwnProperty.call(options || {}, 'sharp') ? options.sharp : sharp;
   const fetchMapTile = options.fetchMapTile;
   const fetchRadarTile = options.fetchRadarTile;
   const getRadarState = options.getRadarState;
@@ -249,10 +270,10 @@ function createRadarGifRenderer(options) {
   }
 
   /**
-   * Returns true — sharp is always available if require() succeeded.
+   * Rendering is available only when sharp can be loaded.
    */
   function canRender() {
-    return true;
+    return !!sharpImpl;
   }
 
   /**
@@ -278,6 +299,7 @@ function createRadarGifRenderer(options) {
    * Returns {contentType, body, isFallback}.
    */
   async function renderOnce(params) {
+    ensureSharp(sharpImpl);
     const radarConfig = config.radar || {};
     const width = toInteger(params && params.width, 400, 64, 1920);
     const height = toInteger(params && params.height, 300, 64, 1920);
@@ -312,7 +334,7 @@ function createRadarGifRenderer(options) {
     if (cachedMapBgKey === key && cachedMapBg) {
       mapBg = cachedMapBg;
     } else {
-      mapBg = await compositeMapBackground({ tiles, width, height, z, fetchMapTile });
+      mapBg = await compositeMapBackground({ tiles, width, height, z, fetchMapTile, sharpImpl });
       cachedMapBg = mapBg;
       cachedMapBgKey = key;
     }
@@ -329,7 +351,8 @@ function createRadarGifRenderer(options) {
         fetchRadarTile,
         frameIndex: (frames.length - framesSubset.length) + i,
         color: colorSetting,
-        options: optionsSetting
+        options: optionsSetting,
+        sharpImpl
       });
       rgbaFrames.push(rgba);
     }
@@ -367,6 +390,9 @@ function createRadarGifRenderer(options) {
    * Returns a stop() function.
    */
   function startSchedule(params) {
+    if (!canRender()) {
+      return function stopNoop() {};
+    }
     const intervalMs = toInteger(params && params.intervalMs, 120000, 5000, 600000);
     const renderParams = { width: params && params.width, height: params && params.height };
     let stopped = false;
@@ -402,6 +428,9 @@ function createRadarGifRenderer(options) {
    * Returns true if a render was triggered (or is already in progress), false otherwise.
    */
   function warmGif(params) {
+    if (!canRender()) {
+      return false;
+    }
     if (renderInProgress) {
       return true;
     }

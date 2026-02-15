@@ -73,6 +73,16 @@ Debug events are buffered in memory and available after admin login:
 - `GET /api/admin/debug/events?limit=200`
 - `POST /api/admin/debug/clear`
 
+## Radar GIF dependency (`sharp`)
+
+`sharp` is used for server-side radar GIF rendering. If `sharp` is missing or fails to load, the server now starts normally and falls back to PNG radar mode (`/api/radar/meta` + `/api/radar/tile/...`) instead of crashing.
+
+To restore GIF mode, install dependencies in the runtime image/workdir:
+
+```bash
+npm install
+```
+
 ## Repository layout
 
 - `src/` server and runtime logic

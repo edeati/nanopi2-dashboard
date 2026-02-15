@@ -4,7 +4,10 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const sharp = require('sharp');
+let sharp = null;
+try {
+  sharp = require('sharp');
+} catch (_error) {}
 
 const {
   createRadarGifRenderer,
@@ -16,6 +19,34 @@ const {
 } = require('../src/lib/radar-gif');
 
 module.exports = async function run() {
+  // If sharp is unavailable in this environment, verify graceful degradation only.
+  if (!sharp) {
+    const renderer = createRadarGifRenderer({
+      sharp: null,
+      fetchMapTile: async function () {
+        return { contentType: 'image/png', body: Buffer.alloc(0) };
+      },
+      fetchRadarTile: async function () {
+        return { contentType: 'image/png', body: Buffer.alloc(0) };
+      },
+      getRadarState: function () {
+        return { frames: [{ time: 1000, path: '/path/0' }] };
+      },
+      config: { radar: {} },
+      gifCacheDir: path.join(os.tmpdir(), 'nanopi2-radar-gif-no-sharp')
+    });
+    assert.strictEqual(renderer.canRender(), false, 'canRender should be false when sharp is unavailable');
+    assert.strictEqual(renderer.warmGif({ width: 120, height: 80 }), false, 'warmGif should not run without sharp');
+    await assert.rejects(
+      async function () { await renderer.renderOnce({ width: 120, height: 80 }); },
+      function (err) {
+        return err && err.code === 'sharp_unavailable';
+      },
+      'renderOnce should throw sharp_unavailable without sharp'
+    );
+    return;
+  }
+
   // Create a fake 256x256 tile to use across tests
   const fakeTilePng = await sharp({
     create: { width: 256, height: 256, channels: 4, background: { r: 18, g: 24, b: 32, alpha: 255 } }
@@ -232,7 +263,31 @@ module.exports = async function run() {
     }
 
     // -------------------------------------------------------------------
-    // Test 10: startSchedule / stop work without error
+    // Test 10: no-sharp override disables rendering and returns safe fallbacks
+    // -------------------------------------------------------------------
+    {
+      const disabledRenderer = createRadarGifRenderer({
+        sharp: null,
+        fetchMapTile: async function () { return { contentType: 'image/png', body: fakeTilePng }; },
+        fetchRadarTile: async function () { return { contentType: 'image/png', body: fakeRadarTilePng }; },
+        getRadarState: function () { return { frames: [{ time: 1000, path: '/path/0' }] }; },
+        config: { radar: {} },
+        gifCacheDir: path.join(tempDir, 'disabled-sharp')
+      });
+      assert.strictEqual(disabledRenderer.canRender(), false, 'canRender should be false when sharp override is null');
+      assert.strictEqual(disabledRenderer.warmGif({ width: 100, height: 80 }), false, 'warmGif should return false when rendering is disabled');
+      const stopNoop = disabledRenderer.startSchedule({ width: 100, height: 80, intervalMs: 60000 });
+      assert.strictEqual(typeof stopNoop, 'function', 'startSchedule should return a stop function even when disabled');
+      stopNoop();
+      await assert.rejects(
+        async function () { await disabledRenderer.renderOnce({ width: 100, height: 80 }); },
+        function (err) { return err && err.code === 'sharp_unavailable'; },
+        'renderOnce should throw sharp_unavailable when rendering is disabled'
+      );
+    }
+
+    // -------------------------------------------------------------------
+    // Test 11: startSchedule / stop work without error
     // -------------------------------------------------------------------
     {
       let renderCount = 0;
