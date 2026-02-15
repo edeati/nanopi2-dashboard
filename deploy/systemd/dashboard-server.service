@@ -1,0 +1,17 @@
+[Unit]
+Description=NanoPi2 Dashboard Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/nanopi2-dashboard
+Environment=DASHBOARD_CONFIG_DIR=/opt/nanopi2-dashboard/config
+ExecStart=/usr/bin/node /opt/nanopi2-dashboard/src/server.js
+Restart=always
+RestartSec=3
+User=nanopi
+Group=nanopi
+
+[Install]
+WantedBy=multi-user.target

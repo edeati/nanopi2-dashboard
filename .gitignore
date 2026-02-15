@@ -1,0 +1,8 @@
+.worktrees/
+node_modules/
+config/auth.json
+.env
+.env.*
+!.env.example
+nohup.out
+froniusapi.pdf

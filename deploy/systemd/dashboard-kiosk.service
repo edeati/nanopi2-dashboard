@@ -1,0 +1,18 @@
+[Unit]
+Description=NanoPi2 Dashboard Firefox Kiosk
+After=network-online.target dashboard-server.service
+Wants=network-online.target dashboard-server.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/nanopi2-dashboard
+Environment=DISPLAY=:0
+Environment=HOME=/home/nanopi
+ExecStart=/opt/nanopi2-dashboard/deploy/systemd/firefox-kiosk.sh
+Restart=always
+RestartSec=5
+User=nanopi
+Group=nanopi
+
+[Install]
+WantedBy=graphical.target

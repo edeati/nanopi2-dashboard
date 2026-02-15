@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>NanoPi2 Admin</title>
+  <style>
+    body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #0a131b; color: #d7ecff; }
+    main { max-width: 900px; margin: 0 auto; padding: 20px; }
+    h1 { margin-top: 0; }
+    .card { border: 1px solid #2ec4b680; border-radius: 10px; padding: 14px; margin-bottom: 14px; background: #112331; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    label { display: block; margin-bottom: 6px; }
+    input, select { background: #081018; color: #d7ecff; border: 1px solid #2f5f73; border-radius: 6px; padding: 8px; }
+    button { background: #2ec4b6; border: 0; color: #05232a; border-radius: 6px; padding: 8px 12px; font-weight: 700; cursor: pointer; }
+    pre { white-space: pre-wrap; background: #081018; border-radius: 8px; padding: 8px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Admin Panel</h1>
+
+    <section class="card">
+      <h2>Config</h2>
+      <div class="row">
+        <label>Focus rotation seconds
+          <input id="focusSeconds" type="number" min="5" value="30">
+        </label>
+        <label>Fullscreen interval seconds
+          <input id="intervalSeconds" type="number" min="30" value="180">
+        </label>
+        <label>Fullscreen duration seconds
+          <input id="focusDurationSeconds" type="number" min="5" value="30">
+        </label>
+        <label>Focus views (comma separated)
+          <input id="focusViews" type="text" value="radar,solar_daily">
+        </label>
+        <label>Rain override cooldown seconds
+          <input id="rainOverrideCooldownSeconds" type="number" min="0" value="300">
+        </label>
+        <label>Rain override enabled
+          <input id="rainOverrideEnabled" type="checkbox" checked>
+        </label>
+        <label>Theme preset
+          <select id="themePreset">
+            <option value="matte">Matte</option>
+            <option value="glass">Glass</option>
+            <option value="neon">Neon</option>
+          </select>
+        </label>
+        <label>Bins propertyId
+          <input id="binsPropertyId" type="text" value="">
+        </label>
+        <label>Bins source URL (fallback)
+          <input id="binsSourceUrl" type="text" value="">
+        </label>
+        <label>Git branch
+          <input id="gitBranch" type="text" value="dev">
+        </label>
+      </div>
+      <button id="saveBtn">Save Config</button>
+    </section>
+
+    <section class="card">
+      <h2>Git Sync</h2>
+      <div class="row">
+        <button data-action="sync">Sync</button>
+        <button data-action="pull">Pull</button>
+        <button data-action="push">Push</button>
+      </div>
+      <pre id="status">Loading...</pre>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      var statusNode = document.getElementById('status');
+
+      function refresh() {
+        fetch('/api/admin/status').then(function (res) { return res.json(); }).then(function (payload) {
+          document.getElementById('focusSeconds').value = payload.config.rotation.focusSeconds;
+          document.getElementById('intervalSeconds').value = payload.config.rotation.intervalSeconds;
+          document.getElementById('focusDurationSeconds').value = payload.config.rotation.focusDurationSeconds;
+          document.getElementById('focusViews').value = (payload.config.rotation.focusViews || []).join(',');
+          document.getElementById('rainOverrideCooldownSeconds').value = payload.config.rotation.rainOverrideCooldownSeconds;
+          document.getElementById('rainOverrideEnabled').checked = !!payload.config.rotation.rainOverrideEnabled;
+          document.getElementById('themePreset').value = (payload.config.ui && payload.config.ui.themePreset) || 'matte';
+          document.getElementById('binsPropertyId').value = (payload.config.bins && payload.config.bins.propertyId) || '';
+          document.getElementById('binsSourceUrl').value = (payload.config.bins && payload.config.bins.sourceUrl) || '';
+          document.getElementById('gitBranch').value = payload.config.git.branch;
+          statusNode.textContent = JSON.stringify(payload, null, 2);
+        }).catch(function (err) {
+          statusNode.textContent = String(err);
+        });
+      }
+
+      document.getElementById('saveBtn').addEventListener('click', function () {
+        fetch('/api/admin/config', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            rotation: {
+              focusSeconds: Number(document.getElementById('focusSeconds').value),
+              intervalSeconds: Number(document.getElementById('intervalSeconds').value),
+              focusDurationSeconds: Number(document.getElementById('focusDurationSeconds').value),
+              focusViews: document.getElementById('focusViews').value.split(',').map(function (v) { return v.trim(); }).filter(Boolean),
+              rainOverrideEnabled: !!document.getElementById('rainOverrideEnabled').checked,
+              rainOverrideCooldownSeconds: Number(document.getElementById('rainOverrideCooldownSeconds').value)
+            },
+            ui: {
+              themePreset: document.getElementById('themePreset').value
+            },
+            bins: {
+              propertyId: document.getElementById('binsPropertyId').value.trim(),
+              sourceUrl: document.getElementById('binsSourceUrl').value.trim()
+            },
+            git: { branch: document.getElementById('gitBranch').value }
+          })
+        }).then(function () { refresh(); });
+      });
+
+      Array.prototype.slice.call(document.querySelectorAll('button[data-action]')).forEach(function (button) {
+        button.addEventListener('click', function () {
+          fetch('/api/admin/sync', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ action: button.getAttribute('data-action') })
+          }).then(function () { refresh(); });
+        });
+      });
+
+      refresh();
+      setInterval(refresh, 10000);
+    })();
+  </script>
+</body>
+</html>

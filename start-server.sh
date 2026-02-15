@@ -1,0 +1,1 @@
+lsof -tiTCP:8090 -sTCP:LISTEN | xargs -r kill; nohup npm start &

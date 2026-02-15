@@ -1,0 +1,77 @@
+{
+  "host": "0.0.0.0",
+  "port": 8090,
+  "fronius": {
+    "baseUrl": "http://192.168.0.18",
+    "estimatedAfterMinutes": 10,
+    "realtimeRefreshSeconds": 8,
+    "archiveRefreshSeconds": 1800
+  },
+  "rotation": {
+    "focusSeconds": 30,
+    "intervalSeconds": 300,
+    "focusDurationSeconds": 30,
+    "focusViews": [
+      "solar_daily",
+      "radar"
+    ],
+    "rainOverrideEnabled": true,
+    "rainOverrideCooldownSeconds": 300
+  },
+  "pricing": {
+    "importCentsPerKwh": 35.244,
+    "feedInCentsPerKwh": 3,
+    "dailySupplyCents": 142,
+    "inverterCapacityKw": 6
+  },
+  "ui": {
+    "themePreset": "glass"
+  },
+  "git": {
+    "autoSyncEnabled": true,
+    "branch": "dev",
+    "intervalSeconds": 300
+  },
+  "weather": {
+    "provider": "openweathermap",
+    "apiBase": "http://api.openweathermap.org/data/2.5/weather",
+    "forecastApiBase": "http://api.openweathermap.org/data/2.5/forecast",
+    "location": "Brisbane",
+    "locationID": "",
+    "appid": "",
+    "units": "metric",
+    "refreshSeconds": 600,
+    "endpoint": ""
+  },
+  "news": {
+    "feedUrl": "https://www.9news.com.au/rss",
+    "maxItems": 5
+  },
+  "bins": {
+    "sourceUrl": "",
+    "propertyId": "638788"
+  },
+  "radar": {
+    "provider": "rainviewer",
+    "apiUrl": "http://api.rainviewer.com/public/weather-maps.json",
+    "sourceUrl": "",
+    "refreshSeconds": 120,
+    "lat": 0,
+    "lon": 0,
+    "zoom": 8,
+    "providerMaxZoom": 7,
+    "color": 3,
+    "options": "1_1",
+    "frameHoldMs": 650,
+    "transitionMs": 350
+  },
+  "insecureTLS": true,
+  "map": {
+    "tileUrlTemplate": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    "fallbackTileUrlTemplates": [
+      "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+      "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+    ],
+    "userAgent": "NanoPi2-Dashboard/1.0 (+https://local.nanopi2)"
+  }
+}

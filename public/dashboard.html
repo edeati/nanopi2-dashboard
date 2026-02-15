@@ -1,0 +1,1884 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>NanoPi2 Energy Dashboard</title>
+  <style>
+    :root {
+      --font-ui: "Manrope", "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+      --font-display: "Manrope", "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+      --font-data: "Manrope", "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+      --font-time: "Space Grotesk", "Manrope", "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+      --font-body: "Manrope", "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+      --global-bar-top: 10px;
+      --global-bar-side: 10px;
+      --global-bar-clearance: 46px;
+      --bg0: #121417;
+      --bg1: #1d2228;
+      --bg-panel: rgba(31, 35, 42, 0.96);
+      --text: #eef2f6;
+      --muted: #a7b2bf;
+      --blue: #2d9cff;
+      --yellow: #f2bb3c;
+      --orange: #ff9d3f;
+      --green: #8edb7c;
+      --red: #ff7350;
+      --panel-border: rgba(132, 145, 162, 0.18);
+      --panel-glow: 0 10px 20px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    body.theme-glass {
+      --bg-panel: rgba(32, 37, 44, 0.78);
+      --panel-border: rgba(138, 150, 168, 0.26);
+      --panel-glow: 0 12px 24px rgba(0, 0, 0, 0.24), 0 0 0 1px rgba(130, 140, 158, 0.12) inset;
+    }
+
+    body.theme-neon {
+      --bg-panel: rgba(14, 17, 23, 0.93);
+      --panel-border: rgba(55, 181, 255, 0.28);
+      --panel-glow: 0 0 16px rgba(45, 156, 255, 0.22), 0 0 20px rgba(242, 187, 60, 0.1);
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      font-family: var(--font-body);
+      color: var(--text);
+      background:
+        radial-gradient(circle at 8% 10%, rgba(45, 156, 255, 0.12), transparent 42%),
+        radial-gradient(circle at 87% 82%, rgba(255, 157, 63, 0.1), transparent 48%),
+        linear-gradient(130deg, var(--bg0), var(--bg1));
+      overflow: hidden;
+    }
+
+    .global-bar {
+      position: fixed;
+      top: var(--global-bar-top);
+      left: var(--global-bar-side);
+      right: var(--global-bar-side);
+      z-index: 40;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+      pointer-events: none;
+    }
+
+    .pill {
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: rgba(18, 20, 24, 0.95);
+      border: 1px solid rgba(120, 132, 148, 0.36);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #d8dfe8;
+      font-family: var(--font-display);
+      min-height: 27px;
+    }
+
+    #topDateBadge {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+      text-transform: none;
+      letter-spacing: 0.02em;
+    }
+
+    .status-label {
+      color: #9eb2c8;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-family: var(--font-display);
+      white-space: nowrap;
+    }
+
+    #newsTickerViewport {
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      display: block;
+    }
+
+    #newsTicker {
+      display: inline-block;
+      padding-left: 100%;
+      animation: ticker 40s linear infinite;
+      color: #dfe6ee;
+      font-family: var(--font-display);
+    }
+
+    @keyframes ticker {
+      from { transform: translateX(0); }
+      to { transform: translateX(-100%); }
+    }
+
+    .rain-yes { color: var(--orange); }
+    .rain-heavy { color: var(--red); }
+    .rain-no { color: var(--green); }
+    .rain-unknown { color: var(--muted); }
+
+    .frame {
+      width: 100vw;
+      height: 100vh;
+      padding: var(--global-bar-clearance) 10px 10px;
+      display: grid;
+      grid-template-columns: 2fr 3fr;
+      grid-template-rows: 1fr 0.34fr;
+      gap: 8px;
+    }
+
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      padding: 10px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--panel-glow);
+      backdrop-filter: blur(8px);
+    }
+
+    .panel.panel-icon {
+      padding-top: 34px;
+    }
+
+    body.theme-matte .panel {
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.03), transparent 30%),
+        var(--bg-panel);
+    }
+
+    .card-icon { width: 14px; height: 14px; }
+    .card-icon svg { width: 14px; height: 14px; fill: currentColor; }
+
+    .panel-corner-icon {
+      position: absolute;
+      top: 9px;
+      left: 10px;
+      width: 16px;
+      height: 16px;
+      display: grid;
+      place-items: center;
+      opacity: 0.94;
+      pointer-events: none;
+    }
+
+    .panel-corner-icon svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    .panel-title {
+      position: absolute;
+      top: 8px;
+      left: 32px;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #b9c5d3;
+      font-family: var(--font-display);
+      pointer-events: none;
+    }
+
+    #mainRadar .panel-corner-icon { color: #45a9ff; }
+    #mainSolar .panel-corner-icon { color: #f2bb3c; }
+    #weatherCard .panel-corner-icon { color: #62bbff; }
+    #binCard .panel-corner-icon { color: #8edb7c; }
+    #customCard .panel-corner-icon { color: #ffb577; }
+    #globalRainIndicator .card-icon { color: #56aef8; }
+
+    #mainRadar {
+      grid-column: 1;
+      grid-row: 1;
+      display: grid;
+      min-height: 0;
+    }
+    #mainSolar { grid-column: 2; grid-row: 1; }
+
+    #radarViewport {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: 10px;
+      border: 1px solid rgba(98, 108, 122, 0.45);
+      background: #131922;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    #radarCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border: 0;
+      image-rendering: pixelated;
+    }
+
+    #radarGifImage {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: none;
+      background: #131922;
+    }
+
+    #mainSolar {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 4px;
+      min-height: 0;
+    }
+
+    .solar-top {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 2px;
+    }
+
+    .solar-gauge {
+      position: relative;
+      display: grid;
+      grid-template-columns: 70px 1fr;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid rgba(96, 105, 118, 0.45);
+      border-radius: 10px;
+      background: rgba(15, 17, 22, 0.92);
+      padding: 6px;
+      min-height: 76px;
+    }
+
+    .solar-gauge canvas {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: transparent;
+      display: block;
+    }
+
+    .g-label {
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-family: var(--font-display);
+    }
+
+    .g-value { font-size: 26px; font-family: var(--font-display); line-height: 1; color: #f0f3f7; }
+    .g-unit { font-size: 14px; color: var(--muted); }
+
+    .chart-label { font-size: 11px; color: #c3cfda; margin: 1px 0 2px; }
+
+    #solarChartsRow {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .chart-wrap {
+      position: relative;
+      border: 1px solid rgba(96, 105, 118, 0.45);
+      border-radius: 10px;
+      background: rgba(14, 16, 20, 0.9);
+      margin-bottom: 0;
+      overflow: hidden;
+      min-height: 96px;
+    }
+
+    .chart {
+      width: 100%;
+      height: 96px;
+      display: block;
+      border: 0;
+      background: transparent;
+    }
+
+    #solarStatusGrid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      min-height: 0;
+    }
+
+    .solar-status-card {
+      border: 1px solid rgba(92, 106, 122, 0.45);
+      border-radius: 9px;
+      background: rgba(12, 15, 20, 0.82);
+      padding: 6px 7px;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 6px;
+      min-height: 54px;
+    }
+
+    .solar-status-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.06);
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    .solar-status-label {
+      font-size: 9px;
+      color: #95a5b6;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .solar-status-value {
+      font-family: var(--font-ui);
+      font-size: 16px;
+      color: #eef2f6;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .loading .skeleton::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, rgba(255,255,255,0.03), rgba(255,255,255,0.12), rgba(255,255,255,0.03));
+      transform: translateX(-100%);
+      animation: shimmer 1.3s infinite;
+    }
+
+    @keyframes shimmer {
+      to { transform: translateX(100%); }
+    }
+
+    #bottomRow {
+      grid-column: 1 / span 2;
+      grid-row: 2;
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    #weatherCard, #binCard, #customCard { min-height: 0; }
+    #weatherCard {
+      display: grid;
+      grid-template-rows: 1fr;
+      background:
+        linear-gradient(142deg, rgba(20, 99, 129, 0.64), rgba(11, 36, 63, 0.9) 58%, rgba(8, 25, 43, 0.94)),
+        var(--bg-panel);
+      border-color: rgba(92, 170, 210, 0.35);
+      box-shadow: 0 12px 22px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(172, 220, 244, 0.12);
+    }
+    #binCard { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 10px; }
+    #customCard { display: flex; flex-direction: column; justify-content: center; }
+
+    .metric {
+      font-family: var(--font-display);
+      font-size: 24px;
+      line-height: 1;
+      color: #f0f3f7;
+      text-transform: capitalize;
+    }
+
+    .sub { font-family: var(--font-data); font-size: 12px; color: var(--muted); }
+
+    #binsIcon {
+      font-size: 44px;
+      line-height: 1;
+      margin: 0;
+      color: #d9e2eb;
+    }
+
+    #binDetails {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+      align-content: center;
+    }
+
+    #binsType {
+      margin: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #binsDate {
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #weatherMainRow {
+      display: grid;
+      grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+      gap: 10px;
+      align-items: stretch;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .weather-current {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 10px;
+      min-height: 0;
+    }
+
+    .weather-now-panel {
+      border-radius: 14px;
+      background:
+        linear-gradient(165deg, rgba(11, 70, 103, 0.48), rgba(8, 34, 58, 0.42)),
+        rgba(5, 20, 36, 0.3);
+      padding: 7px 9px;
+    }
+
+    .weather-now-copy {
+      display: grid;
+      gap: 3px;
+      align-content: center;
+      min-width: 0;
+    }
+
+    #weatherIcon {
+      font-size: 34px;
+      line-height: 1;
+      filter: drop-shadow(0 2px 7px rgba(0, 0, 0, 0.32));
+    }
+
+    #weatherSummary {
+      font-size: clamp(13px, 2vh, 16px);
+      line-height: 1.08;
+      margin-bottom: 2px;
+      letter-spacing: 0.01em;
+      text-transform: none;
+      color: #ecf6fc;
+      max-height: 2.18em;
+      overflow: hidden;
+      text-transform: capitalize;
+    }
+
+    .weather-temp-large {
+      font-family: var(--font-ui);
+      font-size: clamp(24px, 3.8vh, 34px);
+      font-weight: 700;
+      line-height: 1;
+      color: #f8fdff;
+      text-shadow: 0 0 16px rgba(175, 228, 255, 0.25);
+      white-space: nowrap;
+    }
+
+    #weatherForecast {
+      margin-top: 0;
+      display: grid;
+      grid-template-rows: repeat(3, minmax(0, 1fr));
+      gap: 4px;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .forecast-item {
+      margin-top: -10px;
+      padding: 10px 10px;
+      display: grid;
+      grid-template-columns: 38px 18px 1fr;
+      align-items: center;
+      min-height: 0;
+    }
+
+    .forecast-day { font-size: 10px; line-height: 1; color: #d8e9f5; text-transform: uppercase; letter-spacing: 0.06em; font-family: var(--font-display); }
+    .forecast-icon { font-size: 15px; line-height: 1; text-align: center; }
+    .forecast-temp { font-size: 14px; line-height: 1; font-family: var(--font-data); color: #f2f8fd; text-align: right; }
+
+    #timeBig {
+      font-family: var(--font-time);
+      font-size: 52px;
+      letter-spacing: 0.02em;
+      font-weight: 700;
+      line-height: 1;
+      color: #f2f6fa;
+      text-shadow: 0 0 16px rgba(80, 176, 255, 0.18);
+      margin-top: 0;
+    }
+
+    body.time-night #timeBig {
+      color: #7fc6ff;
+      text-shadow: 0 0 18px rgba(88, 182, 255, 0.32);
+    }
+
+    body.time-twilight #timeBig {
+      color: #ffb575;
+      text-shadow: 0 0 18px rgba(255, 157, 87, 0.3);
+    }
+
+    body.time-day #timeBig {
+      color: #ffe07a;
+      text-shadow: 0 0 18px rgba(255, 214, 88, 0.28);
+    }
+
+    #dateBig {
+      font-family: var(--font-ui);
+      font-size: 17px;
+      color: #e0e7ef;
+      font-weight: 600;
+      margin-top: 4px;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+
+    #takeoverBlackout {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.32s linear;
+      z-index: 35;
+    }
+
+    body.blackout #takeoverBlackout { opacity: 1; }
+
+    body.takeover-radar #mainRadar,
+    body.takeover-solar #mainSolar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 30;
+    }
+
+    body.takeover-radar #mainRadar {
+      border-radius: 0;
+      padding: 0;
+    }
+
+    body.takeover-radar #mainRadar .panel-corner-icon,
+    body.takeover-radar #mainRadar .panel-title {
+      display: none;
+    }
+
+    body.takeover-radar #radarViewport {
+      height: 100%;
+      border-radius: 0;
+      border: 0;
+    }
+
+    body.takeover-radar #mainSolar,
+    body.takeover-radar #bottomRow,
+    body.takeover-solar #mainRadar,
+    body.takeover-solar #bottomRow {
+      visibility: hidden;
+    }
+
+    body.takeover-solar #mainSolar {
+      top: var(--global-bar-clearance);
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+    }
+  </style>
+</head>
+<body class="loading theme-matte">
+  <svg width="0" height="0" style="position:absolute;visibility:hidden">
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M19 18H7a5 5 0 0 1-1-9.9A7 7 0 0 1 20.6 10 4 4 0 0 1 19 18z"/></symbol>
+    <symbol id="i-bin" viewBox="0 0 24 24"><path d="M7 5h10l1 2h2v2h-1l-1 9a3 3 0 0 1-3 3h-1.25a2.75 2.75 0 1 1-3.5 0H9a3 3 0 0 1-3-3L5 9H4V7h2l1-2Zm2.2 0-.5 1h6.6l-.5-1H9.2ZM8 9l1 9a1 1 0 0 0 1 .9h4a1 1 0 0 0 1-.9l1-9H8Zm2 2h2v6h-2v-6Zm4 0h2v6h-2v-6Zm-2 9.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/></symbol>
+    <symbol id="i-radar" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm0 2a8 8 0 0 1 7.75 6h-2.06A6 6 0 0 0 12 6Zm0 4a4 4 0 0 1 3.87 3h-2.12A2 2 0 0 0 12 10Zm0 4a2 2 0 1 1-2 2 2 2 0 0 1 2-2Z"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3h2v18H3Zm4 10h2v8H7Zm4-6h2v14h-2Zm4 3h2v11h-2Zm4-5h2v16h-2Z"/></symbol>
+    <symbol id="i-rain" viewBox="0 0 24 24"><path d="M7 18a3 3 0 0 1-.6-6 5 5 0 0 1 9.6 0A3 3 0 1 1 17 18H7Zm1 4 1.2-2H7.8L9 22Zm4 0 1.2-2h-1.4L13 22Zm4 0 1.2-2h-1.4L17 22Z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><path d="M12 1a11 11 0 1 0 11 11A11 11 0 0 0 12 1Zm1 11.59 4.3 2.48-1 1.73L11 13.64V6h2Z"/></symbol>
+  </svg>
+
+  <div class="global-bar">
+    <div id="globalRainIndicator" class="pill rain-unknown">
+      <span class="card-icon"><svg><use href="#i-rain"></use></svg></span>
+      <span id="rainIndicatorText">Rain: scanning</span>
+    </div>
+    <div id="topDateBadge" class="pill">
+      <span class="status-label">News</span>
+      <span id="newsTickerViewport"><span id="newsTicker">Loading headlines...</span></span>
+    </div>
+  </div>
+
+  <div id="takeoverBlackout"></div>
+
+  <div class="frame">
+    <section id="mainRadar" class="panel panel-icon">
+      <span class="panel-corner-icon"><svg><use href="#i-radar"></use></svg></span>
+      <span class="panel-title">Radar</span>
+      <div id="radarViewport">
+        <img id="radarGifImage" alt="Radar animation">
+        <canvas id="radarCanvas"></canvas>
+      </div>
+    </section>
+
+    <section id="mainSolar" class="panel panel-icon">
+      <span class="panel-corner-icon"><svg><use href="#i-chart"></use></svg></span>
+      <span class="panel-title">Solar</span>
+      <div class="solar-top">
+        <div class="solar-gauge skeleton">
+          <canvas id="generationGauge"></canvas>
+          <div><div class="g-label">Generation</div><div><span id="generationValue" class="g-value">0.00</span> <span class="g-unit">kW</span></div></div>
+        </div>
+        <div class="solar-gauge skeleton">
+          <canvas id="usageGauge"></canvas>
+          <div><div class="g-label">Usage / Import</div><div><span id="usageValue" class="g-value">0.00</span> <span class="g-unit">kW</span></div></div>
+        </div>
+      </div>
+
+      <div id="solarChartsRow">
+        <div>
+          <div class="chart-label">Usage (Self + Import)</div>
+          <div class="chart-wrap skeleton"><canvas id="usageBarChart" class="chart"></canvas></div>
+        </div>
+        <div>
+          <div class="chart-label">Solar (Produced + Feed-In)</div>
+          <div class="chart-wrap skeleton"><canvas id="solarBarChart" class="chart"></canvas></div>
+        </div>
+      </div>
+
+      <div id="solarStatusGrid">
+        <div class="solar-status-card">
+          <div class="solar-status-icon">☀</div>
+          <div><div class="solar-status-label">Solar Today</div><div id="solarStatusGenerated" class="solar-status-value">--</div></div>
+        </div>
+        <div class="solar-status-card">
+          <div class="solar-status-icon">🔌</div>
+          <div><div class="solar-status-label">Grid Import</div><div id="solarStatusImport" class="solar-status-value">--</div></div>
+        </div>
+        <div class="solar-status-card">
+          <div class="solar-status-icon">💸</div>
+          <div><div class="solar-status-label">Daily Cost</div><div id="solarStatusCost" class="solar-status-value">--</div></div>
+        </div>
+      </div>
+    </section>
+
+    <div id="bottomRow">
+      <section id="weatherCard" class="panel panel-icon">
+        <span class="panel-corner-icon"><svg><use href="#i-cloud"></use></svg></span>
+        <span class="panel-title">Weather</span>
+        <div id="weatherMainRow">
+          <div class="weather-current weather-now-panel">
+            <div id="weatherIcon">☁</div>
+            <div class="weather-now-copy">
+              <div id="weatherSummary" class="metric">--</div>
+              <div id="weatherTemp" class="weather-temp-large">-- °C</div>
+            </div>
+          </div>
+          <div id="weatherForecast"></div>
+        </div>
+      </section>
+
+      <section id="binCard" class="panel panel-icon">
+        <span class="panel-corner-icon"><svg><use href="#i-bin"></use></svg></span>
+        <span class="panel-title">Bins</span>
+        <div id="binsIcon">🗑</div>
+        <div id="binDetails">
+          <div id="binsType" class="metric">--</div>
+          <div id="binsDate" class="sub">--</div>
+        </div>
+      </section>
+
+      <section id="customCard" class="panel panel-icon">
+        <span class="panel-corner-icon"><svg><use href="#i-clock"></use></svg></span>
+        <span class="panel-title">Clock</span>
+        <div id="timeBig">--:--</div>
+        <div id="dateBig">--</div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var radarCanvas = document.getElementById('radarCanvas');
+      var radarViewport = document.getElementById('radarViewport');
+      var radarGifImage = document.getElementById('radarGifImage');
+      var radarCtx = radarCanvas.getContext('2d');
+      var radarClassifyCanvas = document.createElement('canvas');
+      var radarClassifyCtx = radarClassifyCanvas.getContext('2d');
+      var generationGaugeCanvas = document.getElementById('generationGauge');
+      var generationGaugeCtx = generationGaugeCanvas.getContext('2d');
+      var usageGaugeCanvas = document.getElementById('usageGauge');
+      var usageGaugeCtx = usageGaugeCanvas.getContext('2d');
+      var usageBarCanvas = document.getElementById('usageBarChart');
+      var usageBarCtx = usageBarCanvas.getContext('2d');
+      var solarBarCanvas = document.getElementById('solarBarChart');
+      var solarBarCtx = solarBarCanvas.getContext('2d');
+      var newsTickerNode = document.getElementById('newsTicker');
+
+      var TILE_SIZE = 256;
+      var MAP_TILE_OVERDRAW = 1;
+      var RADAR_TILE_OVERDRAW = 2;
+      var radarMeta = null;
+      var mapTileCache = {};
+      var radarTileCache = {};
+      var radarAnimStart = Date.now();
+      var radarLastFrameKey = '';
+      var radarRenderMode = 'png';
+      var radarGifPath = '';
+      var radarGifRefreshAt = 0;
+      var radarGifReady = false;
+      var radarGifLoading = false;
+      var radarGifLoadedOnce = false;
+      var radarGifLastMetaStamp = '';
+      var radarGifPendingMetaStamp = '';
+      var radarStartupPrefetchDone = false;
+      var radarStartupHoldUntilMs = Date.now() + 6000;
+      var radarAnimationModeKnown = false;
+      var radarPreferredMode = 'png';
+      var radarRainLikely = false;
+      var radarHeavyRain = false;
+      var rainLikelyConfidence = 0;
+      var heavyRainConfidence = 0;
+      var latestWeatherSummary = '';
+      var firstDataApplied = false;
+      var radarLoopStarted = false;
+      var stateFetchInFlight = false;
+      var lastSolarBarsSig = '';
+      var lastSolarGaugeSig = '';
+      var solarBarsDrawScheduled = false;
+      var pendingSolarBars = [];
+      var solarChartsLoading = false;
+      var solarLoadingTimer = 0;
+      var solarLoadingPhase = 0;
+
+      var rotationConfig = {
+        intervalSeconds: 180,
+        focusDurationSeconds: 30,
+        focusViews: ['solar_daily', 'radar'],
+        rainOverrideEnabled: true,
+        rainOverrideCooldownSeconds: 300
+      };
+      var focusCursor = -1;
+      var takeoverActive = false;
+      var nextTakeoverAtMs = Date.now() + 180000;
+      var takeoverUntilMs = 0;
+      var lastRainOverrideMs = 0;
+
+      var pricingConfig = {
+        importCentsPerKwh: 35.244,
+        feedInCentsPerKwh: 3,
+        dailySupplyCents: 142,
+        inverterCapacityKw: 6
+      };
+
+      radarGifImage.onload = function () {
+        radarGifLoading = false;
+        radarGifReady = true;
+        radarGifLoadedOnce = true;
+        radarGifLastMetaStamp = radarGifPendingMetaStamp || radarGifLastMetaStamp;
+        radarStartupPrefetchDone = true;
+        setRadarMode('gif');
+        maybeStartRadarLoop();
+      };
+
+      radarGifImage.onerror = function () {
+        radarGifLoading = false;
+        if (!radarGifLoadedOnce) {
+          if (radarPreferredMode === 'gif' && Date.now() < radarStartupHoldUntilMs) {
+            setTimeout(function () {
+              warmRadarGif(true);
+            }, 320);
+            return;
+          }
+          radarGifReady = false;
+          radarPreferredMode = 'png';
+          radarStartupPrefetchDone = true;
+          setRadarMode('png');
+          maybeStartRadarLoop();
+        }
+      };
+
+      function applyTheme(preset) {
+        document.body.classList.remove('theme-matte', 'theme-glass', 'theme-neon');
+        document.body.classList.add('theme-' + (preset || 'matte'));
+      }
+
+      function isWeatherRainLikely(summary) {
+        var s = String(summary || '').toLowerCase();
+        return s.indexOf('rain') > -1 || s.indexOf('storm') > -1 || s.indexOf('shower') > -1 || s.indexOf('drizzle') > -1;
+      }
+
+      function getHybridRainLikely() {
+        if (radarMeta && radarMeta.available) {
+          return radarRainLikely;
+        }
+        return isWeatherRainLikely(latestWeatherSummary);
+      }
+
+      function updateRainIndicator() {
+        var indicator = document.getElementById('globalRainIndicator');
+        var textNode = document.getElementById('rainIndicatorText');
+        indicator.classList.remove('rain-yes', 'rain-heavy', 'rain-no', 'rain-unknown');
+
+        if (radarHeavyRain) {
+          indicator.classList.add('rain-heavy');
+          textNode.textContent = 'Heavy rain nearby';
+          return;
+        }
+
+        if (getHybridRainLikely()) {
+          indicator.classList.add('rain-yes');
+          textNode.textContent = 'Rain likely: monitor radar';
+          return;
+        }
+
+        if (latestWeatherSummary) {
+          indicator.classList.add('rain-no');
+          textNode.textContent = 'Rain unlikely right now';
+          return;
+        }
+
+        indicator.classList.add('rain-unknown');
+        textNode.textContent = 'Rain status unavailable';
+      }
+
+      function sanitizeFocusViews(views) {
+        if (!Array.isArray(views) || !views.length) {
+          return ['solar', 'radar'];
+        }
+        var out = [];
+        for (var i = 0; i < views.length; i += 1) {
+          var key = String(views[i] || '').toLowerCase();
+          if (key.indexOf('solar') > -1) { key = 'solar'; }
+          else if (key === 'radar') { key = 'radar'; }
+          else { continue; }
+          if (out.indexOf(key) === -1) { out.push(key); }
+        }
+        return out.length ? out : ['solar', 'radar'];
+      }
+
+      function formatDateShort(date) {
+        return date.toLocaleDateString('en-AU', {
+          weekday: 'short',
+          day: '2-digit',
+          month: 'long'
+        });
+      }
+
+      function applyTimeOfDayTheme(now) {
+        var hour = now.getHours();
+        var phase = 'time-night';
+        if ((hour >= 5 && hour < 8) || (hour >= 17 && hour < 20)) {
+          phase = 'time-twilight';
+        } else if (hour >= 8 && hour < 17) {
+          phase = 'time-day';
+        }
+        document.body.classList.remove('time-night', 'time-twilight', 'time-day');
+        document.body.classList.add(phase);
+      }
+
+      function tickClock() {
+        var now = new Date();
+        document.getElementById('timeBig').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        document.getElementById('dateBig').textContent = formatDateShort(now);
+        applyTimeOfDayTheme(now);
+      }
+
+      function setNewsTickerText(text) {
+        var value = String(text || 'No headlines currently available');
+        if (newsTickerNode.textContent === value) {
+          return;
+        }
+        newsTickerNode.textContent = value;
+        newsTickerNode.style.animation = 'none';
+        newsTickerNode.offsetHeight;
+        newsTickerNode.style.animation = '';
+      }
+
+      function resizeCanvas() {
+        function fit(canvas) {
+          var rect = canvas.getBoundingClientRect();
+          canvas.width = Math.max(1, Math.ceil(rect.width));
+          canvas.height = Math.max(1, Math.ceil(rect.height));
+        }
+        fit(radarCanvas);
+        fit(radarClassifyCanvas);
+        fit(generationGaugeCanvas);
+        fit(usageGaugeCanvas);
+        fit(usageBarCanvas);
+        fit(solarBarCanvas);
+        lastSolarBarsSig = '';
+        lastSolarGaugeSig = '';
+        solarBarsDrawScheduled = false;
+        pendingSolarBars = [];
+        drawInitialPlaceholders();
+        fetchRadarAnimationMode();
+      }
+
+      function maybeStartRadarLoop() {
+        if (radarLoopStarted || !firstDataApplied) {
+          return;
+        }
+        if (!radarAnimationModeKnown) {
+          return;
+        }
+        if (radarPreferredMode === 'gif' && !radarGifReady && !radarStartupPrefetchDone && Date.now() < radarStartupHoldUntilMs) {
+          return;
+        }
+        if (!radarGifReady && !radarStartupPrefetchDone && Date.now() < radarStartupHoldUntilMs) {
+          return;
+        }
+        if (!radarGifReady && !radarStartupPrefetchDone) {
+          radarStartupPrefetchDone = true;
+        }
+        radarLoopStarted = true;
+        requestAnimationFrame(animateRadar);
+      }
+
+      function latLonToTile(lat, lon, z) {
+        var n = Math.pow(2, z);
+        var x = (lon + 180) / 360 * n;
+        var latRad = lat * Math.PI / 180;
+        var y = (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n;
+        return { x: x, y: y };
+      }
+
+      function normalizeTileCoords(z, x, y) {
+        var n = Math.pow(2, z);
+        return { x: ((x % n) + n) % n, y: Math.min(Math.max(y, 0), n - 1) };
+      }
+
+      function loadCachedImage(cache, key, src) {
+        var cached = cache[key];
+        var now = Date.now();
+        if (cached && cached.kind === 'ok' && cached.img && cached.img.complete) {
+          return Promise.resolve(cached.img);
+        }
+        if (cached && cached.kind === 'fail' && cached.retryAt > now) {
+          return Promise.resolve(null);
+        }
+        if (cached && cached.kind === 'loading' && cached.promise) {
+          return cached.promise;
+        }
+
+        var promise = new Promise(function (resolve) {
+          var img = new Image();
+          img.onload = function () {
+            cache[key] = { kind: 'ok', img: img };
+            resolve(img);
+          };
+          img.onerror = function () {
+            // Backoff failed tile retries to avoid flooding the server with 503s.
+            cache[key] = { kind: 'fail', retryAt: Date.now() + 15000 };
+            resolve(null);
+          };
+          img.src = src;
+        });
+        cache[key] = { kind: 'loading', promise: promise };
+        return promise;
+      }
+
+      function loadMapTile(z, x, y) {
+        var norm = normalizeTileCoords(z, x, y);
+        var key = 'm:' + z + ':' + norm.x + ':' + norm.y;
+        return loadCachedImage(mapTileCache, key, '/api/map/tile/' + z + '/' + norm.x + '/' + norm.y + '.png');
+      }
+
+      function loadRadarTile(frameIndex, z, x, y) {
+        var norm = normalizeTileCoords(z, x, y);
+        var key = 'r:' + frameIndex + ':' + z + ':' + norm.x + ':' + norm.y;
+        return loadCachedImage(radarTileCache, key, '/api/radar/tile/' + frameIndex + '/' + z + '/' + norm.x + '/' + norm.y + '.png');
+      }
+
+      function drawInitialPlaceholders() {
+        drawDonut(generationGaugeCtx, generationGaugeCanvas, 0, 'rgba(84,100,116,0.45)', 'rgba(84,100,116,0.2)', '--');
+        drawDonut(usageGaugeCtx, usageGaugeCanvas, 0, 'rgba(84,100,116,0.45)', 'rgba(84,100,116,0.2)', '--');
+        drawLoadingBars(usageBarCtx, usageBarCanvas, 'rgba(112, 192, 255, 0.26)', 'rgba(112, 192, 255, 0.1)', 0);
+        drawLoadingBars(solarBarCtx, solarBarCanvas, 'rgba(126, 225, 160, 0.34)', 'rgba(126, 225, 160, 0.12)', 0.4);
+      }
+
+      function computeVisibleTiles(z) {
+        var center = latLonToTile(radarMeta.lat, radarMeta.lon, z);
+        var cx = center.x * TILE_SIZE;
+        var cy = center.y * TILE_SIZE;
+        var extra = takeoverActive ? TILE_SIZE * 4 : TILE_SIZE * 2;
+        var left = cx - radarCanvas.width / 2 - extra;
+        var top = cy - radarCanvas.height / 2 - extra;
+        var right = cx + radarCanvas.width / 2 + extra;
+        var bottom = cy + radarCanvas.height / 2 + extra;
+        var startX = Math.floor(left / TILE_SIZE);
+        var startY = Math.floor(top / TILE_SIZE);
+        var endX = Math.ceil(right / TILE_SIZE);
+        var endY = Math.ceil(bottom / TILE_SIZE);
+        var out = [];
+        for (var ty = startY; ty <= endY; ty += 1) {
+          for (var tx = startX; tx <= endX; tx += 1) {
+            out.push({
+              tx: tx,
+              ty: ty,
+              drawX: Math.round(tx * TILE_SIZE - (cx - radarCanvas.width / 2)),
+              drawY: Math.round(ty * TILE_SIZE - (cy - radarCanvas.height / 2))
+            });
+          }
+        }
+        return out;
+      }
+
+      async function drawLayerToContext(ctx, tiles, alpha, loader, overdraw) {
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.globalAlpha = alpha;
+        for (var i = 0; i < tiles.length; i += 1) {
+          var t = tiles[i];
+          var img = await loader(t.tx, t.ty);
+          if (!img) { continue; }
+          ctx.drawImage(img, t.drawX - overdraw, t.drawY - overdraw, TILE_SIZE + overdraw * 2, TILE_SIZE + overdraw * 2);
+        }
+        ctx.restore();
+      }
+
+      async function drawLayer(tiles, alpha, loader, overdraw) {
+        return drawLayerToContext(radarCtx, tiles, alpha, loader, overdraw);
+      }
+
+      function classifyRadarRain(imageData) {
+        var hits = 0;
+        var heavyHits = 0;
+        var samples = 0;
+        var chromaSamples = 0;
+        for (var i = 0; i < imageData.length; i += 4) {
+          var r = imageData[i];
+          var g = imageData[i + 1];
+          var b = imageData[i + 2];
+          var a = imageData[i + 3];
+          if (a < 55) { continue; }
+          samples += 1;
+          var maxRgb = Math.max(r, g, b);
+          var minRgb = Math.min(r, g, b);
+          if ((maxRgb - minRgb) >= 20) {
+            chromaSamples += 1;
+          }
+          var isBlueGreen = (b > r + 14 && b > g - 12) || (g > r + 10 && g > b - 14);
+          var isOrange = (r > 170 && g > 85 && g < 180 && b < 120);
+          var isRed = (r > 170 && g < 100 && b < 100);
+          if (isBlueGreen || isOrange || isRed) { hits += 1; }
+          if (isOrange || isRed) { heavyHits += 1; }
+        }
+        var rainScore = samples > 0 ? (hits / samples) : 0;
+        var heavyScore = samples > 0 ? (heavyHits / samples) : 0;
+        var chromaScore = samples > 0 ? (chromaSamples / samples) : 0;
+        var hasSignal = samples >= 40 && chromaScore >= 0.06;
+        return {
+          likely: rainScore > 0.06,
+          heavy: heavyScore > 0.025,
+          rainScore: rainScore,
+          heavyScore: heavyScore,
+          hasSignal: hasSignal
+        };
+      }
+
+      function isWeatherHeavyRainLikely(summary) {
+        var s = String(summary || '').toLowerCase();
+        return s.indexOf('heavy') > -1 || s.indexOf('thunder') > -1 || s.indexOf('storm') > -1;
+      }
+
+      function applyRainClassification(isLikely, isHeavy, weight) {
+        var w = Math.max(0.02, Math.min(0.5, Number(weight || 0.2)));
+        rainLikelyConfidence = (rainLikelyConfidence * (1 - w)) + ((isLikely ? 1 : 0) * w);
+        heavyRainConfidence = (heavyRainConfidence * (1 - w)) + ((isHeavy ? 1 : 0) * w);
+        radarRainLikely = rainLikelyConfidence >= 0.43;
+        radarHeavyRain = heavyRainConfidence >= 0.48;
+      }
+
+      async function detectRadarRain(tiles, z, currentFrame, nextFrame, fade) {
+        if (!tiles || !tiles.length) {
+          applyRainClassification(
+            isWeatherRainLikely(latestWeatherSummary),
+            isWeatherHeavyRainLikely(latestWeatherSummary),
+            0.08
+          );
+          return;
+        }
+        try {
+          radarClassifyCtx.clearRect(0, 0, radarClassifyCanvas.width, radarClassifyCanvas.height);
+          await drawLayerToContext(radarClassifyCtx, tiles, 1, function (tx, ty) { return loadRadarTile(currentFrame, z, tx, ty); }, RADAR_TILE_OVERDRAW);
+          if (fade > 0) {
+            await drawLayerToContext(radarClassifyCtx, tiles, fade, function (tx, ty) { return loadRadarTile(nextFrame, z, tx, ty); }, RADAR_TILE_OVERDRAW);
+          }
+          var cx = Math.floor(radarCanvas.width / 2);
+          var cy = Math.floor(radarCanvas.height / 2);
+          var w = Math.max(8, Math.floor(radarCanvas.width * 0.08));
+          var h = Math.max(8, Math.floor(radarCanvas.height * 0.08));
+          var img = radarClassifyCtx.getImageData(Math.max(0, cx - Math.floor(w / 2)), Math.max(0, cy - Math.floor(h / 2)), w, h).data;
+          var classified = classifyRadarRain(img);
+          if (!classified.hasSignal) {
+            applyRainClassification(
+              isWeatherRainLikely(latestWeatherSummary),
+              isWeatherHeavyRainLikely(latestWeatherSummary),
+              0.08
+            );
+            return;
+          }
+          applyRainClassification(classified.likely, classified.heavy, 0.24);
+        } catch (error) {
+          applyRainClassification(
+            isWeatherRainLikely(latestWeatherSummary),
+            isWeatherHeavyRainLikely(latestWeatherSummary),
+            0.08
+          );
+        }
+      }
+
+      async function animateRadar() {
+        if (radarPreferredMode === 'gif' && !radarGifReady && !radarStartupPrefetchDone) {
+          warmRadarGif(false);
+          applyRainClassification(
+            isWeatherRainLikely(latestWeatherSummary),
+            isWeatherHeavyRainLikely(latestWeatherSummary),
+            0.08
+          );
+          updateRainIndicator();
+          requestAnimationFrame(animateRadar);
+          return;
+        }
+
+        if (radarRenderMode === 'gif') {
+          warmRadarGif(false);
+          applyRainClassification(
+            isWeatherRainLikely(latestWeatherSummary),
+            isWeatherHeavyRainLikely(latestWeatherSummary),
+            0.08
+          );
+          updateRainIndicator();
+          requestAnimationFrame(animateRadar);
+          return;
+        }
+
+        if (radarGifPath) {
+          warmRadarGif(false);
+        }
+
+        if (!radarMeta || !radarMeta.frames || radarMeta.frames.length === 0) {
+          radarCtx.fillStyle = '#101418';
+          radarCtx.fillRect(0, 0, radarCanvas.width, radarCanvas.height);
+          radarCtx.fillStyle = '#9aa8b8';
+          radarCtx.fillText('Radar unavailable', 12, 20);
+          applyRainClassification(
+            isWeatherRainLikely(latestWeatherSummary),
+            isWeatherHeavyRainLikely(latestWeatherSummary),
+            0.08
+          );
+          updateRainIndicator();
+          requestAnimationFrame(animateRadar);
+          return;
+        }
+
+        var z = radarMeta.zoom;
+        var tiles = computeVisibleTiles(z);
+        var frameCount = radarMeta.frames.length;
+        var hold = radarMeta.frameHoldMs || 650;
+        var transition = radarMeta.transitionMs || 350;
+        var cycle = hold + transition;
+        var elapsed = Date.now() - radarAnimStart;
+        var position = Math.floor(elapsed / cycle);
+        var t = elapsed % cycle;
+        var current = position % frameCount;
+        var next = (current + 1) % frameCount;
+        var fade = t > hold ? Math.min(1, (t - hold) / transition) : 0;
+        var frameKey = current + ':' + next + ':' + z + ':' + tiles.length;
+
+        if (frameKey !== radarLastFrameKey) {
+          await Promise.all(tiles.map(function (tile) { return loadMapTile(z, tile.tx, tile.ty); }));
+          await Promise.all(tiles.map(function (tile) { return loadRadarTile(current, z, tile.tx, tile.ty); }));
+          await Promise.all(tiles.map(function (tile) { return loadRadarTile(next, z, tile.tx, tile.ty); }));
+          radarLastFrameKey = frameKey;
+        }
+
+        radarCtx.clearRect(0, 0, radarCanvas.width, radarCanvas.height);
+        await drawLayer(tiles, 1, function (tx, ty) { return loadMapTile(z, tx, ty); }, MAP_TILE_OVERDRAW);
+        await drawLayer(tiles, 0.9, function (tx, ty) { return loadRadarTile(current, z, tx, ty); }, RADAR_TILE_OVERDRAW);
+        if (fade > 0) {
+          await drawLayer(tiles, fade * 0.9, function (tx, ty) { return loadRadarTile(next, z, tx, ty); }, RADAR_TILE_OVERDRAW);
+        }
+
+        await detectRadarRain(tiles, z, current, next, fade);
+        updateRainIndicator();
+        requestAnimationFrame(animateRadar);
+      }
+
+      function fetchRadarMeta() {
+        return fetch('/api/radar/meta')
+          .then(function (res) { return res.json(); })
+          .then(function (meta) { radarMeta = meta; })
+          .catch(function () {});
+      }
+
+      function setRadarMode(mode) {
+        radarRenderMode = (mode === 'gif' && radarGifReady) ? 'gif' : 'png';
+        if (radarRenderMode === 'gif') {
+          radarGifImage.style.display = 'block';
+          radarCanvas.style.display = 'none';
+          return;
+        }
+        radarGifImage.style.display = 'none';
+        radarCanvas.style.display = 'block';
+      }
+
+      function getRadarMetaStamp() {
+        if (!radarMeta) {
+          return '';
+        }
+        if (radarMeta.updatedAt) {
+          return String(radarMeta.updatedAt);
+        }
+        var frames = Array.isArray(radarMeta.frames) ? radarMeta.frames : [];
+        if (!frames.length) {
+          return '';
+        }
+        return String(frames[frames.length - 1].time || '');
+      }
+
+      function warmRadarGif(force) {
+        if (!radarGifPath || radarGifLoading) {
+          return false;
+        }
+        var metaStamp = getRadarMetaStamp();
+        var metaChanged = !!metaStamp && metaStamp !== radarGifLastMetaStamp;
+        if (!force) {
+          if (metaStamp && !metaChanged) {
+            return false;
+          }
+          if (!metaChanged && Date.now() < radarGifRefreshAt) {
+            return false;
+          }
+        }
+        radarGifRefreshAt = Date.now() + (15 * 60 * 1000);
+        radarGifLoading = true;
+        radarGifPendingMetaStamp = metaStamp;
+        var sep = radarGifPath.indexOf('?') > -1 ? '&' : '?';
+        radarGifImage.src = radarGifPath + sep + '_=' + Date.now();
+        return true;
+      }
+
+      function fetchRadarAnimationMode() {
+        var rect = radarViewport.getBoundingClientRect();
+        var width = Math.max(240, Math.floor(rect.width || 800));
+        var height = Math.max(240, Math.floor(rect.height || 480));
+        fetch('/api/radar/animation?width=' + width + '&height=' + height)
+          .then(function (res) { return res.json(); })
+          .then(function (payload) {
+            radarAnimationModeKnown = true;
+            radarPreferredMode = (payload.mode || 'png') === 'gif' ? 'gif' : 'png';
+            radarGifPath = payload.gifPath || '';
+            var startupWarmStarted = false;
+            if (!radarGifReady && !radarGifLoadedOnce && radarGifPath) {
+              startupWarmStarted = warmRadarGif(true);
+            }
+            if (radarPreferredMode === 'gif') {
+              if (!radarGifReady) {
+                setRadarMode('png');
+                warmRadarGif(true);
+                radarStartupPrefetchDone = false;
+                maybeStartRadarLoop();
+                return;
+              }
+              warmRadarGif(false);
+              radarStartupPrefetchDone = true;
+              maybeStartRadarLoop();
+              return;
+            }
+            if (!radarGifReady) {
+              radarGifReady = false;
+              setRadarMode('png');
+            }
+            radarStartupPrefetchDone = true;
+            if (!startupWarmStarted) {
+              maybeStartRadarLoop();
+            }
+          })
+          .catch(function () {
+            if (!radarGifLoadedOnce && Date.now() < radarStartupHoldUntilMs) {
+              setTimeout(fetchRadarAnimationMode, 450);
+              return;
+            }
+            radarAnimationModeKnown = true;
+            radarPreferredMode = 'png';
+            if (!radarGifReady) {
+              setRadarMode('png');
+            }
+            radarStartupPrefetchDone = true;
+            maybeStartRadarLoop();
+          });
+      }
+
+      function scheduleRadarStartupProbe() {
+        [450, 1200, 2200, 3600, 5200].forEach(function (delayMs) {
+          setTimeout(fetchRadarAnimationMode, delayMs);
+        });
+      }
+
+      function drawDonut(ctx, canvas, ratio, colorA, colorB, text) {
+        var w = canvas.width;
+        var h = canvas.height;
+        var cx = Math.floor(w / 2);
+        var cy = Math.floor(h / 2);
+        var r = Math.min(w, h) * 0.36;
+        var start = -Math.PI / 2;
+        var split = start + (Math.PI * 2 * Math.max(0, Math.min(1, ratio)));
+        ctx.clearRect(0, 0, w, h);
+        ctx.lineWidth = 9;
+        ctx.strokeStyle = colorA;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, start, split);
+        ctx.stroke();
+        ctx.strokeStyle = colorB;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, split, start + (Math.PI * 2));
+        ctx.stroke();
+        ctx.fillStyle = '#dbe5f0';
+        ctx.font = 'bold 12px var(--font-data)';
+        ctx.textAlign = 'center';
+        ctx.fillText(text, cx, cy + 4);
+      }
+
+      function drawStackedBars(ctx, canvas, bins, keyA, keyB, colorA, colorB) {
+        var w = canvas.width;
+        var h = canvas.height;
+        var pad = 6;
+        var padBottom = 16;
+        var chartBottom = h - padBottom;
+        ctx.clearRect(0, 0, w, h);
+        var maxBars = Math.max(12, Math.min(24, Math.floor((w - pad * 2) / 7)));
+        var data = reduceBinsForChart(bins, keyA, keyB, maxBars);
+        if (!data.length) {
+          drawHourAxis(ctx, w, h, pad, chartBottom, 24, (w - pad * 2) / 24);
+          return;
+        }
+        var maxY = 1;
+        for (var i = 0; i < data.length; i += 1) {
+          maxY = Math.max(maxY, Number(data[i].a || 0) + Number(data[i].b || 0));
+        }
+
+        var barW = (w - pad * 2) / data.length;
+        for (var j = 0; j < data.length; j += 1) {
+          var a = Math.max(0, Number(data[j].a || 0));
+          var b = Math.max(0, Number(data[j].b || 0));
+          var ah = Math.floor((a / maxY) * (chartBottom - pad));
+          var bh = Math.floor((b / maxY) * (chartBottom - pad));
+          var x = Math.round(pad + (j * barW));
+          var xNext = Math.round(pad + ((j + 1) * barW));
+          var drawW = Math.max(1, xNext - x - 1);
+          var yB = chartBottom - bh;
+          var yA = yB - ah;
+          ctx.fillStyle = colorB;
+          ctx.fillRect(x, yB, drawW, Math.max(1, bh));
+          ctx.fillStyle = colorA;
+          ctx.fillRect(x, yA, drawW, Math.max(1, ah));
+        }
+        drawHourAxis(ctx, w, h, pad, chartBottom, data.length, barW);
+      }
+
+      function reduceBinsForChart(bins, keyA, keyB, targetBars) {
+        var source = Array.isArray(bins) ? bins.slice(0, 48) : [];
+        if (!source.length) {
+          return [];
+        }
+        var maxBars = Math.max(12, Math.min(24, Number(targetBars || 24)));
+        var bucketCount = Math.max(1, Math.min(source.length, maxBars));
+        var bucketSize = Math.max(1, Math.ceil(source.length / bucketCount));
+        var out = [];
+        for (var i = 0; i < source.length; i += bucketSize) {
+          var sumA = 0;
+          var sumB = 0;
+          for (var j = i; j < Math.min(source.length, i + bucketSize); j += 1) {
+            var item = source[j] || {};
+            sumA += Math.max(0, Number(item[keyA] || 0));
+            sumB += Math.max(0, Number(item[keyB] || 0));
+          }
+          out.push({ a: sumA, b: sumB });
+        }
+        return out;
+      }
+
+      function drawHourAxis(ctx, w, h, pad, chartBottom, barsCount, barWidth) {
+        var count = Math.max(1, Number(barsCount || 24));
+        var slotWidth = Math.max(1, Number(barWidth || ((w - pad * 2) / count)));
+        ctx.save();
+        ctx.strokeStyle = 'rgba(150, 165, 184, 0.22)';
+        ctx.fillStyle = 'rgba(172, 186, 202, 0.78)';
+        ctx.lineWidth = 1;
+        ctx.font = '9px var(--font-data)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+
+        for (var hour = 0; hour <= 21; hour += 3) {
+          var slot = (hour / 24) * count;
+          var x = Math.round(pad + (slot * slotWidth) + (slotWidth / 2));
+          ctx.beginPath();
+          ctx.moveTo(x + 0.5, pad);
+          ctx.lineTo(x + 0.5, chartBottom);
+          ctx.stroke();
+          var label = String(hour).padStart(2, '0');
+          ctx.fillText(label, x, chartBottom + 2);
+        }
+
+        ctx.strokeStyle = 'rgba(166, 178, 196, 0.42)';
+        ctx.beginPath();
+        ctx.moveTo(pad, chartBottom + 0.5);
+        ctx.lineTo(w - pad, chartBottom + 0.5);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawLoadingBars(ctx, canvas, colorA, colorB, phaseOffset) {
+        var w = canvas.width;
+        var h = canvas.height;
+        var pad = 6;
+        var padBottom = 16;
+        var chartBottom = h - padBottom;
+        var bars = 16;
+        var barW = Math.max(2, Math.floor((w - pad * 2) / bars));
+        var phase = (solarLoadingPhase + Number(phaseOffset || 0));
+        ctx.clearRect(0, 0, w, h);
+        for (var i = 0; i < bars; i += 1) {
+          var wave = Math.sin((i * 0.58) + phase);
+          var pulse = Math.sin((i * 0.29) + (phase * 0.7));
+          var mix = Math.max(0.18, 0.45 + (wave * 0.28) + (pulse * 0.18));
+          var totalH = Math.floor((chartBottom - pad) * mix);
+          var topH = Math.floor(totalH * 0.56);
+          var bottomH = Math.max(1, totalH - topH);
+          var x = pad + (i * barW);
+          var yBottom = chartBottom - bottomH;
+          var yTop = yBottom - topH;
+          ctx.fillStyle = colorB;
+          ctx.fillRect(x, yBottom, Math.max(1, barW - 1), bottomH);
+          ctx.fillStyle = colorA;
+          ctx.fillRect(x, yTop, Math.max(1, barW - 1), topH);
+        }
+        drawHourAxis(ctx, w, h, pad, chartBottom, bars, barW);
+      }
+
+      function computeCosts(today) {
+        var importKwh = Math.max(0, Number(today.importKwh || 0));
+        var exportKwh = Math.max(0, Number(today.exportKwh || 0));
+        var importCost = (importKwh * Number(pricingConfig.importCentsPerKwh || 0)) / 100;
+        var feedIn = (exportKwh * Number(pricingConfig.feedInCentsPerKwh || 0)) / 100;
+        var supply = Number(pricingConfig.dailySupplyCents || 0) / 100;
+        return { total: importCost + supply - feedIn };
+      }
+
+      function sumSolarBinsKwh(bins, key) {
+        if (!Array.isArray(bins) || !bins.length) {
+          return 0;
+        }
+        var totalWh = 0;
+        for (var i = 0; i < bins.length; i += 1) {
+          totalWh += Math.max(0, Number((bins[i] && bins[i][key]) || 0));
+        }
+        return totalWh / 1000;
+      }
+
+      function buildBinsSignature(bins) {
+        if (!Array.isArray(bins) || !bins.length) {
+          return 'none';
+        }
+        var out = [];
+        var limit = Math.min(48, bins.length);
+        for (var i = 0; i < limit; i += 1) {
+          var item = bins[i] || {};
+          out.push(
+            Math.round(Number(item.selfWh || 0)),
+            Math.round(Number(item.importWh || 0)),
+            Math.round(Number(item.exportWh || 0))
+          );
+        }
+        return out.join('|');
+      }
+
+      function hasAnySolarData(bins, todayRaw) {
+        var today = todayRaw || {};
+        if (
+          (today.generatedReady && Number(today.generatedKwh || 0) > 0) ||
+          (today.importReady && Number(today.importKwh || 0) > 0) ||
+          (today.exportReady && Number(today.exportKwh || 0) > 0)
+        ) {
+          return true;
+        }
+        if (!Array.isArray(bins) || !bins.length) {
+          return false;
+        }
+        for (var i = 0; i < bins.length; i += 1) {
+          var item = bins[i] || {};
+          if (
+            Number(item.generatedWh || 0) > 0 ||
+            Number(item.importWh || 0) > 0 ||
+            Number(item.exportWh || 0) > 0 ||
+            Number(item.selfWh || 0) > 0
+          ) {
+            return true;
+          }
+        }
+        return false;
+      }
+
+      function hasAnySolarBinEnergy(bins) {
+        if (!Array.isArray(bins) || !bins.length) {
+          return false;
+        }
+        for (var i = 0; i < bins.length; i += 1) {
+          var item = bins[i] || {};
+          if (
+            Number(item.generatedWh || 0) > 0 ||
+            Number(item.importWh || 0) > 0 ||
+            Number(item.exportWh || 0) > 0 ||
+            Number(item.selfWh || 0) > 0
+          ) {
+            return true;
+          }
+        }
+        return false;
+      }
+
+      function isSolarBackendPending(froniusState) {
+        var fronius = froniusState || {};
+        var realtime = fronius.realtime || {};
+        var today = fronius.today || {};
+        if (!realtime.at) {
+          return true;
+        }
+        return !(today.generatedReady && today.importReady && today.exportReady);
+      }
+
+      function scheduleSolarBarsDraw(bins) {
+        pendingSolarBars = Array.isArray(bins) ? bins.slice(0, 48) : [];
+        if (solarBarsDrawScheduled) {
+          return;
+        }
+        solarBarsDrawScheduled = true;
+        requestAnimationFrame(function () {
+          solarBarsDrawScheduled = false;
+          var drawBins = pendingSolarBars;
+          drawStackedBars(usageBarCtx, usageBarCanvas, drawBins, 'selfWh', 'importWh', '#8edb7c', '#2d9cff');
+          drawStackedBars(solarBarCtx, solarBarCanvas, drawBins, 'selfWh', 'exportWh', '#f2bb3c', '#5fe08b');
+        });
+      }
+
+      function setSolarChartsLoading(isLoading) {
+        var next = !!isLoading;
+        if (solarChartsLoading === next) {
+          return;
+        }
+        solarChartsLoading = next;
+        if (!solarChartsLoading) {
+          if (solarLoadingTimer) {
+            clearInterval(solarLoadingTimer);
+            solarLoadingTimer = 0;
+          }
+          return;
+        }
+        solarLoadingPhase = 0;
+        drawLoadingBars(usageBarCtx, usageBarCanvas, 'rgba(128, 213, 255, 0.56)', 'rgba(128, 213, 255, 0.18)', 0);
+        drawLoadingBars(solarBarCtx, solarBarCanvas, 'rgba(126, 225, 160, 0.62)', 'rgba(126, 225, 160, 0.2)', 0.4);
+        solarLoadingTimer = setInterval(function () {
+          solarLoadingPhase += 0.45;
+          drawLoadingBars(usageBarCtx, usageBarCanvas, 'rgba(128, 213, 255, 0.56)', 'rgba(128, 213, 255, 0.18)', 0);
+          drawLoadingBars(solarBarCtx, solarBarCanvas, 'rgba(126, 225, 160, 0.62)', 'rgba(126, 225, 160, 0.2)', 0.4);
+        }, 420);
+      }
+
+      function formatBinDate(dateInput) {
+        if (!dateInput) {
+          return 'No schedule';
+        }
+        var date = new Date(dateInput);
+        if (Number.isNaN(date.getTime())) {
+          return String(dateInput);
+        }
+        return date.toLocaleDateString('en-AU', {
+          weekday: 'short',
+          day: '2-digit',
+          month: 'short'
+        });
+      }
+
+      function normalizeBinType(type) {
+        var t = String(type || '').toLowerCase();
+        if (t.indexOf('today:') === 0) { return String(type || 'Unknown'); }
+        if (t.indexOf('recycl') > -1 || t.indexOf('yellow') > -1) { return 'Recycle'; }
+        if (t.indexOf('green') > -1 || t.indexOf('garden') > -1 || t.indexOf('organ') > -1) { return 'Green Bin'; }
+        if (t.indexOf('special') > -1 || t.indexOf('curb') > -1 || t.indexOf('kerb') > -1 || t.indexOf('bulky') > -1) { return type || 'Special'; }
+        if (t.indexOf('general') > -1 || t.indexOf('waste') > -1 || t.indexOf('red') > -1) { return 'General Waste'; }
+        return type || 'Unknown';
+      }
+
+      function iconForBinType(type) {
+        var t = String(type || '').toLowerCase();
+        if (t.indexOf('recycl') > -1 || t.indexOf('yellow') > -1) { return '♻'; }
+        if (t.indexOf('green') > -1 || t.indexOf('garden') > -1 || t.indexOf('organ') > -1) { return '🍃'; }
+        if (t.indexOf('special') > -1 || t.indexOf('curb') > -1 || t.indexOf('kerb') > -1 || t.indexOf('bulky') > -1) { return '📦'; }
+        if (t.indexOf('general') > -1 || t.indexOf('waste') > -1 || t.indexOf('red') > -1) { return '🗑'; }
+        if (t.indexOf('unavailable') > -1 || t.indexOf('unknown') > -1) { return '⚠'; }
+        return '🗑';
+      }
+
+      function styleBinIcon(iconNode, tone) {
+        if (!iconNode) {
+          return;
+        }
+        if (tone === 'yellow') {
+          iconNode.style.color = '#f2d44b';
+          return;
+        }
+        if (tone === 'green') {
+          iconNode.style.color = '#8edb7c';
+          return;
+        }
+        if (tone === 'neutral') {
+          iconNode.style.color = '#b7c2d0';
+          return;
+        }
+        iconNode.style.color = '#d9e2eb';
+      }
+
+      function iconForWeather(iconCode, summary) {
+        var s = String(summary || '').toLowerCase();
+        if (iconCode && iconCode.indexOf('01') === 0) { return '☀'; }
+        if (iconCode && iconCode.indexOf('02') === 0) { return '⛅'; }
+        if (iconCode && iconCode.indexOf('03') === 0) { return '☁'; }
+        if (iconCode && iconCode.indexOf('04') === 0) { return '☁'; }
+        if (iconCode && iconCode.indexOf('09') === 0) { return '🌦'; }
+        if (iconCode && iconCode.indexOf('10') === 0) { return '🌧'; }
+        if (iconCode && iconCode.indexOf('11') === 0) { return '⛈'; }
+        if (iconCode && iconCode.indexOf('13') === 0) { return '❄'; }
+        if (iconCode && iconCode.indexOf('50') === 0) { return '🌫'; }
+        if (s.indexOf('rain') > -1) { return '🌧'; }
+        if (s.indexOf('storm') > -1) { return '⛈'; }
+        if (s.indexOf('cloud') > -1) { return '☁'; }
+        return '☁';
+      }
+
+      function renderForecast(items) {
+        var node = document.getElementById('weatherForecast');
+        var forecast = Array.isArray(items) ? items.slice(0, 3) : [];
+        if (!forecast.length) {
+          node.innerHTML = '';
+          return;
+        }
+        node.innerHTML = forecast.map(function (item) {
+          return '<div class=\"forecast-item\">' +
+            '<div class=\"forecast-day\">' + String(item.day || '--') + '</div>' +
+            '<div class=\"forecast-icon\">' + iconForWeather(item.icon, item.summary) + '</div>' +
+            '<div class=\"forecast-temp\">' + Number(item.tempC || 0).toFixed(0) + ' °C</div>' +
+            '</div>';
+        }).join('');
+      }
+
+      function applyState(state) {
+        latestWeatherSummary = (state.weather && state.weather.summary) || '';
+
+        document.getElementById('weatherSummary').textContent = state.weather.summary || 'Unknown';
+        document.getElementById('weatherTemp').textContent = String(state.weather.tempC || 0) + ' °C';
+        document.getElementById('weatherIcon').textContent = iconForWeather(state.weather.icon, state.weather.summary);
+        renderForecast(state.weather.forecast || []);
+        var binsState = state.bins || {};
+        var binTypeText = binsState.nextType || '';
+        var normalizedBinType = normalizeBinType(binTypeText || 'Unknown');
+        if ((!binTypeText || normalizedBinType === 'Unknown') && binsState.error) {
+          normalizedBinType = 'Bins unavailable';
+        }
+        document.getElementById('binsType').textContent = normalizedBinType;
+        var binDateLine = binsState.error
+          ? 'Check source'
+          : (binsState.subtitle ? (String(binsState.subtitle) + (binsState.nextDate ? (' • ' + formatBinDate(binsState.nextDate)) : '')) : formatBinDate(binsState.nextDate || ''));
+        document.getElementById('binsDate').textContent = binDateLine;
+        var binsIconNode = document.getElementById('binsIcon');
+        binsIconNode.textContent = binsState.displayIcon || iconForBinType(normalizedBinType);
+        styleBinIcon(binsIconNode, binsState.displayTone || (normalizedBinType.toLowerCase().indexOf('recycl') > -1 ? 'yellow' : 'default'));
+        var newsHeadlines = Array.isArray(state.news.headlines) ? state.news.headlines : [];
+        setNewsTickerText(newsHeadlines.join('   |   ') || 'No headlines currently available');
+
+        pricingConfig = Object.assign({}, pricingConfig, state.pricing || {});
+        applyTheme(state.ui && state.ui.themePreset ? state.ui.themePreset : 'matte');
+
+        var realtime = state.fronius.realtime || {};
+        var loadW = Math.max(0, Number(realtime.loadW || 0));
+        var genW = Math.max(0, Number(realtime.generatedW || 0));
+        var fromSolarW = Math.min(loadW, genW);
+        var importW = Math.max(0, loadW - fromSolarW);
+        var capW = Math.max(1000, Number(pricingConfig.inverterCapacityKw || 6) * 1000);
+
+        var gaugeSig = [
+          generationGaugeCanvas.width,
+          generationGaugeCanvas.height,
+          usageGaugeCanvas.width,
+          usageGaugeCanvas.height,
+          Math.round(genW),
+          Math.round(loadW),
+          Math.round(fromSolarW),
+          Math.round(capW)
+        ].join('|');
+        if (gaugeSig !== lastSolarGaugeSig) {
+          drawDonut(generationGaugeCtx, generationGaugeCanvas, Math.min(genW, capW) / capW, '#2d9cff', 'rgba(130,140,152,0.26)', String(Math.round((Math.min(genW, capW) / capW) * 100)) + '%');
+          drawDonut(usageGaugeCtx, usageGaugeCanvas, loadW > 0 ? (fromSolarW / loadW) : 0, '#8edb7c', '#ff7350', String(Math.round(loadW > 0 ? (fromSolarW / loadW) * 100 : 0)) + '%');
+          lastSolarGaugeSig = gaugeSig;
+        }
+
+        document.getElementById('generationValue').textContent = (genW / 1000).toFixed(2);
+        document.getElementById('usageValue').textContent = (loadW / 1000).toFixed(2);
+
+        var todayRaw = state.fronius.today || {};
+        var importReady = !!todayRaw.importReady;
+        var bins = (Array.isArray(state.solarHourlyBins) && state.solarHourlyBins.length)
+          ? state.solarHourlyBins
+          : (state.solarDailyBins || []);
+        var binsHaveEnergy = hasAnySolarBinEnergy(bins);
+        var todayHasTotals = Number(todayRaw.generatedKwh || 0) > 0 || Number(todayRaw.importKwh || 0) > 0 || Number(todayRaw.exportKwh || 0) > 0;
+        var chartsLoading = !binsHaveEnergy && (isSolarBackendPending(state.fronius || {}) || todayHasTotals);
+        setSolarChartsLoading(chartsLoading);
+        var barsSig = (chartsLoading ? 'loading' : buildBinsSignature(bins)) + '|' +
+          usageBarCanvas.width + 'x' + usageBarCanvas.height + '|' +
+          solarBarCanvas.width + 'x' + solarBarCanvas.height;
+        if (barsSig !== lastSolarBarsSig) {
+          if (chartsLoading) {
+            drawLoadingBars(usageBarCtx, usageBarCanvas, 'rgba(128, 213, 255, 0.56)', 'rgba(128, 213, 255, 0.18)', 0);
+            drawLoadingBars(solarBarCtx, solarBarCanvas, 'rgba(126, 225, 160, 0.62)', 'rgba(126, 225, 160, 0.2)', 0.4);
+          } else {
+            scheduleSolarBarsDraw(bins);
+          }
+          lastSolarBarsSig = barsSig;
+        }
+
+        var today = {
+          generatedKwh: Math.max(0, Number(todayRaw.generatedKwh || 0)),
+          importKwh: Math.max(0, Number(todayRaw.importKwh || 0)),
+          exportKwh: Math.max(0, Number(todayRaw.exportKwh || 0))
+        };
+        var binsGeneratedKwh = sumSolarBinsKwh(bins, 'generatedWh');
+        var binsExportKwh = sumSolarBinsKwh(bins, 'exportWh');
+        if (today.generatedKwh <= 0 && binsGeneratedKwh > 0) {
+          today.generatedKwh = binsGeneratedKwh;
+        }
+        if (today.exportKwh <= 0 && binsExportKwh > 0) {
+          today.exportKwh = binsExportKwh;
+        }
+        var costs = computeCosts({
+          generatedKwh: today.generatedKwh,
+          importKwh: importReady ? today.importKwh : 0,
+          exportKwh: today.exportKwh
+        });
+        document.getElementById('solarStatusGenerated').textContent = Number(today.generatedKwh || 0).toFixed(2) + ' kWh';
+        document.getElementById('solarStatusImport').textContent = importReady
+          ? (Number(today.importKwh || 0).toFixed(2) + ' kWh')
+          : 'Loading';
+        document.getElementById('solarStatusCost').textContent = '$' + costs.total.toFixed(2);
+
+        if (state.layout && state.layout.focus) {
+          rotationConfig.intervalSeconds = Number(state.layout.focus.intervalSeconds || rotationConfig.intervalSeconds || 180);
+          rotationConfig.focusDurationSeconds = Number(state.layout.focus.focusDurationSeconds || state.layout.focus.durationSeconds || rotationConfig.focusDurationSeconds || 30);
+          rotationConfig.focusViews = sanitizeFocusViews(state.layout.focus.views || rotationConfig.focusViews);
+          rotationConfig.rainOverrideEnabled = !!state.layout.focus.rainOverrideEnabled;
+          rotationConfig.rainOverrideCooldownSeconds = Number(state.layout.focus.rainOverrideCooldownSeconds || 0);
+        }
+
+        updateRainIndicator();
+
+        if (!firstDataApplied) {
+          firstDataApplied = true;
+          document.body.classList.remove('loading');
+          maybeStartRadarLoop();
+        }
+      }
+
+      function fetchState() {
+        if (stateFetchInFlight) { return; }
+        stateFetchInFlight = true;
+        fetch('/api/state')
+          .then(function (res) { return res.json(); })
+          .then(function (state) { applyState(state); })
+          .catch(function () {})
+          .then(function () { stateFetchInFlight = false; });
+      }
+
+      function pickNextTakeover(now) {
+        if (rotationConfig.rainOverrideEnabled && getHybridRainLikely()) {
+          var cooldownMs = Math.max(0, Number(rotationConfig.rainOverrideCooldownSeconds || 0)) * 1000;
+          if (now - lastRainOverrideMs >= cooldownMs) {
+            lastRainOverrideMs = now;
+            return 'radar';
+          }
+        }
+
+        var views = sanitizeFocusViews(rotationConfig.focusViews);
+        focusCursor = (focusCursor + 1) % views.length;
+        return views[focusCursor];
+      }
+
+      function beginTakeover(mode) {
+        if (takeoverActive) { return; }
+        takeoverActive = true;
+        takeoverUntilMs = 0;
+        document.body.classList.add('blackout');
+
+        setTimeout(function () {
+          document.body.classList.remove('blackout');
+          document.body.classList.add(mode === 'radar' ? 'takeover-radar' : 'takeover-solar');
+          takeoverUntilMs = Date.now() + (Math.max(5, Number(rotationConfig.focusDurationSeconds || 30)) * 1000);
+          resizeCanvas();
+          setTimeout(resizeCanvas, 80);
+        }, 360);
+      }
+
+      function endTakeover() {
+        takeoverActive = false;
+        document.body.classList.remove('takeover-radar', 'takeover-solar', 'blackout');
+        nextTakeoverAtMs = Date.now() + (Math.max(30, Number(rotationConfig.intervalSeconds || 180)) * 1000);
+        resizeCanvas();
+      }
+
+      function uiLoop() {
+        var now = Date.now();
+        if (takeoverActive) {
+          if (takeoverUntilMs > 0 && now >= takeoverUntilMs) {
+            endTakeover();
+          }
+          return;
+        }
+
+        if (now >= nextTakeoverAtMs) {
+          beginTakeover(pickNextTakeover(now));
+        }
+      }
+
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+      tickClock();
+      setInterval(tickClock, 1000);
+      fetchState();
+      setInterval(fetchState, 5000);
+      fetchRadarMeta();
+      setInterval(fetchRadarMeta, 60000);
+      setInterval(fetchRadarAnimationMode, 30000);
+      setInterval(uiLoop, 400);
+      scheduleRadarStartupProbe();
+      setTimeout(function () {
+        maybeStartRadarLoop();
+      }, 6200);
+    })();
+  </script>
+</body>
+</html>

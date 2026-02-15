@@ -1,0 +1,6 @@
+{
+  "adminUser": "admin",
+  "passwordSalt": "change-this-salt",
+  "passwordIterations": 120000,
+  "passwordHash": "replace-with-pbkdf2-hash"
+}
