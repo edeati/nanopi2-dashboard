@@ -967,7 +967,7 @@
       var solarLoadingTimer = 0;
       var solarLoadingPhase = 0;
       var FAST_STATE_REFRESH_MS = 5000;
-      var SLOW_STATE_REFRESH_MS = 15 * 60 * 1000;
+      var SLOW_STATE_REFRESH_MS = 5 * 60 * 1000;
 
       var rotationConfig = {
         intervalSeconds: 180,
@@ -2225,6 +2225,9 @@
       setInterval(tickClock, 1000);
       fetchState();
       setInterval(fetchState, SLOW_STATE_REFRESH_MS);
+      // Fetch full state more frequently during startup to populate charts faster
+      var startupFetchTimer = setInterval(fetchState, 15000);
+      setTimeout(function () { clearInterval(startupFetchTimer); }, 5 * 60 * 1000);
       setInterval(fetchRealtimeState, FAST_STATE_REFRESH_MS);
       fetchRadarMeta();
       setInterval(fetchRadarMeta, 60000);

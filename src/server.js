@@ -321,6 +321,7 @@ function createServer(options) {
   const solarHistory = ((options && options.initialSolarHistory) || []).slice();
   let solarDailyBins = ((options && options.initialSolarDailyBins) || []).slice();
   let solarHourlyBins = aggregateDailyToHourlyBins(solarDailyBins);
+  const startupMs = Date.now();
 
   const sharedConfig = Object.assign({}, dashboardConfig, { logger });
   const radarClient = (options && options.radarClient) || createRainViewerClient(sharedConfig);
@@ -464,7 +465,8 @@ function createServer(options) {
       while (solarHistory.length > 0 && solarHistory[0].ts < cutoff) {
         solarHistory.shift();
       }
-      if (!solarDailyBins.length) {
+      const earlyStartup = (now - startupMs) < 5 * 60 * 1000;
+      if (!solarDailyBins.length || earlyStartup) {
         solarDailyBins = aggregateHistoryToDailyBins(solarHistory, now);
         solarHourlyBins = aggregateDailyToHourlyBins(solarDailyBins);
       }
