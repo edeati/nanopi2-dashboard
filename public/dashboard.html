@@ -263,19 +263,19 @@
       border-radius: 10px;
       background: rgba(15, 17, 22, 0.92);
       padding: 8px 6px 6px;
-      min-height: 126px;
+      min-height: 140px;
     }
 
     .solar-gauge canvas {
-      width: 106px;
-      height: 106px;
+      width: 120px;
+      height: 120px;
       border-radius: 50%;
       background: transparent;
       display: block;
     }
 
     .g-label {
-      font-size: 10px;
+      font-size: 12px;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: var(--muted);
@@ -351,12 +351,12 @@
       background: transparent;
       font-size: 62px;
       line-height: 1;
-      opacity: 0.16;
+      opacity: 0.30;
       pointer-events: none;
     }
 
     .solar-status-label {
-      font-size: 11px;
+      font-size: 14px;
       color: #95a5b6;
       letter-spacing: 0.06em;
       text-transform: uppercase;
@@ -370,7 +370,7 @@
 
     .solar-status-value {
       font-family: var(--font-ui);
-      font-size: 38px;
+      font-size: 46px;
       color: #eef2f6;
       font-weight: 700;
       white-space: nowrap;
@@ -447,7 +447,7 @@
       line-height: 1;
       margin: 0;
       color: #d9e2eb;
-      opacity: 0.24;
+      opacity: 0.36;
       pointer-events: none;
     }
 
@@ -529,7 +529,7 @@
       font-size: 120px;
       line-height: 1;
       filter: drop-shadow(0 2px 7px rgba(0, 0, 0, 0.32));
-      opacity: 0.18;
+      opacity: 0.32;
       pointer-events: none;
     }
 
@@ -764,7 +764,7 @@
 
       #binsIcon {
         font-size: 116px;
-        opacity: 0.2;
+        opacity: 0.32;
       }
 
       #binsType {
@@ -784,11 +784,11 @@
       }
 
       .g-label {
-        font-size: 11px;
+        font-size: 13px;
       }
 
       .solar-status-value {
-        font-size: 34px;
+        font-size: 40px;
       }
 
       #solarStatusGrid {
@@ -1339,7 +1339,7 @@
         var center = latLonToTile(radarMeta.lat, radarMeta.lon, z);
         var cx = center.x * TILE_SIZE;
         var cy = center.y * TILE_SIZE;
-        var extra = takeoverActive ? TILE_SIZE : TILE_SIZE * 2;
+        var extra = TILE_SIZE * 2;
         var left = cx - radarCanvas.width / 2 - extra;
         var top = cy - radarCanvas.height / 2 - extra;
         var right = cx + radarCanvas.width / 2 + extra;
@@ -1601,7 +1601,7 @@
         var start = -Math.PI / 2;
         var split = start + (Math.PI * 2 * Math.max(0, Math.min(1, ratio)));
         ctx.clearRect(0, 0, w, h);
-        ctx.lineWidth = 16;
+        ctx.lineWidth = 14;
         ctx.strokeStyle = colorA;
         ctx.beginPath();
         ctx.arc(cx, cy, r, start, split);
@@ -1620,7 +1620,7 @@
         ctx.textBaseline = 'middle';
         if (lines.length === 1) {
           var solo = String(lines[0] || '');
-          var soloSize = fitCanvasFont(ctx, solo, '800', 28, 15, textMaxWidth);
+          var soloSize = fitCanvasFont(ctx, solo, '800', 34, 17, textMaxWidth);
           ctx.fillStyle = '#e6edf6';
           ctx.font = '800 ' + soloSize + 'px ' + CANVAS_FONT_FAMILY;
           ctx.fillText(solo, cx, cy + 1);
@@ -1631,8 +1631,8 @@
         for (var i = 0; i < lines.length; i += 1) {
           var line = String(lines[i] || '');
           var isPrimary = i === 0;
-          var preferred = isPrimary ? 24 : 20;
-          var min = isPrimary ? 14 : 13;
+          var preferred = isPrimary ? 30 : 26;
+          var min = isPrimary ? 16 : 15;
           var weight = isPrimary ? '800' : '700';
           var size = fitCanvasFont(ctx, line, weight, preferred, min, textMaxWidth);
           ctx.fillStyle = isPrimary ? '#e6edf6' : '#aeb8c6';

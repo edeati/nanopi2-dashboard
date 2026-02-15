@@ -42,13 +42,13 @@ module.exports = async function run() {
   assert.ok(html.indexOf('#mainRadar {\n        min-width: 0;\n      }') > -1, 'tablet radar panel should allow shrink to prevent edge stripe');
   assert.ok(html.indexOf('grid-template-columns: minmax(0, 1.32fr) minmax(0, 0.78fr);') > -1, 'tablet weather layout should prioritize current conditions width');
   assert.ok(html.indexOf('#timeBig {\n        font-size: 66px;') > -1, 'tablet clock should be more legible at distance');
-  assert.ok(html.indexOf('.solar-gauge canvas {\n      width: 106px;') > -1, 'solar gauges should be enlarged for in-gauge detail text');
+  assert.ok(html.indexOf('.solar-gauge canvas {\n      width: 120px;') > -1, 'solar gauges should be enlarged for in-gauge detail text');
   assert.strictEqual(html.indexOf('.g-value {'), -1, 'legacy side-value gauge text should be removed');
   assert.ok(html.indexOf('.solar-status-card {\n        min-height: 86px;') > -1, 'tablet solar status cards should be larger for readability');
-  assert.ok(html.indexOf('.solar-status-value {\n        font-size: 34px;') > -1, 'tablet solar status values should be larger');
+  assert.ok(html.indexOf('.solar-status-value {\n        font-size: 40px;') > -1, 'tablet solar status values should be larger');
   assert.ok(html.indexOf('#binsIcon {\n      position: absolute;') > -1, 'bins icon should become large background glyph');
   assert.ok(html.indexOf('font-size: 116px;') > -1, 'tablet bins icon should be oversized');
-  assert.ok(html.indexOf('opacity: 0.2;') > -1, 'tablet bins icon should be subdued behind text');
+  assert.ok(html.indexOf('opacity: 0.32;') > -1, 'tablet bins icon should be subdued behind text');
   assert.ok(html.indexOf('#customCard {\n      display: flex;\n      flex-direction: column;\n      justify-content: center;\n      align-items: center;\n      text-align: center;') > -1, 'clock card should be center-aligned');
   assert.ok(html.indexOf('#weatherSummary {\n        font-size: clamp(20px, 3.3vh, 25px);') > -1, 'tablet weather summary should be larger');
   assert.ok(html.indexOf('.weather-temp-large {\n        font-size: clamp(34px, 5.4vh, 46px);') > -1, 'tablet weather temperature should be much larger');

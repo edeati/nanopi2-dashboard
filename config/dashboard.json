@@ -58,7 +58,7 @@
     "refreshSeconds": 120,
     "lat": 0,
     "lon": 0,
-    "zoom": 8,
+    "zoom": 6,
     "providerMaxZoom": 7,
     "color": 3,
     "options": "1_1",
