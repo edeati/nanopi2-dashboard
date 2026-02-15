@@ -945,21 +945,10 @@
       var radarAnimStart = Date.now();
       var radarLastFrameKey = '';
       var radarRenderMode = 'png';
-      var radarGifPath = '';
-      var radarGifRefreshAt = 0;
       var radarGifReady = false;
       var radarGifLoading = false;
-      var radarGifLoadedOnce = false;
-      var radarGifLastMetaStamp = '';
-      var radarGifPendingMetaStamp = '';
-      var radarGifLoadingStartedAt = 0;
-      var radarGifMetaMissSinceMs = 0;
-      var radarGifStaleFallbackActive = false;
-      var radarStartupPrefetchDone = false;
-      var radarStartupHoldUntilMs = Date.now() + 6000;
-      var radarAnimationModeKnown = false;
-      var radarPreferredMode = 'png';
-      var RADAR_GIF_STALE_TIMEOUT_MS = 5 * 60 * 1000;
+      var radarGifUrl = '';
+      var radarGifRefreshMs = 120000;
       var radarRainLikely = false;
       var radarHeavyRain = false;
       var rainLikelyConfidence = 0;
@@ -1067,49 +1056,16 @@
 
       radarGifImage.onload = function () {
         radarGifLoading = false;
-        radarGifLoadingStartedAt = 0;
         radarGifReady = true;
-        radarGifLoadedOnce = true;
-        radarGifMetaMissSinceMs = 0;
-        radarGifStaleFallbackActive = false;
-        radarGifLastMetaStamp = radarGifPendingMetaStamp || radarGifLastMetaStamp;
-        radarStartupPrefetchDone = true;
-        setRadarMode('gif');
-        maybeStartRadarLoop();
+        radarGifImage.style.display = 'block';
+        radarCanvas.style.display = 'none';
       };
 
       radarGifImage.onerror = function () {
         radarGifLoading = false;
-        radarGifLoadingStartedAt = 0;
-        var pendingMetaMissing = !!radarGifPendingMetaStamp && radarGifPendingMetaStamp !== radarGifLastMetaStamp;
-        if (pendingMetaMissing && !radarGifMetaMissSinceMs) {
-          radarGifMetaMissSinceMs = Date.now();
-        }
-        if (radarGifLoadedOnce) {
-          setRadarMode('png');
-          if (pendingMetaMissing && (Date.now() - radarGifMetaMissSinceMs) >= RADAR_GIF_STALE_TIMEOUT_MS) {
-            radarGifStaleFallbackActive = true;
-          }
-          if (radarPreferredMode === 'gif') {
-            setTimeout(function () {
-              warmRadarGif(true);
-            }, 1200);
-          }
-          return;
-        }
-        if (!radarGifLoadedOnce) {
-          if (radarPreferredMode === 'gif' && Date.now() < radarStartupHoldUntilMs) {
-            setTimeout(function () {
-              warmRadarGif(true);
-            }, 320);
-            return;
-          }
-          radarGifReady = false;
-          radarPreferredMode = 'png';
-          radarStartupPrefetchDone = true;
-          setRadarMode('png');
-          maybeStartRadarLoop();
-        }
+        radarGifReady = false;
+        radarGifImage.style.display = 'none';
+        radarCanvas.style.display = 'block';
       };
 
       function applyTheme(preset) {
@@ -1227,7 +1183,6 @@
         solarBarsDrawScheduled = false;
         pendingSolarBars = [];
         drawInitialPlaceholders();
-        fetchRadarAnimationMode();
       }
 
       function maybeStartRadarLoop() {
@@ -1235,8 +1190,8 @@
           return;
         }
         radarLoopStarted = true;
-        setRadarMode('png');
         requestAnimationFrame(animateRadar);
+        initRadarGifMode();
       }
 
       function latLonToTile(lat, lon, z) {
@@ -1525,12 +1480,7 @@
       }
 
       async function animateRadar() {
-        if (radarPreferredMode === 'gif' && !radarGifReady && !radarStartupPrefetchDone) {
-          warmRadarGif(false);
-        }
-
-        if (radarRenderMode === 'gif') {
-          warmRadarGif(false);
+        if (radarGifReady) {
           applyRainClassification(
             isWeatherRainLikely(latestWeatherSummary),
             isWeatherHeavyRainLikely(latestWeatherSummary),
@@ -1539,10 +1489,6 @@
           updateRainIndicator();
           requestAnimationFrame(animateRadar);
           return;
-        }
-
-        if (radarGifPath) {
-          warmRadarGif(false);
         }
 
         if (!radarMeta || !radarMeta.frames || radarMeta.frames.length === 0) {
@@ -1601,120 +1547,36 @@
       }
 
       function setRadarMode(mode) {
-        radarRenderMode = (mode === 'gif' && radarGifReady && !radarGifStaleFallbackActive) ? 'gif' : 'png';
-        if (radarRenderMode === 'gif') {
+        radarRenderMode = mode;
+        if (mode === 'gif' && radarGifReady) {
           radarGifImage.style.display = 'block';
           radarCanvas.style.display = 'none';
-          return;
+        } else {
+          radarGifImage.style.display = 'none';
+          radarCanvas.style.display = 'block';
         }
-        radarGifImage.style.display = 'none';
-        radarCanvas.style.display = 'block';
       }
 
-      function getRadarMetaStamp() {
-        if (!radarMeta) {
-          return '';
-        }
-        if (radarMeta.updatedAt) {
-          return String(radarMeta.updatedAt);
-        }
-        var frames = Array.isArray(radarMeta.frames) ? radarMeta.frames : [];
-        if (!frames.length) {
-          return '';
-        }
-        return String(frames[frames.length - 1].time || '');
-      }
-
-      function warmRadarGif(force) {
-        if (!radarGifPath || radarGifLoading) {
-          return false;
-        }
-        var now = Date.now();
-        var metaStamp = getRadarMetaStamp();
-        var metaChanged = !!metaStamp && metaStamp !== radarGifLastMetaStamp;
-        if (!force) {
-          if (metaStamp && !metaChanged) {
-            return false;
-          }
-          if (!metaChanged && now < radarGifRefreshAt) {
-            return false;
-          }
-        }
-        if (metaChanged && !radarGifMetaMissSinceMs) {
-          radarGifMetaMissSinceMs = now;
-        }
-        radarGifRefreshAt = now + (5 * 60 * 1000);
+      function loadRadarGif() {
+        if (radarGifLoading || !radarGifUrl) return;
         radarGifLoading = true;
-        radarGifLoadingStartedAt = now;
-        radarGifPendingMetaStamp = metaStamp;
-        var sep = radarGifPath.indexOf('?') > -1 ? '&' : '?';
-        radarGifImage.src = radarGifPath + sep + 'strict=1&_=' + now;
-        return true;
+        radarGifImage.src = radarGifUrl + (radarGifUrl.indexOf('?') > -1 ? '&' : '?') + '_=' + Date.now();
       }
 
-      function fetchRadarAnimationMode() {
+      function initRadarGifMode() {
         var rect = radarViewport.getBoundingClientRect();
         var width = Math.max(240, Math.floor(rect.width || 800));
         var height = Math.max(240, Math.floor(rect.height || 480));
         fetch('/api/radar/animation?width=' + width + '&height=' + height)
           .then(function (res) { return res.json(); })
           .then(function (payload) {
-            radarAnimationModeKnown = true;
-            radarPreferredMode = (payload.mode || 'png') === 'gif' ? 'gif' : 'png';
-            radarGifPath = payload.gifPath || '';
-            var startupWarmStarted = false;
-            if (!radarGifReady && !radarGifLoadedOnce && radarGifPath) {
-              startupWarmStarted = warmRadarGif(true);
-            }
-            if (radarPreferredMode === 'gif') {
-              if (!radarGifLoadedOnce && !radarGifReady) {
-                setRadarMode('png');
-                warmRadarGif(true);
-                radarStartupPrefetchDone = false;
-                maybeStartRadarLoop();
-                return;
-              }
-              if (radarGifStaleFallbackActive) {
-                setRadarMode('png');
-                warmRadarGif(true);
-                radarStartupPrefetchDone = true;
-                maybeStartRadarLoop();
-                return;
-              }
-              setRadarMode('png');
-              warmRadarGif(false);
-              radarStartupPrefetchDone = true;
-              maybeStartRadarLoop();
-              return;
-            }
-            if (!radarGifReady) {
-              radarGifReady = false;
-              setRadarMode('png');
-            }
-            radarStartupPrefetchDone = true;
-            if (!startupWarmStarted) {
-              maybeStartRadarLoop();
+            if (payload.mode === 'gif' && payload.gifPath) {
+              radarGifUrl = payload.gifPath;
+              loadRadarGif();
+              setInterval(loadRadarGif, radarGifRefreshMs);
             }
           })
-          .catch(function () {
-            if (!radarGifLoadedOnce && Date.now() < radarStartupHoldUntilMs) {
-              setTimeout(fetchRadarAnimationMode, 450);
-              return;
-            }
-            radarAnimationModeKnown = true;
-            radarPreferredMode = 'png';
-            if (!radarGifReady) {
-              setRadarMode('png');
-            }
-            radarStartupPrefetchDone = true;
-            maybeStartRadarLoop();
-          });
-      }
-
-      function scheduleRadarStartupProbe() {
-        [450, 1200, 2200, 3600, 5200].forEach(function (delayMs) {
-          setTimeout(fetchRadarAnimationMode, delayMs);
-        });
+          .catch(function () {});
       }
 
       function fitCanvasFont(ctx, text, weight, preferredSize, minSize, maxWidth) {
@@ -2346,28 +2208,12 @@
 
       function uiLoop() {
         var now = Date.now();
-        if (
-          radarGifLoading &&
-          radarGifPendingMetaStamp &&
-          radarGifPendingMetaStamp !== radarGifLastMetaStamp &&
-          !radarGifStaleFallbackActive
-        ) {
-          if (!radarGifMetaMissSinceMs) {
-            radarGifMetaMissSinceMs = radarGifLoadingStartedAt || now;
-          }
-          if ((now - radarGifMetaMissSinceMs) >= RADAR_GIF_STALE_TIMEOUT_MS) {
-            radarGifStaleFallbackActive = true;
-            setRadarMode('png');
-          }
-        }
-
         if (currentViewMode !== 'main') {
           if (takeoverUntilMs > 0 && now >= takeoverUntilMs) {
             endTakeover();
           }
           return;
         }
-
         if (now >= nextTakeoverAtMs) {
           beginTakeover(pickNextTakeover(now));
         }
@@ -2382,12 +2228,7 @@
       setInterval(fetchRealtimeState, FAST_STATE_REFRESH_MS);
       fetchRadarMeta();
       setInterval(fetchRadarMeta, 60000);
-      setInterval(fetchRadarAnimationMode, 30000);
       setInterval(uiLoop, 400);
-      scheduleRadarStartupProbe();
-      setTimeout(function () {
-        maybeStartRadarLoop();
-      }, 6200);
     })();
   </script>
 </body>
