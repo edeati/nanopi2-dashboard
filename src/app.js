@@ -126,6 +126,10 @@ function createApp(options) {
   const getSolarHistory = options.getSolarHistory;
   const getSolarDailyBins = options.getSolarDailyBins || function emptyDailyBins() { return []; };
   const getSolarHourlyBins = options.getSolarHourlyBins || function emptyHourlyBins() { return []; };
+  const getSolarUsageHourly = options.getSolarUsageHourly || function emptyUsageHourly() { return []; };
+  const getSolarDawnQuarterly = options.getSolarDawnQuarterly || function emptyDawnQuarterly() { return []; };
+  const getSolarFlowSummary = options.getSolarFlowSummary || function emptyFlowSummary() { return {}; };
+  const getSolarMeta = options.getSolarMeta || function emptySolarMeta() { return {}; };
   const fetchRadarTile = options.fetchRadarTile;
   const fetchRadarAnimation = options.fetchRadarAnimation;
   const warmRadarAnimation = options.warmRadarAnimation || function warmRadarAnimationDefault() { return false; };
@@ -203,6 +207,10 @@ function createApp(options) {
         solarHistory: getSolarHistory(),
         solarDailyBins: getSolarDailyBins(),
         solarHourlyBins: getSolarHourlyBins(),
+        solarUsageHourly: getSolarUsageHourly(),
+        solarDawnQuarterly: getSolarDawnQuarterly(),
+        solarFlowSummary: getSolarFlowSummary(),
+        solarMeta: getSolarMeta(),
         radar: {
           available: Array.isArray(radarState.frames) && radarState.frames.length > 0,
           updatedAt: radarState.updatedAt,

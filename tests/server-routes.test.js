@@ -159,6 +159,12 @@ module.exports = async function run() {
     assert.strictEqual(statePayload.ui.themePreset, 'neon');
     assert.ok(Array.isArray(statePayload.solarDailyBins));
     assert.ok(Array.isArray(statePayload.solarHourlyBins));
+    assert.ok(Array.isArray(statePayload.solarUsageHourly) && statePayload.solarUsageHourly.length === 24, 'solarUsageHourly should expose 24 fixed buckets');
+    assert.ok(Array.isArray(statePayload.solarDawnQuarterly) && statePayload.solarDawnQuarterly.length === 12, 'solarDawnQuarterly should expose 12 fixed dawn buckets');
+    assert.ok(statePayload.solarFlowSummary && typeof statePayload.solarFlowSummary.selfConsumptionPct === 'number', 'solarFlowSummary should include derived self-consumption percent');
+    assert.ok(statePayload.solarMeta && typeof statePayload.solarMeta.dayKey === 'string', 'solarMeta should include local day key');
+    assert.ok(statePayload.solarMeta && typeof statePayload.solarMeta.tz === 'string', 'solarMeta should include timezone');
+    assert.ok(statePayload.solarMeta && ['archive', 'mixed', 'realtime_estimated'].indexOf(statePayload.solarMeta.dataQuality) > -1, 'solarMeta should include data quality state');
 
     const realtimeState = await request(server, { path: '/api/state/realtime' });
     assert.strictEqual(realtimeState.statusCode, 200);

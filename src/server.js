@@ -229,6 +229,16 @@ function buildFlowSummaryFromBins(bins) {
   };
 }
 
+function hasAnySolarBinsEnergy(bins) {
+  const source = Array.isArray(bins) ? bins : [];
+  for (let i = 0; i < source.length; i += 1) {
+    if (binHasEnergy(source[i])) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function binHasEnergy(bin) {
   return Number((bin && bin.generatedWh) || 0) > 0 ||
     Number((bin && bin.importWh) || 0) > 0 ||
@@ -716,6 +726,32 @@ function createServer(options) {
     getSolarHistory: function getSolarHistory() { return solarHistory.slice(-720); },
     getSolarDailyBins: function getSolarDailyBins() { return solarDailyBins.slice(); },
     getSolarHourlyBins: function getSolarHourlyBins() { return solarHourlyBins.slice(); },
+    getSolarUsageHourly: function getSolarUsageHourly() {
+      return buildUsageHourlyFromDailyBins(solarDailyBins);
+    },
+    getSolarDawnQuarterly: function getSolarDawnQuarterly() {
+      return buildDawnQuarterlyFromHistory(solarHistory, Date.now(), dashboardTimeZone);
+    },
+    getSolarFlowSummary: function getSolarFlowSummary() {
+      return buildFlowSummaryFromBins(solarDailyBins);
+    },
+    getSolarMeta: function getSolarMeta() {
+      const now = Date.now();
+      const froniusSnapshot = froniusState.getState(now);
+      const today = (froniusSnapshot && froniusSnapshot.today) || {};
+      const archiveReady = !!(today.generatedReady && today.importReady && today.exportReady);
+      const hasBins = hasAnySolarBinsEnergy(solarDailyBins);
+      const dataQuality = archiveReady && hasBins
+        ? 'archive'
+        : (hasBins ? 'mixed' : 'realtime_estimated');
+      const lastHistory = solarHistory.length ? solarHistory[solarHistory.length - 1] : null;
+      return {
+        dayKey: formatDateLocal(now, dashboardTimeZone),
+        tz: dashboardTimeZone,
+        lastDataAt: lastHistory ? new Date(lastHistory.ts).toISOString() : null,
+        dataQuality
+      };
+    },
     fetchRadarTile,
     fetchRadarAnimation,
     warmRadarAnimation,
