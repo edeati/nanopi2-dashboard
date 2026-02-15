@@ -119,6 +119,36 @@ function createFroniusClient(baseUrl, options) {
     return values;
   }
 
+  function pickBestSeriesMap(data, channel) {
+    const nodes = data && typeof data === 'object' ? Object.values(data) : [];
+    let best = {};
+    let bestLen = 0;
+    let bestLast = -Infinity;
+
+    for (let i = 0; i < nodes.length; i += 1) {
+      const map = extractSeriesMap(nodes[i], channel);
+      const keys = Object.keys(map);
+      if (!keys.length) {
+        continue;
+      }
+      let last = -Infinity;
+      for (let j = 0; j < keys.length; j += 1) {
+        const key = keys[j];
+        const value = Number(map[key] || 0);
+        if (value > last) {
+          last = value;
+        }
+      }
+      if (keys.length > bestLen || (keys.length === bestLen && last > bestLast)) {
+        best = map;
+        bestLen = keys.length;
+        bestLast = last;
+      }
+    }
+
+    return best;
+  }
+
   return {
     async fetchRealtime() {
       const payload = await getJson(root + '/solar_api/v1/GetPowerFlowRealtimeData.fcgi', logger, 'external.fronius.realtime');
@@ -184,6 +214,8 @@ function createFroniusClient(baseUrl, options) {
       const meterKey = keys.find((key) => key.toLowerCase().indexOf('meter') === 0);
       const inverterNode = inverterKey ? data[inverterKey] : null;
       const meterNode = meterKey ? data[meterKey] : null;
+      const producedFromInverter = extractSeriesMap(inverterNode, 'EnergyReal_WAC_Sum_Produced');
+      const producedFromBest = pickBestSeriesMap(data, 'EnergyReal_WAC_Sum_Produced');
       const importAbsolute = extractSeriesMap(meterNode, 'EnergyReal_WAC_Plus_Absolute');
       const phase1 = extractSeriesMap(meterNode, 'EnergyReal_WAC_Phase_1_Consumed');
       const phase2 = extractSeriesMap(meterNode, 'EnergyReal_WAC_Phase_2_Consumed');
@@ -198,7 +230,9 @@ function createFroniusClient(baseUrl, options) {
       });
       const importSeries = Object.keys(importAbsolute).length > 0 ? importAbsolute : phaseConsumed;
       return {
-        producedWhBySecond: extractSeriesMap(inverterNode, 'EnergyReal_WAC_Sum_Produced'),
+        producedWhBySecond: Object.keys(producedFromInverter).length >= Object.keys(producedFromBest).length
+          ? producedFromInverter
+          : producedFromBest,
         importWhBySecond: importSeries,
         exportWhBySecond: extractSeriesMap(meterNode, 'EnergyReal_WAC_Minus_Absolute')
       };

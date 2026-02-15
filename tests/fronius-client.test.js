@@ -8,6 +8,51 @@ module.exports = async function run() {
   let lastArchivePath = '';
   const server = http.createServer((req, res) => {
     if (req.url.indexOf('/GetArchiveData.cgi') > -1) {
+      if (req.url.indexOf('SeriesType=Detail') > -1) {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({
+          Body: {
+            Data: {
+              'inverter/1': {
+                Data: {
+                  EnergyReal_WAC_Sum_Produced: {
+                    Values: {
+                      '28800': 161
+                    }
+                  }
+                }
+              },
+              'meter:123': {
+                Data: {
+                  EnergyReal_WAC_Sum_Produced: {
+                    Values: {
+                      '25200': 12,
+                      '27000': 66,
+                      '28800': 161
+                    }
+                  },
+                  EnergyReal_WAC_Plus_Absolute: {
+                    Values: {
+                      '25200': 1000,
+                      '27000': 1008,
+                      '28800': 1016
+                    }
+                  },
+                  EnergyReal_WAC_Minus_Absolute: {
+                    Values: {
+                      '25200': 200,
+                      '27000': 206,
+                      '28800': 214
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }));
+        return;
+      }
+
       lastArchivePath = req.url;
       if (req.url.indexOf('StartDate=2026-02-15') > -1) {
         res.setHeader('Content-Type', 'application/json');
@@ -96,6 +141,11 @@ module.exports = async function run() {
     assert.strictEqual(consumedFallback.dayGeneratedKwh, 15);
     assert.strictEqual(consumedFallback.dayImportKwh, 5);
     assert.strictEqual(consumedFallback.dayExportKwh, 0);
+
+    const detail = await client.fetchDailyDetail('2026-02-16');
+    assert.strictEqual(Object.keys(detail.producedWhBySecond).length, 3, 'daily detail should choose fuller produced series (meter fallback)');
+    assert.strictEqual(detail.producedWhBySecond['25200'], 12);
+    assert.strictEqual(detail.producedWhBySecond['28800'], 161);
 
     const RealDate = Date;
     class FakeDate extends RealDate {

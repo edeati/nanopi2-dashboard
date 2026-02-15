@@ -1076,6 +1076,7 @@
       var takeoverNextAtMs = 0;
       var takeoverReloadInFlight = false;
       var lastRainOverrideMs = 0;
+      var TAKEOVER_BLACKOUT_MS = 220;
 
       var pricingConfig = {
         importCentsPerKwh: 35.244,
@@ -1118,11 +1119,18 @@
       }
 
       function reloadToView(viewMode, untilMs, nextAtMs) {
+        window.location.replace(buildViewUrl(viewMode, untilMs, nextAtMs));
+      }
+
+      function transitionReloadToView(viewMode, untilMs, nextAtMs) {
         if (takeoverReloadInFlight) {
           return;
         }
         takeoverReloadInFlight = true;
-        window.location.replace(buildViewUrl(viewMode, untilMs, nextAtMs));
+        document.body.classList.add('blackout');
+        setTimeout(function () {
+          reloadToView(viewMode, untilMs, nextAtMs);
+        }, TAKEOVER_BLACKOUT_MS);
       }
 
       function applyInitialViewFromUrl() {
@@ -2263,14 +2271,14 @@
         var durationMs = Math.max(5, Number(rotationConfig.focusDurationSeconds || 30)) * 1000;
         var intervalMs = Math.max(30, Number(rotationConfig.intervalSeconds || 180)) * 1000;
         var nextAtMs = now + intervalMs;
-        reloadToView(mode === 'radar' ? 'radar' : 'solar', now + durationMs, nextAtMs);
+        transitionReloadToView(mode === 'radar' ? 'radar' : 'solar', now + durationMs, nextAtMs);
       }
 
       function endTakeover() {
         if (takeoverReloadInFlight) { return; }
         var intervalMs = Math.max(30, Number(rotationConfig.intervalSeconds || 180)) * 1000;
         var nextAtMs = takeoverNextAtMs > Date.now() ? takeoverNextAtMs : (Date.now() + intervalMs);
-        reloadToView('main', 0, nextAtMs);
+        transitionReloadToView('main', 0, nextAtMs);
       }
 
       function uiLoop() {

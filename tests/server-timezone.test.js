@@ -4,7 +4,8 @@ const assert = require('assert');
 const {
   formatDateLocal,
   aggregateHistoryToDailyBins,
-  aggregateDetailToDailyBins
+  aggregateDetailToDailyBins,
+  mergeArchiveWithHistoryGaps
 } = require('../src/server');
 
 module.exports = async function run() {
@@ -46,4 +47,83 @@ module.exports = async function run() {
   const detailBins = aggregateDetailToDailyBins(detail, '2026-02-16', 'Australia/Brisbane');
   assert.ok(detailBins[16].generatedWh > 0, 'detail epoch keys should map into Brisbane 8am bin');
   assert.strictEqual(detailBins[47].generatedWh, 0, 'detail epoch keys should not be clamped into last bin');
+
+  // Interval-ending timestamps should count into the preceding interval so
+  // 08:00 endpoint energy appears in the 07:30-08:00 (hour-7) bar.
+  const intervalDetail = {
+    producedWhBySecond: {
+      [String(Date.parse('2026-02-15T21:55:00.000Z') / 1000)]: 12, // 07:55 local
+      [String(Date.parse('2026-02-15T22:00:00.000Z') / 1000)]: 18  // 08:00 local
+    },
+    importWhBySecond: {
+      [String(Date.parse('2026-02-15T21:55:00.000Z') / 1000)]: 1000,
+      [String(Date.parse('2026-02-15T22:00:00.000Z') / 1000)]: 1010
+    },
+    exportWhBySecond: {
+      [String(Date.parse('2026-02-15T21:55:00.000Z') / 1000)]: 200,
+      [String(Date.parse('2026-02-15T22:00:00.000Z') / 1000)]: 203
+    }
+  };
+  const intervalBins = aggregateDetailToDailyBins(intervalDetail, '2026-02-16', 'Australia/Brisbane');
+  assert.ok(intervalBins[15].generatedWh > 0, '08:00 endpoint generation should land in 07:30-08:00 bin');
+  assert.strictEqual(intervalBins[16].generatedWh, 0, '08:00 endpoint generation should not be pushed to 08:00-08:30 bin');
+
+  const archiveBins = Array.from({ length: 48 }, function (_, i) {
+    return {
+      dayKey: '2026-02-16',
+      binIndex: i,
+      generatedWh: 0,
+      importWh: 0,
+      exportWh: 0,
+      selfWh: 0,
+      loadWh: 0
+    };
+  });
+  archiveBins[16] = {
+    dayKey: '2026-02-16',
+    binIndex: 16,
+    generatedWh: 161.4,
+    importWh: 8.47,
+    exportWh: 31.63,
+    selfWh: 129.77,
+    loadWh: 138.24
+  };
+  const historyBins = Array.from({ length: 48 }, function (_, i) {
+    return {
+      dayKey: '2026-02-16',
+      binIndex: i,
+      generatedWh: 0,
+      importWh: 0,
+      exportWh: 0,
+      selfWh: 0,
+      loadWh: 0
+    };
+  });
+  historyBins[15] = {
+    dayKey: '2026-02-16',
+    binIndex: 15,
+    generatedWh: 14.2,
+    importWh: 0.5,
+    exportWh: 0.1,
+    selfWh: 14.1,
+    loadWh: 14.6
+  };
+
+  const merged = mergeArchiveWithHistoryGaps(archiveBins, historyBins);
+  assert.ok(merged[15].generatedWh > 0, 'history should fill empty archive dawn bins');
+  assert.strictEqual(merged[16].generatedWh, 161.4, 'existing archive bins should be preserved');
+
+  const cumulativeProduced = {
+    producedWhBySecond: {
+      '25200': 12,
+      '27000': 66,
+      '28800': 161
+    },
+    importWhBySecond: {},
+    exportWhBySecond: {}
+  };
+  const cumulativeBins = aggregateDetailToDailyBins(cumulativeProduced, '2026-02-16', 'Australia/Brisbane');
+  assert.ok(cumulativeBins[14].generatedWh > 0, 'cumulative produced should populate 07:00-07:30 bin');
+  assert.ok(cumulativeBins[15].generatedWh > 0, 'cumulative produced should populate 07:30-08:00 bin');
+  assert.strictEqual(cumulativeBins[16].generatedWh, 0, 'cumulative produced should not collapse into 08:00-08:30 bin');
 };

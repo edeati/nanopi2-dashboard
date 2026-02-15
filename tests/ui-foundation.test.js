@@ -124,6 +124,11 @@ module.exports = async function run() {
   assert.ok(html.indexOf('if (stateFetchInFlight) { return; }') > -1, 'state fetch throttle branch missing');
   assert.ok(html.indexOf('var radarLoopStarted = false;') > -1, 'deferred radar startup flag missing');
   assert.ok(html.indexOf('if (radarLoopStarted || !firstDataApplied) {') > -1, 'deferred radar startup guard missing');
+  assert.ok(html.indexOf('window.location.replace(buildViewUrl(viewMode, untilMs, nextAtMs));') > -1, 'fullscreen switch should force a page reload');
+  assert.ok(html.indexOf("document.body.classList.add('blackout');") > -1, 'fullscreen switch should enable blackout overlay');
+  assert.ok(html.indexOf('setTimeout(function () {\n          reloadToView(viewMode, untilMs, nextAtMs);\n        }, TAKEOVER_BLACKOUT_MS);') > -1, 'fullscreen transition should delay reload to show blackout');
+  assert.ok(html.indexOf('transitionReloadToView(mode === \'radar\' ? \'radar\' : \'solar\', now + durationMs, nextAtMs);') > -1, 'takeover start should use blackout transition');
+  assert.ok(html.indexOf('transitionReloadToView(\'main\', 0, nextAtMs);') > -1, 'takeover end should use blackout transition');
   assert.ok(html.indexOf('function applyTimeOfDayTheme(') > -1, 'time-of-day color helper missing');
   assert.ok(html.indexOf("document.body.classList.remove('time-night', 'time-twilight', 'time-day');") > -1, 'time-of-day class reset missing');
   assert.ok(html.indexOf('body.time-night #timeBig') > -1, 'night time color style missing');

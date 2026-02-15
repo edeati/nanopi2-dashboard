@@ -131,27 +131,139 @@ function aggregateDailyToHourlyBins(dailyBins) {
   return out;
 }
 
+function binHasEnergy(bin) {
+  return Number((bin && bin.generatedWh) || 0) > 0 ||
+    Number((bin && bin.importWh) || 0) > 0 ||
+    Number((bin && bin.exportWh) || 0) > 0 ||
+    Number((bin && bin.selfWh) || 0) > 0 ||
+    Number((bin && bin.loadWh) || 0) > 0;
+}
+
+function mergeArchiveWithHistoryGaps(archiveBins, historyBins) {
+  const archive = Array.isArray(archiveBins) ? archiveBins : [];
+  const history = Array.isArray(historyBins) ? historyBins : [];
+  const out = [];
+  for (let i = 0; i < 48; i += 1) {
+    const a = archive[i] || {};
+    const h = history[i] || {};
+    const archiveCore = Number(a.generatedWh || 0) > 0 ||
+      Number(a.importWh || 0) > 0 ||
+      Number(a.exportWh || 0) > 0;
+    const useHistory = !archiveCore && binHasEnergy(h);
+    const src = useHistory ? h : a;
+    out.push({
+      dayKey: src.dayKey || a.dayKey || h.dayKey || null,
+      binIndex: i,
+      generatedWh: Number(src.generatedWh || 0),
+      importWh: Number(src.importWh || 0),
+      exportWh: Number(src.exportWh || 0),
+      selfWh: Number(src.selfWh || 0),
+      loadWh: Number(src.loadWh || 0)
+    });
+  }
+  return out;
+}
+
 function aggregateDetailToDailyBins(detail, dayKey, timeZone) {
   const bins = createEmptyDailyBins(dayKey);
-  function addSeriesAsValue(series, field) {
-    Object.keys(series || {}).forEach((secondKey) => {
-      const sec = normalizeSeriesSecond(secondKey, dayKey, timeZone);
-      if (sec === null) {
-        return;
+
+  function normalizeSeriesPoints(series) {
+    return Object.keys(series || {})
+      .map((secondKey) => ({
+        sec: normalizeSeriesSecond(secondKey, dayKey, timeZone),
+        value: Number(series[secondKey] || 0)
+      }))
+      .filter((point) => point.sec !== null)
+      .sort((a, b) => a.sec - b.sec);
+  }
+
+  function estimateStep(points) {
+    let best = 0;
+    for (let i = 1; i < points.length; i += 1) {
+      const diff = points[i].sec - points[i - 1].sec;
+      if (diff <= 0) {
+        continue;
       }
-      const idx = Math.min(47, Math.max(0, Math.floor(sec / 1800)));
-      bins[idx][field] += Number(series[secondKey] || 0);
-    });
+      if (!best || diff < best) {
+        best = diff;
+      }
+    }
+    return best;
+  }
+
+  function isLikelyCumulative(points) {
+    if (!Array.isArray(points) || points.length < 2) {
+      return false;
+    }
+    let up = 0;
+    let down = 0;
+    let posDeltaSum = 0;
+    let posDeltaCount = 0;
+    let valuesSum = 0;
+    for (let i = 0; i < points.length; i += 1) {
+      valuesSum += Number(points[i].value || 0);
+      if (i === 0) {
+        continue;
+      }
+      const diff = Number(points[i].value || 0) - Number(points[i - 1].value || 0);
+      if (diff >= 0) {
+        up += 1;
+        if (diff > 0) {
+          posDeltaSum += diff;
+          posDeltaCount += 1;
+        }
+      } else {
+        down += 1;
+      }
+    }
+    const monotonicRatio = up / Math.max(1, up + down);
+    if (monotonicRatio < 0.85) {
+      return false;
+    }
+    const first = Number(points[0].value || 0);
+    const last = Number(points[points.length - 1].value || 0);
+    if (last <= first) {
+      return false;
+    }
+    const avgValue = valuesSum / Math.max(1, points.length);
+    const avgPositiveDelta = posDeltaCount > 0 ? (posDeltaSum / posDeltaCount) : 0;
+    if (avgPositiveDelta <= 0) {
+      return false;
+    }
+    return avgValue >= (avgPositiveDelta * 1.5);
+  }
+
+  function addSeriesAsValue(series, field) {
+    const points = normalizeSeriesPoints(series);
+    if (!points.length) {
+      return;
+    }
+    if (isLikelyCumulative(points)) {
+      for (let i = 1; i < points.length; i += 1) {
+        const prev = points[i - 1];
+        const curr = points[i];
+        const delta = curr.value - prev.value;
+        if (delta <= 0) {
+          continue;
+        }
+        const idx = Math.min(47, Math.max(0, Math.floor(prev.sec / 1800)));
+        bins[idx][field] += delta;
+      }
+      return;
+    }
+    const fallbackStep = estimateStep(points);
+    for (let i = 0; i < points.length; i += 1) {
+      const point = points[i];
+      const thisStep = i > 0 ? Math.max(0, point.sec - points[i - 1].sec) : 0;
+      const shift = thisStep > 0 ? thisStep : fallbackStep;
+      const targetSec = Math.max(0, point.sec - (shift > 0 ? shift : 0));
+      const idx = Math.min(47, Math.max(0, Math.floor(targetSec / 1800)));
+      bins[idx][field] += Number(point.value || 0);
+    }
   }
 
   function addSeriesAsDelta(series, field) {
-    const points = Object.keys(series || {})
-      .map((k) => ({
-        sec: normalizeSeriesSecond(k, dayKey, timeZone),
-        value: Number(series[k] || 0)
-      }))
-      .filter((p) => p.sec !== null)
-      .sort((a, b) => a.sec - b.sec);
+    const points = normalizeSeriesPoints(series);
     if (points.length < 2) {
       return;
     }
@@ -162,7 +274,7 @@ function aggregateDetailToDailyBins(detail, dayKey, timeZone) {
       if (delta < 0) {
         continue;
       }
-      const idx = Math.min(47, Math.max(0, Math.floor(curr.sec / 1800)));
+      const idx = Math.min(47, Math.max(0, Math.floor(prev.sec / 1800)));
       bins[idx][field] += delta;
     }
   }
@@ -564,12 +676,16 @@ function createServer(options) {
       }
     }, function onArchiveDetail(detail, now) {
       const dayKey = formatDateLocal(now, dashboardTimeZone);
+      const historyDaily = aggregateHistoryToDailyBins(solarHistory, now, dashboardTimeZone);
       const hasArchive = detail &&
         Object.keys(detail.producedWhBySecond || {}).length > 0 &&
         Object.keys(detail.importWhBySecond || {}).length > 0;
-      solarDailyBins = hasArchive
-        ? aggregateDetailToDailyBins(detail, dayKey, dashboardTimeZone)
-        : aggregateHistoryToDailyBins(solarHistory, now, dashboardTimeZone);
+      if (hasArchive) {
+        const archiveDaily = aggregateDetailToDailyBins(detail, dayKey, dashboardTimeZone);
+        solarDailyBins = mergeArchiveWithHistoryGaps(archiveDaily, historyDaily);
+      } else {
+        solarDailyBins = historyDaily;
+      }
       solarHourlyBins = aggregateDailyToHourlyBins(solarDailyBins);
     }, timers, dashboardTimeZone));
 
@@ -618,5 +734,6 @@ module.exports = {
   resolveTimeZone,
   secondOfDayLocal,
   aggregateHistoryToDailyBins,
-  aggregateDetailToDailyBins
+  aggregateDetailToDailyBins,
+  mergeArchiveWithHistoryGaps
 };
