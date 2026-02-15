@@ -15,6 +15,13 @@ const { createRadarGifRenderer } = require('./lib/radar-gif');
 const { createLogger, readDebugConfig } = require('./lib/logger');
 const { createDebugEventStore } = require('./lib/debug-events');
 
+function formatDateLocal(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  return date.getFullYear() +
+    '-' + String(date.getMonth() + 1).padStart(2, '0') +
+    '-' + String(date.getDate()).padStart(2, '0');
+}
+
 function createEmptyDailyBins(dayKey) {
   const bins = [];
   for (let i = 0; i < 48; i += 1) {
@@ -97,7 +104,7 @@ function aggregateHistoryToDailyBins(solarHistory, nowMs) {
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
   const dayStartMs = dayStart.getTime();
-  const dayKey = dayStart.toISOString().slice(0, 10);
+  const dayKey = formatDateLocal(dayStart);
   const bins = createEmptyDailyBins(dayKey);
   const points = (solarHistory || []).filter((p) => p.ts >= dayStartMs).sort((a, b) => a.ts - b.ts);
   if (points.length < 2) {
@@ -141,7 +148,7 @@ function scheduleFroniusPolling(client, froniusState, froniusConfig, onRealtime,
   async function archiveTick() {
     const now = Date.now();
     try {
-      const dayISO = new Date(now).toISOString().slice(0, 10);
+      const dayISO = formatDateLocal(now);
       const daily = await client.fetchDailySum(dayISO);
       froniusState.applyArchive(daily, now);
       if (typeof client.fetchDailyDetail === 'function') {
@@ -471,7 +478,7 @@ function createServer(options) {
         solarHourlyBins = aggregateDailyToHourlyBins(solarDailyBins);
       }
     }, function onArchiveDetail(detail, now) {
-      const dayKey = new Date(now).toISOString().slice(0, 10);
+      const dayKey = formatDateLocal(now);
       const hasArchive = detail &&
         Object.keys(detail.producedWhBySecond || {}).length > 0 &&
         Object.keys(detail.importWhBySecond || {}).length > 0;
@@ -521,5 +528,6 @@ if (require.main === module) {
 
 module.exports = {
   createServer,
-  startServer
+  startServer,
+  formatDateLocal
 };

@@ -232,7 +232,7 @@
       height: 100%;
       object-fit: cover;
       object-position: center;
-      transform: scale(1.05);
+      transform: scale(1.01);
       transform-origin: center;
       display: none;
       background: #131922;
@@ -272,6 +272,47 @@
       border-radius: 50%;
       background: transparent;
       display: block;
+      position: relative;
+      z-index: 1;
+    }
+
+    .g-overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      gap: 2px;
+      text-align: center;
+      pointer-events: none;
+      z-index: 2;
+      padding: 0 10px;
+    }
+
+    .g-overlay-main {
+      font-family: var(--font-display);
+      font-size: clamp(20px, 3.5vh, 28px);
+      font-weight: 800;
+      color: #eef5ff;
+      letter-spacing: 0.01em;
+      line-height: 1;
+      -webkit-text-stroke: 1px rgba(8, 10, 14, 0.9);
+      paint-order: stroke fill;
+      text-shadow:
+        0 0 1px rgba(8, 10, 14, 0.85),
+        0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+
+    .g-overlay-sub {
+      font-family: var(--font-ui);
+      font-size: clamp(12px, 2.1vh, 17px);
+      font-weight: 800;
+      color: #dbe4ef;
+      letter-spacing: 0.02em;
+      line-height: 1;
+      -webkit-text-stroke: 0.8px rgba(8, 10, 14, 0.85);
+      paint-order: stroke fill;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
     }
 
     .g-label {
@@ -306,12 +347,12 @@
       margin-bottom: 0;
       overflow: hidden;
       min-height: 104px;
-      height: 104px;
+      height: 134px;
     }
 
     .chart {
       width: 100%;
-      height: 104px;
+      height: 134px;
       display: block;
       border: 0;
       background: transparent;
@@ -370,7 +411,7 @@
 
     .solar-status-value {
       font-family: var(--font-ui);
-      font-size: 46px;
+      font-size: 30px;
       color: #eef2f6;
       font-weight: 700;
       white-space: nowrap;
@@ -480,6 +521,23 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    #binCard.bin-card-today #binsType {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+      font-size: clamp(34px, 5.8vh, 54px);
+      line-height: 1.04;
+      text-wrap: balance;
+    }
+
+    #binCard.bin-card-today #binsDate {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+      font-size: clamp(16px, 2.6vh, 24px);
+      line-height: 1.14;
     }
 
     #weatherMainRow {
@@ -788,7 +846,7 @@
       }
 
       .solar-status-value {
-        font-size: 40px;
+        font-size: 30px;
       }
 
       #solarStatusGrid {
@@ -846,10 +904,18 @@
       <div class="solar-top">
         <div class="solar-gauge skeleton">
           <canvas id="generationGauge"></canvas>
+          <div class="g-overlay" id="generationGaugeText">
+            <div id="generationGaugeMain" class="g-overlay-main">0.00 kW</div>
+            <div id="generationGaugeSub" class="g-overlay-sub">now</div>
+          </div>
           <div class="g-label">Generation</div>
         </div>
         <div class="solar-gauge skeleton">
           <canvas id="usageGauge"></canvas>
+          <div class="g-overlay" id="usageGaugeText">
+            <div id="usageGaugeMain" class="g-overlay-main">Load 0.00 kW</div>
+            <div id="usageGaugeSub" class="g-overlay-sub">Import 0.00 kW</div>
+          </div>
           <div class="g-label">Usage / Import</div>
         </div>
       </div>
@@ -928,11 +994,16 @@
       var generationGaugeCtx = generationGaugeCanvas.getContext('2d');
       var usageGaugeCanvas = document.getElementById('usageGauge');
       var usageGaugeCtx = usageGaugeCanvas.getContext('2d');
+      var generationGaugeMainNode = document.getElementById('generationGaugeMain');
+      var generationGaugeSubNode = document.getElementById('generationGaugeSub');
+      var usageGaugeMainNode = document.getElementById('usageGaugeMain');
+      var usageGaugeSubNode = document.getElementById('usageGaugeSub');
       var usageBarCanvas = document.getElementById('usageBarChart');
       var usageBarCtx = usageBarCanvas.getContext('2d');
       var solarBarCanvas = document.getElementById('solarBarChart');
       var solarBarCtx = solarBarCanvas.getContext('2d');
       var newsTickerNode = document.getElementById('newsTicker');
+      var binCardNode = document.getElementById('binCard');
 
       var TILE_SIZE = 256;
       var MAP_TILE_OVERDRAW = 1;
@@ -1329,8 +1400,12 @@
       }
 
       function drawInitialPlaceholders() {
-        drawDonut(generationGaugeCtx, generationGaugeCanvas, 0, 'rgba(84,100,116,0.45)', 'rgba(84,100,116,0.2)', '--');
-        drawDonut(usageGaugeCtx, usageGaugeCanvas, 0, 'rgba(84,100,116,0.45)', 'rgba(84,100,116,0.2)', '--');
+        drawDonut(generationGaugeCtx, generationGaugeCanvas, 0, 'rgba(84,100,116,0.45)', 'rgba(84,100,116,0.2)');
+        drawDonut(usageGaugeCtx, usageGaugeCanvas, 0, 'rgba(84,100,116,0.45)', 'rgba(84,100,116,0.2)');
+        generationGaugeMainNode.textContent = '0.00 kW';
+        generationGaugeSubNode.textContent = 'now';
+        usageGaugeMainNode.textContent = 'Load 0.00 kW';
+        usageGaugeSubNode.textContent = 'Import 0.00 kW';
         drawLoadingBars(usageBarCtx, usageBarCanvas, 'rgba(112, 192, 255, 0.26)', 'rgba(112, 192, 255, 0.1)', 0);
         drawLoadingBars(solarBarCtx, solarBarCanvas, 'rgba(126, 225, 160, 0.34)', 'rgba(126, 225, 160, 0.12)', 0.4);
       }
@@ -1579,20 +1654,7 @@
           .catch(function () {});
       }
 
-      function fitCanvasFont(ctx, text, weight, preferredSize, minSize, maxWidth) {
-        var size = Number(preferredSize || 20);
-        var min = Number(minSize || 12);
-        while (size > min) {
-          ctx.font = weight + ' ' + size + 'px ' + CANVAS_FONT_FAMILY;
-          if (ctx.measureText(text).width <= maxWidth) {
-            return size;
-          }
-          size -= 1;
-        }
-        return min;
-      }
-
-      function drawDonut(ctx, canvas, ratio, colorA, colorB, centerLines) {
+      function drawDonut(ctx, canvas, ratio, colorA, colorB) {
         var w = canvas.width;
         var h = canvas.height;
         var cx = Math.floor(w / 2);
@@ -1610,35 +1672,6 @@
         ctx.beginPath();
         ctx.arc(cx, cy, r, split, start + (Math.PI * 2));
         ctx.stroke();
-        var lines = Array.isArray(centerLines) ? centerLines : [String(centerLines || '')];
-        lines = lines.filter(function (line) { return String(line || '').trim().length > 0; });
-        if (!lines.length) {
-          return;
-        }
-        var textMaxWidth = Math.max(44, (r * 2) - 20);
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        if (lines.length === 1) {
-          var solo = String(lines[0] || '');
-          var soloSize = fitCanvasFont(ctx, solo, '800', 34, 17, textMaxWidth);
-          ctx.fillStyle = '#e6edf6';
-          ctx.font = '800 ' + soloSize + 'px ' + CANVAS_FONT_FAMILY;
-          ctx.fillText(solo, cx, cy + 1);
-          return;
-        }
-        var spacing = 24;
-        var startY = cy - ((lines.length - 1) * spacing / 2);
-        for (var i = 0; i < lines.length; i += 1) {
-          var line = String(lines[i] || '');
-          var isPrimary = i === 0;
-          var preferred = isPrimary ? 30 : 26;
-          var min = isPrimary ? 16 : 15;
-          var weight = isPrimary ? '800' : '700';
-          var size = fitCanvasFont(ctx, line, weight, preferred, min, textMaxWidth);
-          ctx.fillStyle = isPrimary ? '#e6edf6' : '#aeb8c6';
-          ctx.font = weight + ' ' + size + 'px ' + CANVAS_FONT_FAMILY;
-          ctx.fillText(line, cx, startY + (i * spacing));
-        }
       }
 
       function drawStackedBars(ctx, canvas, bins, keyA, keyB, colorA, colorB) {
@@ -2025,11 +2058,22 @@
         if ((!binTypeText || normalizedBinType === 'Unknown') && binsState.error) {
           normalizedBinType = 'Bins unavailable';
         }
+        if (binsState.isToday && /^today:\s*/i.test(normalizedBinType)) {
+          normalizedBinType = normalizedBinType.replace(/^today:\s*/i, '').trim() || 'Today';
+        }
         document.getElementById('binsType').textContent = normalizedBinType;
-        var binDateLine = binsState.error
-          ? 'Check source'
-          : (binsState.subtitle ? (String(binsState.subtitle) + (binsState.nextDate ? (' • ' + formatBinDate(binsState.nextDate)) : '')) : formatBinDate(binsState.nextDate || ''));
+        var binDateLine = '--';
+        if (binsState.error) {
+          binDateLine = 'Check source';
+        } else if (binsState.isToday) {
+          binDateLine = binsState.subtitle ? String(binsState.subtitle) : 'Put out now';
+        } else {
+          binDateLine = binsState.subtitle
+            ? (String(binsState.subtitle) + (binsState.nextDate ? (' • ' + formatBinDate(binsState.nextDate)) : ''))
+            : formatBinDate(binsState.nextDate || '');
+        }
         document.getElementById('binsDate').textContent = binDateLine;
+        binCardNode.classList.toggle('bin-card-today', !!(binsState.isToday && !binsState.error));
         var binsTextColor = binTextColorForType(normalizedBinType);
         document.getElementById('binsType').style.color = binsTextColor;
         document.getElementById('binsDate').style.color = binsTextColor;
@@ -2048,6 +2092,10 @@
         var fromSolarW = Math.min(loadW, genW);
         var importW = Math.max(0, loadW - fromSolarW);
         var capW = Math.max(1000, Number(pricingConfig.inverterCapacityKw || 6) * 1000);
+        generationGaugeMainNode.textContent = (genW / 1000).toFixed(2) + ' kW';
+        generationGaugeSubNode.textContent = 'now';
+        usageGaugeMainNode.textContent = 'Load ' + (loadW / 1000).toFixed(2) + ' kW';
+        usageGaugeSubNode.textContent = 'Import ' + (importW / 1000).toFixed(2) + ' kW';
 
         var gaugeSig = [
           generationGaugeCanvas.width,
@@ -2065,16 +2113,14 @@
             generationGaugeCanvas,
             Math.min(genW, capW) / capW,
             '#2d9cff',
-            'rgba(130,140,152,0.26)',
-            [(genW / 1000).toFixed(2) + ' kW', 'now']
+            'rgba(130,140,152,0.26)'
           );
           drawDonut(
             usageGaugeCtx,
             usageGaugeCanvas,
             loadW > 0 ? (fromSolarW / loadW) : 0,
             '#8edb7c',
-            '#ff7350',
-            ['Load ' + (loadW / 1000).toFixed(2) + ' kW', 'Import ' + (importW / 1000).toFixed(2) + ' kW']
+            '#ff7350'
           );
           lastSolarGaugeSig = gaugeSig;
         }

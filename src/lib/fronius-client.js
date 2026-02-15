@@ -2,6 +2,13 @@
 
 const { requestWithDebug } = require('./http-debug');
 
+function formatDateLocal(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  return date.getFullYear() +
+    '-' + String(date.getMonth() + 1).padStart(2, '0') +
+    '-' + String(date.getDate()).padStart(2, '0');
+}
+
 async function getJson(urlString, logger, serviceName) {
   const result = await requestWithDebug({
     urlString,
@@ -95,7 +102,7 @@ function createFroniusClient(baseUrl, options) {
     },
 
     async fetchDailySum(dayISO) {
-      const date = dayISO || new Date().toISOString().slice(0, 10);
+      const date = dayISO || formatDateLocal(new Date());
       const payload = await getJson(
         root +
         '/solar_api/v1/GetArchiveData.cgi?Scope=System&SeriesType=DailySum&StartDate=' +
@@ -126,7 +133,7 @@ function createFroniusClient(baseUrl, options) {
     },
 
     async fetchDailyDetail(dayISO) {
-      const date = dayISO || new Date().toISOString().slice(0, 10);
+      const date = dayISO || formatDateLocal(new Date());
       const url = root +
         '/solar_api/v1/GetArchiveData.cgi?Scope=System&SeriesType=Detail' +
         '&StartDate=' + date +
@@ -167,5 +174,6 @@ function createFroniusClient(baseUrl, options) {
 }
 
 module.exports = {
-  createFroniusClient
+  createFroniusClient,
+  formatDateLocal
 };

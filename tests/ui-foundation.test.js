@@ -43,6 +43,9 @@ module.exports = async function run() {
   assert.ok(html.indexOf('grid-template-columns: minmax(0, 1.32fr) minmax(0, 0.78fr);') > -1, 'tablet weather layout should prioritize current conditions width');
   assert.ok(html.indexOf('#timeBig {\n        font-size: 66px;') > -1, 'tablet clock should be more legible at distance');
   assert.ok(html.indexOf('.solar-gauge canvas {\n      width: 120px;') > -1, 'solar gauges should be enlarged for in-gauge detail text');
+  assert.ok(html.indexOf('.g-overlay {') > -1, 'gauge overlay text layer should exist');
+  assert.ok(html.indexOf('id="generationGaugeText"') > -1, 'generation gauge overlay node missing');
+  assert.ok(html.indexOf('id="usageGaugeText"') > -1, 'usage gauge overlay node missing');
   assert.strictEqual(html.indexOf('.g-value {'), -1, 'legacy side-value gauge text should be removed');
   assert.ok(html.indexOf('.solar-status-card {\n        min-height: 86px;') > -1, 'tablet solar status cards should be larger for readability');
   assert.ok(html.indexOf('.solar-status-value {\n        font-size: 40px;') > -1, 'tablet solar status values should be larger');
@@ -76,10 +79,13 @@ module.exports = async function run() {
   assert.ok(html.indexOf('font-size: 128px;') > -1, 'bin icon should be a large background glyph for distance readability');
   assert.ok(html.indexOf('id="binDetails"') > -1, 'bin details wrapper missing');
   assert.ok(html.indexOf('#binCard {\n      display: grid;\n      grid-template-columns: 1fr;') > -1, 'bin card should use a background icon layout');
+  assert.ok(html.indexOf('#binCard.bin-card-today #binsType {') > -1, 'today bins type style override missing');
+  assert.ok(html.indexOf('#binCard.bin-card-today #binsDate {') > -1, 'today bins subtitle style override missing');
+  assert.ok(html.indexOf("binCardNode.classList.toggle('bin-card-today',") > -1, 'today bins class toggle missing');
   assert.ok(html.indexOf('#f2d44b') > -1, 'recycle bin icon should use yellow tone');
   assert.ok(html.indexOf('id="radarGifImage"') > -1, 'radar gif layer missing');
   assert.ok(html.indexOf('object-fit: cover;') > -1, 'radar gif should fill the viewport to remove side banding');
-  assert.ok(html.indexOf('transform: scale(1.05);') > -1, 'radar gif should be slightly zoomed for cleaner edges');
+  assert.ok(html.indexOf('transform: scale(1.01);') > -1, 'radar gif zoom should stay nearly neutral to avoid over-zoom');
   assert.ok(html.indexOf('function initRadarGifMode(') > -1, 'radar GIF init function should exist');
   assert.ok(html.indexOf('function loadRadarGif(') > -1, 'radar GIF load function should exist');
   assert.ok(html.indexOf('function maybeStartRadarLoop(') > -1, 'radar startup loop gate missing');

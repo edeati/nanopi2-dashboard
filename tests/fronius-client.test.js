@@ -5,8 +5,10 @@ const http = require('http');
 const { createFroniusClient } = require('../src/lib/fronius-client');
 
 module.exports = async function run() {
+  let lastArchivePath = '';
   const server = http.createServer((req, res) => {
     if (req.url.indexOf('/GetArchiveData.cgi') > -1) {
+      lastArchivePath = req.url;
       if (req.url.indexOf('StartDate=2026-02-15') > -1) {
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({
@@ -94,6 +96,59 @@ module.exports = async function run() {
     assert.strictEqual(consumedFallback.dayGeneratedKwh, 15);
     assert.strictEqual(consumedFallback.dayImportKwh, 5);
     assert.strictEqual(consumedFallback.dayExportKwh, 0);
+
+    const RealDate = Date;
+    class FakeDate extends RealDate {
+      constructor(...args) {
+        if (args.length === 0) {
+          super('2026-02-15T14:31:00.000Z');
+          this.__fakeNow = true;
+          return;
+        }
+        super(...args);
+        this.__fakeNow = false;
+      }
+
+      getFullYear() {
+        if (this.__fakeNow) {
+          return 2026;
+        }
+        return super.getFullYear();
+      }
+
+      getMonth() {
+        if (this.__fakeNow) {
+          return 1;
+        }
+        return super.getMonth();
+      }
+
+      getDate() {
+        if (this.__fakeNow) {
+          return 16;
+        }
+        return super.getDate();
+      }
+
+      toISOString() {
+        if (this.__fakeNow) {
+          return '2026-02-15T14:31:00.000Z';
+        }
+        return super.toISOString();
+      }
+
+      static now() {
+        return new RealDate('2026-02-15T14:31:00.000Z').getTime();
+      }
+    }
+
+    global.Date = FakeDate;
+    try {
+      await client.fetchDailySum();
+    } finally {
+      global.Date = RealDate;
+    }
+    assert.ok(lastArchivePath.indexOf('StartDate=2026-02-16') > -1, 'default daily sum query should use local day, not UTC ISO day');
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
