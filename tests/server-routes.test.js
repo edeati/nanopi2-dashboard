@@ -161,6 +161,12 @@ module.exports = async function run() {
     assert.ok(Array.isArray(statePayload.solarDailyBins));
     assert.ok(Array.isArray(statePayload.solarHourlyBins));
 
+    const realtimeState = await request(server, { path: '/api/state/realtime' });
+    assert.strictEqual(realtimeState.statusCode, 200);
+    const realtimePayload = JSON.parse(realtimeState.body);
+    assert.ok(realtimePayload.fronius && realtimePayload.fronius.realtime, 'realtime endpoint should expose realtime fronius payload');
+    assert.ok(typeof realtimePayload.generatedAt === 'string' && realtimePayload.generatedAt.length > 0);
+
     const radarMeta = await request(server, { path: '/api/radar/meta' });
     assert.strictEqual(radarMeta.statusCode, 200);
     const meta = JSON.parse(radarMeta.body);

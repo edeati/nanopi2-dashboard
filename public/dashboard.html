@@ -255,34 +255,34 @@
     .solar-gauge {
       position: relative;
       display: grid;
-      grid-template-columns: 78px 1fr;
+      grid-template-rows: 1fr auto;
+      justify-items: center;
       align-items: center;
-      gap: 8px;
+      gap: 5px;
       border: 1px solid rgba(96, 105, 118, 0.45);
       border-radius: 10px;
       background: rgba(15, 17, 22, 0.92);
-      padding: 6px;
-      min-height: 82px;
+      padding: 8px 6px 6px;
+      min-height: 126px;
     }
 
     .solar-gauge canvas {
-      width: 70px;
-      height: 70px;
+      width: 106px;
+      height: 106px;
       border-radius: 50%;
       background: transparent;
       display: block;
     }
 
     .g-label {
-      font-size: 11px;
+      font-size: 10px;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: var(--muted);
       font-family: var(--font-display);
+      font-weight: 700;
+      text-align: center;
     }
-
-    .g-value { font-size: 30px; font-family: var(--font-display); line-height: 1; color: #f0f3f7; }
-    .g-unit { font-size: 16px; color: var(--muted); }
 
     .chart-label { font-size: 11px; color: #c3cfda; margin: 1px 0 2px; }
 
@@ -468,10 +468,15 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      font-size: clamp(46px, 7.8vh, 72px);
+      font-weight: 800;
+      line-height: 1;
     }
 
     #binsDate {
-      font-size: 13px;
+      font-size: clamp(24px, 3.8vh, 36px);
+      font-weight: 800;
+      line-height: 1.08;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -763,11 +768,11 @@
       }
 
       #binsType {
-        font-size: 31px;
+        font-size: clamp(36px, 6.6vh, 56px);
       }
 
       #binsDate {
-        font-size: 16px;
+        font-size: clamp(18px, 3.4vh, 28px);
       }
 
       #timeBig {
@@ -776,10 +781,6 @@
 
       #dateBig {
         font-size: 22px;
-      }
-
-      .g-value {
-        font-size: 38px;
       }
 
       .g-label {
@@ -845,11 +846,11 @@
       <div class="solar-top">
         <div class="solar-gauge skeleton">
           <canvas id="generationGauge"></canvas>
-          <div><div class="g-label">Generation</div><div><span id="generationValue" class="g-value">0.00</span> <span class="g-unit">kW</span></div></div>
+          <div class="g-label">Generation</div>
         </div>
         <div class="solar-gauge skeleton">
           <canvas id="usageGauge"></canvas>
-          <div><div class="g-label">Usage / Import</div><div><span id="usageValue" class="g-value">0.00</span> <span class="g-unit">kW</span></div></div>
+          <div class="g-label">Usage / Import</div>
         </div>
       </div>
 
@@ -936,6 +937,7 @@
       var TILE_SIZE = 256;
       var MAP_TILE_OVERDRAW = 1;
       var RADAR_TILE_OVERDRAW = 2;
+      var CANVAS_FONT_FAMILY = '"Manrope", "Avenir Next", "Helvetica Neue", Arial, sans-serif';
       var radarMeta = null;
       var mapTileCache = {};
       var mapDerivedTileCache = {};
@@ -966,6 +968,8 @@
       var firstDataApplied = false;
       var radarLoopStarted = false;
       var stateFetchInFlight = false;
+      var realtimeStateFetchInFlight = false;
+      var latestState = null;
       var lastSolarBarsSig = '';
       var lastSolarGaugeSig = '';
       var solarBarsDrawScheduled = false;
@@ -973,6 +977,8 @@
       var solarChartsLoading = false;
       var solarLoadingTimer = 0;
       var solarLoadingPhase = 0;
+      var FAST_STATE_REFRESH_MS = 5000;
+      var SLOW_STATE_REFRESH_MS = 15 * 60 * 1000;
 
       var rotationConfig = {
         intervalSeconds: 180,
@@ -985,6 +991,9 @@
       var takeoverActive = false;
       var nextTakeoverAtMs = Date.now() + 180000;
       var takeoverUntilMs = 0;
+      var currentViewMode = 'main';
+      var takeoverNextAtMs = 0;
+      var takeoverReloadInFlight = false;
       var lastRainOverrideMs = 0;
 
       var pricingConfig = {
@@ -993,6 +1002,68 @@
         dailySupplyCents: 142,
         inverterCapacityKw: 6
       };
+
+      function normalizeViewMode(mode) {
+        var value = String(mode || '').toLowerCase();
+        if (value === 'radar' || value === 'solar') {
+          return value;
+        }
+        return 'main';
+      }
+
+      function parseMsParam(value) {
+        var n = Number(value || 0);
+        if (!Number.isFinite(n) || n <= 0) {
+          return 0;
+        }
+        return Math.floor(n);
+      }
+
+      function buildViewUrl(viewMode, untilMs, nextAtMs) {
+        var url = new URL(window.location.href);
+        var mode = normalizeViewMode(viewMode);
+        url.searchParams.set('view', mode);
+        if (untilMs > 0) {
+          url.searchParams.set('until', String(Math.floor(untilMs)));
+        } else {
+          url.searchParams.delete('until');
+        }
+        if (nextAtMs > 0) {
+          url.searchParams.set('next', String(Math.floor(nextAtMs)));
+        } else {
+          url.searchParams.delete('next');
+        }
+        return url.toString();
+      }
+
+      function reloadToView(viewMode, untilMs, nextAtMs) {
+        if (takeoverReloadInFlight) {
+          return;
+        }
+        takeoverReloadInFlight = true;
+        window.location.replace(buildViewUrl(viewMode, untilMs, nextAtMs));
+      }
+
+      function applyInitialViewFromUrl() {
+        var search = new URL(window.location.href).searchParams;
+        currentViewMode = normalizeViewMode(search.get('view'));
+        takeoverUntilMs = parseMsParam(search.get('until'));
+        takeoverNextAtMs = parseMsParam(search.get('next'));
+        if (takeoverNextAtMs > Date.now()) {
+          nextTakeoverAtMs = takeoverNextAtMs;
+        }
+
+        if (currentViewMode === 'radar' || currentViewMode === 'solar') {
+          takeoverActive = true;
+          document.body.classList.remove('takeover-radar', 'takeover-solar', 'blackout');
+          document.body.classList.add(currentViewMode === 'radar' ? 'takeover-radar' : 'takeover-solar');
+          if (takeoverUntilMs <= 0) {
+            takeoverUntilMs = Date.now() + 1000;
+          }
+        }
+      }
+
+      applyInitialViewFromUrl();
 
       radarGifImage.onload = function () {
         radarGifLoading = false;
@@ -1015,9 +1086,9 @@
           radarGifMetaMissSinceMs = Date.now();
         }
         if (radarGifLoadedOnce) {
+          setRadarMode('png');
           if (pendingMetaMissing && (Date.now() - radarGifMetaMissSinceMs) >= RADAR_GIF_STALE_TIMEOUT_MS) {
             radarGifStaleFallbackActive = true;
-            setRadarMode('png');
           }
           if (radarPreferredMode === 'gif') {
             setTimeout(function () {
@@ -1163,19 +1234,8 @@
         if (radarLoopStarted || !firstDataApplied) {
           return;
         }
-        if (!radarAnimationModeKnown) {
-          return;
-        }
-        if (radarPreferredMode === 'gif' && !radarGifReady && !radarStartupPrefetchDone && Date.now() < radarStartupHoldUntilMs) {
-          return;
-        }
-        if (!radarGifReady && !radarStartupPrefetchDone && Date.now() < radarStartupHoldUntilMs) {
-          return;
-        }
-        if (!radarGifReady && !radarStartupPrefetchDone) {
-          radarStartupPrefetchDone = true;
-        }
         radarLoopStarted = true;
+        setRadarMode('png');
         requestAnimationFrame(animateRadar);
       }
 
@@ -1324,7 +1384,7 @@
         var center = latLonToTile(radarMeta.lat, radarMeta.lon, z);
         var cx = center.x * TILE_SIZE;
         var cy = center.y * TILE_SIZE;
-        var extra = takeoverActive ? TILE_SIZE * 4 : TILE_SIZE * 3;
+        var extra = takeoverActive ? TILE_SIZE : TILE_SIZE * 2;
         var left = cx - radarCanvas.width / 2 - extra;
         var top = cy - radarCanvas.height / 2 - extra;
         var right = cx + radarCanvas.width / 2 + extra;
@@ -1343,6 +1403,18 @@
               drawY: Math.round(ty * TILE_SIZE - (cy - radarCanvas.height / 2))
             });
           }
+        }
+        var maxTiles = takeoverActive ? 54 : 70;
+        if (out.length > maxTiles) {
+          out.sort(function (a, b) {
+            var da = Math.pow(a.drawX - (radarCanvas.width / 2), 2) + Math.pow(a.drawY - (radarCanvas.height / 2), 2);
+            var db = Math.pow(b.drawX - (radarCanvas.width / 2), 2) + Math.pow(b.drawY - (radarCanvas.height / 2), 2);
+            return da - db;
+          });
+          out = out.slice(0, maxTiles);
+          out.sort(function (a, b) {
+            return (a.drawY - b.drawY) || (a.drawX - b.drawX);
+          });
         }
         return out;
       }
@@ -1455,14 +1527,6 @@
       async function animateRadar() {
         if (radarPreferredMode === 'gif' && !radarGifReady && !radarStartupPrefetchDone) {
           warmRadarGif(false);
-          applyRainClassification(
-            isWeatherRainLikely(latestWeatherSummary),
-            isWeatherHeavyRainLikely(latestWeatherSummary),
-            0.08
-          );
-          updateRainIndicator();
-          requestAnimationFrame(animateRadar);
-          return;
         }
 
         if (radarRenderMode === 'gif') {
@@ -1617,7 +1681,7 @@
                 maybeStartRadarLoop();
                 return;
               }
-              setRadarMode('gif');
+              setRadarMode('png');
               warmRadarGif(false);
               radarStartupPrefetchDone = true;
               maybeStartRadarLoop();
@@ -1653,16 +1717,29 @@
         });
       }
 
-      function drawDonut(ctx, canvas, ratio, colorA, colorB, text) {
+      function fitCanvasFont(ctx, text, weight, preferredSize, minSize, maxWidth) {
+        var size = Number(preferredSize || 20);
+        var min = Number(minSize || 12);
+        while (size > min) {
+          ctx.font = weight + ' ' + size + 'px ' + CANVAS_FONT_FAMILY;
+          if (ctx.measureText(text).width <= maxWidth) {
+            return size;
+          }
+          size -= 1;
+        }
+        return min;
+      }
+
+      function drawDonut(ctx, canvas, ratio, colorA, colorB, centerLines) {
         var w = canvas.width;
         var h = canvas.height;
         var cx = Math.floor(w / 2);
         var cy = Math.floor(h / 2);
-        var r = Math.min(w, h) * 0.36;
+        var r = Math.min(w, h) * 0.35;
         var start = -Math.PI / 2;
         var split = start + (Math.PI * 2 * Math.max(0, Math.min(1, ratio)));
         ctx.clearRect(0, 0, w, h);
-        ctx.lineWidth = 9;
+        ctx.lineWidth = 16;
         ctx.strokeStyle = colorA;
         ctx.beginPath();
         ctx.arc(cx, cy, r, start, split);
@@ -1671,10 +1748,35 @@
         ctx.beginPath();
         ctx.arc(cx, cy, r, split, start + (Math.PI * 2));
         ctx.stroke();
-        ctx.fillStyle = '#dbe5f0';
-        ctx.font = 'bold 12px var(--font-data)';
+        var lines = Array.isArray(centerLines) ? centerLines : [String(centerLines || '')];
+        lines = lines.filter(function (line) { return String(line || '').trim().length > 0; });
+        if (!lines.length) {
+          return;
+        }
+        var textMaxWidth = Math.max(44, (r * 2) - 20);
         ctx.textAlign = 'center';
-        ctx.fillText(text, cx, cy + 4);
+        ctx.textBaseline = 'middle';
+        if (lines.length === 1) {
+          var solo = String(lines[0] || '');
+          var soloSize = fitCanvasFont(ctx, solo, '800', 28, 15, textMaxWidth);
+          ctx.fillStyle = '#e6edf6';
+          ctx.font = '800 ' + soloSize + 'px ' + CANVAS_FONT_FAMILY;
+          ctx.fillText(solo, cx, cy + 1);
+          return;
+        }
+        var spacing = 24;
+        var startY = cy - ((lines.length - 1) * spacing / 2);
+        for (var i = 0; i < lines.length; i += 1) {
+          var line = String(lines[i] || '');
+          var isPrimary = i === 0;
+          var preferred = isPrimary ? 24 : 20;
+          var min = isPrimary ? 14 : 13;
+          var weight = isPrimary ? '800' : '700';
+          var size = fitCanvasFont(ctx, line, weight, preferred, min, textMaxWidth);
+          ctx.fillStyle = isPrimary ? '#e6edf6' : '#aeb8c6';
+          ctx.font = weight + ' ' + size + 'px ' + CANVAS_FONT_FAMILY;
+          ctx.fillText(line, cx, startY + (i * spacing));
+        }
       }
 
       function drawStackedBars(ctx, canvas, bins, keyA, keyB, colorA, colorB) {
@@ -1743,7 +1845,7 @@
         ctx.strokeStyle = 'rgba(150, 165, 184, 0.22)';
         ctx.fillStyle = 'rgba(172, 186, 202, 0.78)';
         ctx.lineWidth = 1;
-        ctx.font = '9px var(--font-data)';
+        ctx.font = '9px ' + CANVAS_FONT_FAMILY;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
 
@@ -1941,7 +2043,7 @@
         var t = String(type || '').toLowerCase();
         if (t.indexOf('today:') === 0) { return String(type || 'Unknown'); }
         if (t.indexOf('recycl') > -1 || t.indexOf('yellow') > -1) { return 'Recycle'; }
-        if (t.indexOf('green') > -1 || t.indexOf('garden') > -1 || t.indexOf('organ') > -1) { return 'Green Bin'; }
+        if (t.indexOf('green') > -1 || t.indexOf('garden') > -1 || t.indexOf('organ') > -1) { return 'Organic'; }
         if (t.indexOf('special') > -1 || t.indexOf('curb') > -1 || t.indexOf('kerb') > -1 || t.indexOf('bulky') > -1) { return type || 'Special'; }
         if (t.indexOf('general') > -1 || t.indexOf('waste') > -1 || t.indexOf('red') > -1) { return 'General Waste'; }
         return type || 'Unknown';
@@ -1974,6 +2076,17 @@
           return;
         }
         iconNode.style.color = '#d9e2eb';
+      }
+
+      function binTextColorForType(type) {
+        var t = String(type || '').toLowerCase();
+        if (t.indexOf('recycl') > -1 || t.indexOf('yellow') > -1) {
+          return '#f2d44b';
+        }
+        if (t.indexOf('organ') > -1 || t.indexOf('green') > -1 || t.indexOf('garden') > -1) {
+          return '#8edb7c';
+        }
+        return '#62bbff';
       }
 
       function iconForWeather(iconCode, summary) {
@@ -2055,6 +2168,9 @@
           ? 'Check source'
           : (binsState.subtitle ? (String(binsState.subtitle) + (binsState.nextDate ? (' • ' + formatBinDate(binsState.nextDate)) : '')) : formatBinDate(binsState.nextDate || ''));
         document.getElementById('binsDate').textContent = binDateLine;
+        var binsTextColor = binTextColorForType(normalizedBinType);
+        document.getElementById('binsType').style.color = binsTextColor;
+        document.getElementById('binsDate').style.color = binsTextColor;
         var binsIconNode = document.getElementById('binsIcon');
         binsIconNode.textContent = binsState.displayIcon || iconForBinType(normalizedBinType);
         styleBinIcon(binsIconNode, binsState.displayTone || (normalizedBinType.toLowerCase().indexOf('recycl') > -1 ? 'yellow' : 'default'));
@@ -2082,13 +2198,24 @@
           Math.round(capW)
         ].join('|');
         if (gaugeSig !== lastSolarGaugeSig) {
-          drawDonut(generationGaugeCtx, generationGaugeCanvas, Math.min(genW, capW) / capW, '#2d9cff', 'rgba(130,140,152,0.26)', String(Math.round((Math.min(genW, capW) / capW) * 100)) + '%');
-          drawDonut(usageGaugeCtx, usageGaugeCanvas, loadW > 0 ? (fromSolarW / loadW) : 0, '#8edb7c', '#ff7350', String(Math.round(loadW > 0 ? (fromSolarW / loadW) * 100 : 0)) + '%');
+          drawDonut(
+            generationGaugeCtx,
+            generationGaugeCanvas,
+            Math.min(genW, capW) / capW,
+            '#2d9cff',
+            'rgba(130,140,152,0.26)',
+            [(genW / 1000).toFixed(2) + ' kW', 'now']
+          );
+          drawDonut(
+            usageGaugeCtx,
+            usageGaugeCanvas,
+            loadW > 0 ? (fromSolarW / loadW) : 0,
+            '#8edb7c',
+            '#ff7350',
+            ['Load ' + (loadW / 1000).toFixed(2) + ' kW', 'Import ' + (importW / 1000).toFixed(2) + ' kW']
+          );
           lastSolarGaugeSig = gaugeSig;
         }
-
-        document.getElementById('generationValue').textContent = (genW / 1000).toFixed(2);
-        document.getElementById('usageValue').textContent = (loadW / 1000).toFixed(2);
 
         var todayRaw = state.fronius.today || {};
         var importReady = !!todayRaw.importReady;
@@ -2158,9 +2285,33 @@
         stateFetchInFlight = true;
         fetch('/api/state')
           .then(function (res) { return res.json(); })
-          .then(function (state) { applyState(state); })
+          .then(function (state) {
+            latestState = state;
+            applyState(latestState);
+          })
           .catch(function () {})
           .then(function () { stateFetchInFlight = false; });
+      }
+
+      function fetchRealtimeState() {
+        if (realtimeStateFetchInFlight) { return; }
+        realtimeStateFetchInFlight = true;
+        fetch('/api/state/realtime')
+          .then(function (res) { return res.json(); })
+          .then(function (patch) {
+            if (!latestState || !patch || !patch.fronius || !patch.fronius.realtime) {
+              return;
+            }
+            latestState = Object.assign({}, latestState, {
+              generatedAt: patch.generatedAt || latestState.generatedAt,
+              fronius: Object.assign({}, latestState.fronius || {}, {
+                realtime: patch.fronius.realtime
+              })
+            });
+            applyState(latestState);
+          })
+          .catch(function () {})
+          .then(function () { realtimeStateFetchInFlight = false; });
       }
 
       function pickNextTakeover(now) {
@@ -2178,25 +2329,19 @@
       }
 
       function beginTakeover(mode) {
-        if (takeoverActive) { return; }
-        takeoverActive = true;
-        takeoverUntilMs = 0;
-        document.body.classList.add('blackout');
-
-        setTimeout(function () {
-          document.body.classList.remove('blackout');
-          document.body.classList.add(mode === 'radar' ? 'takeover-radar' : 'takeover-solar');
-          takeoverUntilMs = Date.now() + (Math.max(5, Number(rotationConfig.focusDurationSeconds || 30)) * 1000);
-          resizeCanvas();
-          setTimeout(resizeCanvas, 80);
-        }, 360);
+        if (takeoverReloadInFlight) { return; }
+        var now = Date.now();
+        var durationMs = Math.max(5, Number(rotationConfig.focusDurationSeconds || 30)) * 1000;
+        var intervalMs = Math.max(30, Number(rotationConfig.intervalSeconds || 180)) * 1000;
+        var nextAtMs = now + intervalMs;
+        reloadToView(mode === 'radar' ? 'radar' : 'solar', now + durationMs, nextAtMs);
       }
 
       function endTakeover() {
-        takeoverActive = false;
-        document.body.classList.remove('takeover-radar', 'takeover-solar', 'blackout');
-        nextTakeoverAtMs = Date.now() + (Math.max(30, Number(rotationConfig.intervalSeconds || 180)) * 1000);
-        resizeCanvas();
+        if (takeoverReloadInFlight) { return; }
+        var intervalMs = Math.max(30, Number(rotationConfig.intervalSeconds || 180)) * 1000;
+        var nextAtMs = takeoverNextAtMs > Date.now() ? takeoverNextAtMs : (Date.now() + intervalMs);
+        reloadToView('main', 0, nextAtMs);
       }
 
       function uiLoop() {
@@ -2216,7 +2361,7 @@
           }
         }
 
-        if (takeoverActive) {
+        if (currentViewMode !== 'main') {
           if (takeoverUntilMs > 0 && now >= takeoverUntilMs) {
             endTakeover();
           }
@@ -2233,7 +2378,8 @@
       tickClock();
       setInterval(tickClock, 1000);
       fetchState();
-      setInterval(fetchState, 5000);
+      setInterval(fetchState, SLOW_STATE_REFRESH_MS);
+      setInterval(fetchRealtimeState, FAST_STATE_REFRESH_MS);
       fetchRadarMeta();
       setInterval(fetchRadarMeta, 60000);
       setInterval(fetchRadarAnimationMode, 30000);

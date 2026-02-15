@@ -162,6 +162,16 @@ function createApp(options) {
       return sendJson(res, 200, { status: 'ready' });
     }
 
+    if (req.method === 'GET' && urlPath === '/api/state/realtime') {
+      const now = Date.now();
+      return sendJson(res, 200, {
+        fronius: {
+          realtime: froniusState.getState(now).realtime
+        },
+        generatedAt: new Date(now).toISOString()
+      });
+    }
+
     if (req.method === 'GET' && urlPath === '/api/state') {
       const now = Date.now();
       const externalState = getExternalState();

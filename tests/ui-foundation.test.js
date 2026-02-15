@@ -42,7 +42,8 @@ module.exports = async function run() {
   assert.ok(html.indexOf('#mainRadar {\n        min-width: 0;\n      }') > -1, 'tablet radar panel should allow shrink to prevent edge stripe');
   assert.ok(html.indexOf('grid-template-columns: minmax(0, 1.32fr) minmax(0, 0.78fr);') > -1, 'tablet weather layout should prioritize current conditions width');
   assert.ok(html.indexOf('#timeBig {\n        font-size: 66px;') > -1, 'tablet clock should be more legible at distance');
-  assert.ok(html.indexOf('.g-value {\n        font-size: 38px;') > -1, 'tablet generation/usage values should be substantially larger');
+  assert.ok(html.indexOf('.solar-gauge canvas {\n      width: 106px;') > -1, 'solar gauges should be enlarged for in-gauge detail text');
+  assert.strictEqual(html.indexOf('.g-value {'), -1, 'legacy side-value gauge text should be removed');
   assert.ok(html.indexOf('.solar-status-card {\n        min-height: 86px;') > -1, 'tablet solar status cards should be larger for readability');
   assert.ok(html.indexOf('.solar-status-value {\n        font-size: 34px;') > -1, 'tablet solar status values should be larger');
   assert.ok(html.indexOf('#binsIcon {\n      position: absolute;') > -1, 'bins icon should become large background glyph');
@@ -86,8 +87,9 @@ module.exports = async function run() {
   assert.ok(html.indexOf("var radarPreferredMode = 'png';") > -1, 'radar preferred mode tracker missing');
   assert.ok(html.indexOf('var RADAR_GIF_STALE_TIMEOUT_MS = 5 * 60 * 1000;') > -1, 'radar stale gif timeout should be 5 minutes');
   assert.ok(html.indexOf('function maybeStartRadarLoop(') > -1, 'radar startup loop gate missing');
-  assert.ok(html.indexOf('if (!radarAnimationModeKnown) {') > -1, 'radar startup should wait for animation mode decision');
-  assert.ok(html.indexOf("if (radarPreferredMode === 'gif' && !radarGifReady && !radarStartupPrefetchDone && Date.now() < radarStartupHoldUntilMs) {") > -1, 'radar startup should defer png while gif is pending');
+  assert.ok(html.indexOf("setRadarMode('png');") > -1, 'radar startup should force png mode to avoid blank screen while gif warms');
+  assert.strictEqual(html.indexOf('if (!radarAnimationModeKnown) {'), -1, 'radar startup should not block on animation mode before drawing');
+  assert.strictEqual(html.indexOf("if (radarPreferredMode === 'gif' && !radarGifReady && !radarStartupPrefetchDone && Date.now() < radarStartupHoldUntilMs) {"), -1, 'radar startup should not defer png while gif is pending');
   assert.ok(html.indexOf('function scheduleRadarStartupProbe(') > -1, 'radar startup probe scheduler missing');
   assert.ok(html.indexOf('[450, 1200, 2200, 3600, 5200]') > -1, 'radar startup probe timings missing');
   assert.ok(html.indexOf('radarGifImage.onload') > -1, 'gif readiness promotion missing');

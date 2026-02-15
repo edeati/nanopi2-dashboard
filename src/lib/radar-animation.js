@@ -91,6 +91,26 @@ function supportsFfmpeg(ffmpegBinary) {
   return check && check.status === 0;
 }
 
+async function runWithConcurrency(items, limit, worker) {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) {
+    return [];
+  }
+  const maxWorkers = Math.max(1, toInteger(limit, 8, 1, 32));
+  let cursor = 0;
+  const workers = [];
+  for (let i = 0; i < Math.min(maxWorkers, list.length); i += 1) {
+    workers.push((async () => {
+      while (cursor < list.length) {
+        const currentIndex = cursor;
+        cursor += 1;
+        await worker(list[currentIndex], currentIndex);
+      }
+    })());
+  }
+  await Promise.all(workers);
+}
+
 function hashCacheKey(cacheKey) {
   return crypto.createHash('sha1').update(String(cacheKey || '')).digest('hex').slice(0, 16);
 }
@@ -441,8 +461,9 @@ function createRadarAnimationRenderer(options) {
       z: context.z,
       width: context.width,
       height: context.height,
-      extraTiles: 3
+      extraTiles: toInteger(context.radarConfig.gifExtraTiles, 2, 0, 6)
     });
+    const tileConcurrency = toInteger(context.radarConfig.gifTileConcurrency, 8, 1, 32);
 
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'radar-gif-'));
     const renderStartedAt = Date.now();
@@ -450,24 +471,23 @@ function createRadarAnimationRenderer(options) {
       width: context.width,
       height: context.height,
       frameCount: context.framesSubset.length,
-      tileCount: tiles.length
+      tileCount: tiles.length,
+      tileConcurrency
     });
     try {
-      const mapFiles = [];
-      for (let i = 0; i < tiles.length; i += 1) {
-        const tile = tiles[i];
+      const mapFiles = new Array(tiles.length);
+      await runWithConcurrency(tiles, tileConcurrency, async (tile, i) => {
         const norm = normalizeTileCoords(context.z, tile.tx, tile.ty);
         const result = await fetchMapTile({ z: context.z, x: norm.x, y: norm.y });
         const file = path.join(tempDir, 'map-' + i + '.png');
         fs.writeFileSync(file, result.body);
-        mapFiles.push({ file });
-      }
+        mapFiles[i] = { file };
+      });
 
       const frameFiles = [];
       for (let frameIdx = 0; frameIdx < context.framesSubset.length; frameIdx += 1) {
-        const radarFiles = [];
-        for (let tileIdx = 0; tileIdx < tiles.length; tileIdx += 1) {
-          const tile = tiles[tileIdx];
+        const radarFiles = new Array(tiles.length);
+        await runWithConcurrency(tiles, tileConcurrency, async (tile, tileIdx) => {
           const norm = normalizeTileCoords(context.z, tile.tx, tile.ty);
           const result = await fetchRadarTile({
             frameIndex: context.frameOffset + frameIdx,
@@ -479,8 +499,8 @@ function createRadarAnimationRenderer(options) {
           });
           const file = path.join(tempDir, 'radar-' + frameIdx + '-' + tileIdx + '.png');
           fs.writeFileSync(file, result.body);
-          radarFiles.push({ file });
-        }
+          radarFiles[tileIdx] = { file };
+        });
 
         const frameFile = path.join(tempDir, 'frame-' + String(frameIdx).padStart(3, '0') + '.png');
         await renderFrame(tempDir, frameFile, context.width, context.height, tiles, mapFiles, radarFiles);
