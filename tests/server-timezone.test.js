@@ -5,7 +5,10 @@ const {
   formatDateLocal,
   aggregateHistoryToDailyBins,
   aggregateDetailToDailyBins,
-  mergeArchiveWithHistoryGaps
+  mergeArchiveWithHistoryGaps,
+  buildUsageHourlyFromDailyBins,
+  buildDawnQuarterlyFromHistory,
+  buildFlowSummaryFromBins
 } = require('../src/server');
 
 module.exports = async function run() {
@@ -126,4 +129,63 @@ module.exports = async function run() {
   assert.ok(cumulativeBins[14].generatedWh > 0, 'cumulative produced should populate 07:00-07:30 bin');
   assert.ok(cumulativeBins[15].generatedWh > 0, 'cumulative produced should populate 07:30-08:00 bin');
   assert.strictEqual(cumulativeBins[16].generatedWh, 0, 'cumulative produced should not collapse into 08:00-08:30 bin');
+
+  const usageDaily = createZeroBins('2026-02-16');
+  usageDaily[14].selfWh = 120;
+  usageDaily[14].importWh = 20;
+  usageDaily[14].generatedWh = 140;
+  usageDaily[14].loadWh = 140;
+  usageDaily[15].selfWh = 80;
+  usageDaily[15].importWh = 10;
+  usageDaily[15].generatedWh = 100;
+  usageDaily[15].loadWh = 90;
+  usageDaily[16].selfWh = 90;
+  usageDaily[16].importWh = 15;
+  usageDaily[16].generatedWh = 120;
+  usageDaily[16].exportWh = 30;
+  usageDaily[16].loadWh = 105;
+  usageDaily[17].selfWh = 70;
+  usageDaily[17].importWh = 5;
+  usageDaily[17].generatedWh = 85;
+  usageDaily[17].exportWh = 15;
+  usageDaily[17].loadWh = 75;
+
+  const usageHourly = buildUsageHourlyFromDailyBins(usageDaily);
+  assert.strictEqual(usageHourly.length, 24, 'usage hourly should contain all 24 hours');
+  assert.ok(usageHourly[7].selfWh > 0, '7am hourly bucket should retain dawn energy');
+  assert.ok(usageHourly[8].selfWh > 0, '8am hourly bucket should retain current-hour energy');
+
+  const dawnNowUtc = Date.parse('2026-02-15T23:45:00.000Z'); // 09:45 local
+  const dawnHistory = [
+    { ts: Date.parse('2026-02-15T20:50:00.000Z'), generatedW: 500, gridW: 60, loadW: 560 }, // 06:50
+    { ts: Date.parse('2026-02-15T21:05:00.000Z'), generatedW: 600, gridW: 20, loadW: 620 }, // 07:05
+    { ts: Date.parse('2026-02-15T21:20:00.000Z'), generatedW: 800, gridW: -120, loadW: 680 }, // 07:20
+    { ts: Date.parse('2026-02-15T22:05:00.000Z'), generatedW: 900, gridW: -180, loadW: 720 }, // 08:05
+    { ts: Date.parse('2026-02-15T23:40:00.000Z'), generatedW: 300, gridW: 250, loadW: 550 } // 09:40
+  ];
+  const dawnQuarterly = buildDawnQuarterlyFromHistory(dawnHistory, dawnNowUtc, 'Australia/Brisbane');
+  assert.strictEqual(dawnQuarterly.length, 12, 'expected 12 dawn quarter bins');
+  assert.ok(dawnQuarterly[0].producedWh > 0, '06:45-07:00 should have generation');
+  assert.ok(dawnQuarterly[1].producedWh > 0, '07:00-07:15 should have generation');
+
+  const flowSummary = buildFlowSummaryFromBins(usageDaily);
+  assert.ok(Math.abs(flowSummary.producedKwh - 0.445) < 0.001, 'flow produced should sum from bins');
+  assert.ok(Math.abs(flowSummary.feedInKwh - 0.045) < 0.001, 'flow feed-in should sum from bins');
+  assert.ok(Math.abs(flowSummary.selfUsedKwh - 0.4) < 0.001, 'flow self-use should equal produced-feed-in');
+  assert.ok(Math.abs(flowSummary.importKwh - 0.05) < 0.001, 'flow import should sum from bins');
+  assert.ok(Math.abs(flowSummary.selfConsumptionPct - (0.4 / 0.445 * 100)) < 0.01, 'flow self-consumption should be derived');
 };
+
+function createZeroBins(dayKey) {
+  return Array.from({ length: 48 }, function (_, i) {
+    return {
+      dayKey,
+      binIndex: i,
+      generatedWh: 0,
+      importWh: 0,
+      exportWh: 0,
+      selfWh: 0,
+      loadWh: 0
+    };
+  });
+}

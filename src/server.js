@@ -131,6 +131,104 @@ function aggregateDailyToHourlyBins(dailyBins) {
   return out;
 }
 
+function buildUsageHourlyFromDailyBins(dailyBins) {
+  const source = Array.isArray(dailyBins) ? dailyBins : [];
+  const out = [];
+  for (let hour = 0; hour < 24; hour += 1) {
+    const first = source[hour * 2] || {};
+    const second = source[(hour * 2) + 1] || {};
+    const selfWh = Number(first.selfWh || 0) + Number(second.selfWh || 0);
+    const importWh = Number(first.importWh || 0) + Number(second.importWh || 0);
+    const loadWhFromBins = Number(first.loadWh || 0) + Number(second.loadWh || 0);
+    out.push({
+      hour,
+      selfWh,
+      importWh,
+      loadWh: loadWhFromBins > 0 ? loadWhFromBins : (selfWh + importWh)
+    });
+  }
+  return out;
+}
+
+function buildDawnQuarterlyFromHistory(solarHistory, nowMs, timeZone) {
+  const now = Number(nowMs || Date.now());
+  const quarterMs = 15 * 60 * 1000;
+  const endMs = Math.floor(now / quarterMs) * quarterMs;
+  const startMs = endMs - (12 * quarterMs);
+  const out = [];
+  for (let i = 0; i < 12; i += 1) {
+    const slotStartMs = startMs + (i * quarterMs);
+    out.push({
+      slotStartIso: new Date(slotStartMs).toISOString(),
+      slotHour: getDateTimeParts(slotStartMs, timeZone).hour,
+      producedWh: 0,
+      selfWh: 0,
+      exportWh: 0
+    });
+  }
+
+  const points = (Array.isArray(solarHistory) ? solarHistory : [])
+    .filter((p) => p && Number.isFinite(Number(p.ts)))
+    .sort((a, b) => Number(a.ts) - Number(b.ts));
+  if (points.length < 2) {
+    return out;
+  }
+
+  for (let i = 1; i < points.length; i += 1) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const segStart = Math.max(startMs, Number(prev.ts));
+    const segEnd = Math.min(endMs, Number(curr.ts));
+    if (!Number.isFinite(segStart) || !Number.isFinite(segEnd) || segEnd <= segStart) {
+      continue;
+    }
+    let cursor = segStart;
+    while (cursor < segEnd) {
+      const idx = Math.floor((cursor - startMs) / quarterMs);
+      if (idx < 0 || idx >= out.length) {
+        break;
+      }
+      const bucketEnd = Math.min(segEnd, startMs + ((idx + 1) * quarterMs));
+      const dtHours = Math.max(0, (bucketEnd - cursor) / 3600000);
+      if (dtHours > 0) {
+        const generatedW = Math.max(0, Number(prev.generatedW || 0));
+        const gridW = Number(prev.gridW || 0);
+        const producedWh = generatedW * dtHours;
+        const exportWh = gridW < 0 ? (-gridW * dtHours) : 0;
+        const selfWh = Math.max(0, producedWh - exportWh);
+        out[idx].producedWh += producedWh;
+        out[idx].selfWh += selfWh;
+        out[idx].exportWh += exportWh;
+      }
+      cursor = bucketEnd;
+    }
+  }
+
+  return out;
+}
+
+function buildFlowSummaryFromBins(bins) {
+  const source = Array.isArray(bins) ? bins : [];
+  let producedWh = 0;
+  let feedInWh = 0;
+  let importWh = 0;
+  for (let i = 0; i < source.length; i += 1) {
+    const item = source[i] || {};
+    producedWh += Math.max(0, Number(item.generatedWh || 0));
+    feedInWh += Math.max(0, Number(item.exportWh || 0));
+    importWh += Math.max(0, Number(item.importWh || 0));
+  }
+  const selfUsedWh = Math.max(0, producedWh - feedInWh);
+  const selfConsumptionPct = producedWh > 0 ? (selfUsedWh / producedWh) * 100 : 0;
+  return {
+    producedKwh: producedWh / 1000,
+    selfUsedKwh: selfUsedWh / 1000,
+    feedInKwh: feedInWh / 1000,
+    importKwh: importWh / 1000,
+    selfConsumptionPct
+  };
+}
+
 function binHasEnergy(bin) {
   return Number((bin && bin.generatedWh) || 0) > 0 ||
     Number((bin && bin.importWh) || 0) > 0 ||
@@ -735,5 +833,8 @@ module.exports = {
   secondOfDayLocal,
   aggregateHistoryToDailyBins,
   aggregateDetailToDailyBins,
-  mergeArchiveWithHistoryGaps
+  mergeArchiveWithHistoryGaps,
+  buildUsageHourlyFromDailyBins,
+  buildDawnQuarterlyFromHistory,
+  buildFlowSummaryFromBins
 };
