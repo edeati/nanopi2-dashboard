@@ -354,6 +354,52 @@
       min-height: 0;
     }
 
+    #solarFlowPanel {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 6px;
+      min-height: 0;
+    }
+
+    .solar-flow-card {
+      border: 1px solid rgba(92, 106, 122, 0.45);
+      border-radius: 8px;
+      background: rgba(12, 15, 20, 0.82);
+      padding: 8px 8px 7px;
+      min-height: 64px;
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    .solar-flow-label {
+      font-size: 11px;
+      color: #95a5b6;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+
+    .solar-flow-value {
+      font-family: var(--font-display);
+      font-size: 24px;
+      line-height: 1;
+      font-weight: 900;
+      color: #ffb500;
+      -webkit-text-stroke: 1.2px rgba(5, 8, 12, 0.95);
+      paint-order: stroke fill;
+      text-shadow:
+        0 0 2px rgba(5, 8, 12, 0.94),
+        0 1px 4px rgba(0, 0, 0, 0.62);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
     .chart-wrap {
       position: relative;
       border: 1px solid rgba(96, 105, 118, 0.45);
@@ -944,12 +990,20 @@
       <div id="solarChartsRow">
         <div>
           <div class="chart-label">Usage (Self + Import)</div>
-          <div class="chart-wrap skeleton"><canvas id="usageBarChart" class="chart"></canvas></div>
+          <div class="chart-wrap skeleton"><canvas id="solarUsageChart" class="chart"></canvas></div>
         </div>
         <div>
-          <div class="chart-label">Solar (Produced + Feed-In)</div>
-          <div class="chart-wrap skeleton"><canvas id="solarBarChart" class="chart"></canvas></div>
+          <div class="chart-label">Dawn Detail (Produced + Feed-In)</div>
+          <div class="chart-wrap skeleton"><canvas id="solarDawnChart" class="chart"></canvas></div>
         </div>
+      </div>
+
+      <div id="solarFlowPanel">
+        <div class="solar-flow-card"><div class="solar-flow-label">Produced</div><div id="solarFlowProduced" class="solar-flow-value">--</div></div>
+        <div class="solar-flow-card"><div class="solar-flow-label">Self-used</div><div id="solarFlowSelfUsed" class="solar-flow-value">--</div></div>
+        <div class="solar-flow-card"><div class="solar-flow-label">Feed-in</div><div id="solarFlowFeedIn" class="solar-flow-value">--</div></div>
+        <div class="solar-flow-card"><div class="solar-flow-label">Import</div><div id="solarFlowImport" class="solar-flow-value">--</div></div>
+        <div class="solar-flow-card"><div class="solar-flow-label">Self %</div><div id="solarFlowSelfPct" class="solar-flow-value">--</div></div>
       </div>
 
       <div id="solarStatusGrid">
@@ -1019,9 +1073,9 @@
       var generationGaugeSubNode = document.getElementById('generationGaugeSub');
       var usageGaugeMainNode = document.getElementById('usageGaugeMain');
       var usageGaugeSubNode = document.getElementById('usageGaugeSub');
-      var usageBarCanvas = document.getElementById('usageBarChart');
+      var usageBarCanvas = document.getElementById('solarUsageChart');
       var usageBarCtx = usageBarCanvas.getContext('2d');
-      var solarBarCanvas = document.getElementById('solarBarChart');
+      var solarBarCanvas = document.getElementById('solarDawnChart');
       var solarBarCtx = solarBarCanvas.getContext('2d');
       var newsTickerNode = document.getElementById('newsTicker');
       var binCardNode = document.getElementById('binCard');
@@ -1051,10 +1105,10 @@
       var stateFetchInFlight = false;
       var realtimeStateFetchInFlight = false;
       var latestState = null;
-      var lastSolarBarsSig = '';
+      var lastSolarUsageSig = '';
+      var lastSolarDawnSig = '';
+      var lastSolarFlowSig = '';
       var lastSolarGaugeSig = '';
-      var solarBarsDrawScheduled = false;
-      var pendingSolarBars = [];
       var solarChartsLoading = false;
       var solarLoadingTimer = 0;
       var solarLoadingPhase = 0;
@@ -1278,10 +1332,10 @@
         fit(usageBarCanvas);
         fit(solarBarCanvas);
         mapDerivedTileCache = {};
-        lastSolarBarsSig = '';
+        lastSolarUsageSig = '';
+        lastSolarDawnSig = '';
+        lastSolarFlowSig = '';
         lastSolarGaugeSig = '';
-        solarBarsDrawScheduled = false;
-        pendingSolarBars = [];
         drawInitialPlaceholders();
       }
 
@@ -1703,28 +1757,30 @@
         ctx.stroke();
       }
 
-      function drawStackedBars(ctx, canvas, bins, keyA, keyB, colorA, colorB) {
+      function drawUsageHourlyBars(ctx, canvas, bins) {
         var w = canvas.width;
         var h = canvas.height;
         var pad = 6;
         var padBottom = 16;
         var chartBottom = h - padBottom;
         ctx.clearRect(0, 0, w, h);
-        var maxBars = Math.max(12, Math.min(24, Math.floor((w - pad * 2) / 7)));
-        var data = reduceBinsForChart(bins, keyA, keyB, maxBars);
+        var data = Array.isArray(bins) ? bins.slice(0, 24) : [];
+        var barsCount = 24;
         if (!data.length) {
           drawHourAxis(ctx, w, h, pad, chartBottom, 24, (w - pad * 2) / 24);
           return;
         }
         var maxY = 1;
-        for (var i = 0; i < data.length; i += 1) {
-          maxY = Math.max(maxY, Number(data[i].a || 0) + Number(data[i].b || 0));
+        for (var i = 0; i < barsCount; i += 1) {
+          var item = data[i] || {};
+          maxY = Math.max(maxY, Number(item.selfWh || 0) + Number(item.importWh || 0));
         }
 
-        var barW = (w - pad * 2) / data.length;
-        for (var j = 0; j < data.length; j += 1) {
-          var a = Math.max(0, Number(data[j].a || 0));
-          var b = Math.max(0, Number(data[j].b || 0));
+        var barW = (w - pad * 2) / barsCount;
+        for (var j = 0; j < barsCount; j += 1) {
+          var bin = data[j] || {};
+          var a = Math.max(0, Number(bin.selfWh || 0));
+          var b = Math.max(0, Number(bin.importWh || 0));
           var ah = Math.floor((a / maxY) * (chartBottom - pad));
           var bh = Math.floor((b / maxY) * (chartBottom - pad));
           var x = Math.round(pad + (j * barW));
@@ -1732,34 +1788,50 @@
           var drawW = Math.max(1, xNext - x - 1);
           var yB = chartBottom - bh;
           var yA = yB - ah;
-          ctx.fillStyle = colorB;
+          ctx.fillStyle = '#2d9cff';
           ctx.fillRect(x, yB, drawW, Math.max(1, bh));
-          ctx.fillStyle = colorA;
+          ctx.fillStyle = '#8edb7c';
           ctx.fillRect(x, yA, drawW, Math.max(1, ah));
         }
-        drawHourAxis(ctx, w, h, pad, chartBottom, data.length, barW);
+        drawHourAxis(ctx, w, h, pad, chartBottom, barsCount, barW);
       }
 
-      function reduceBinsForChart(bins, keyA, keyB, targetBars) {
-        var source = Array.isArray(bins) ? bins.slice(0, 48) : [];
-        if (!source.length) {
-          return [];
+      function drawDawnQuarterBars(ctx, canvas, bins) {
+        var w = canvas.width;
+        var h = canvas.height;
+        var pad = 6;
+        var padBottom = 16;
+        var chartBottom = h - padBottom;
+        var data = Array.isArray(bins) ? bins.slice(0, 12) : [];
+        var barsCount = 12;
+        ctx.clearRect(0, 0, w, h);
+        if (!data.length) {
+          drawHourAxis(ctx, w, h, pad, chartBottom, barsCount, (w - pad * 2) / barsCount);
+          return;
         }
-        var maxBars = Math.max(12, Math.min(24, Number(targetBars || 24)));
-        var bucketCount = Math.max(1, Math.min(source.length, maxBars));
-        var bucketSize = Math.max(1, Math.ceil(source.length / bucketCount));
-        var out = [];
-        for (var i = 0; i < source.length; i += bucketSize) {
-          var sumA = 0;
-          var sumB = 0;
-          for (var j = i; j < Math.min(source.length, i + bucketSize); j += 1) {
-            var item = source[j] || {};
-            sumA += Math.max(0, Number(item[keyA] || 0));
-            sumB += Math.max(0, Number(item[keyB] || 0));
-          }
-          out.push({ a: sumA, b: sumB });
+        var maxY = 1;
+        for (var i = 0; i < barsCount; i += 1) {
+          var item = data[i] || {};
+          maxY = Math.max(maxY, Number(item.selfWh || 0) + Number(item.exportWh || 0));
         }
-        return out;
+        var barW = (w - pad * 2) / barsCount;
+        for (var j = 0; j < barsCount; j += 1) {
+          var bin = data[j] || {};
+          var a = Math.max(0, Number(bin.selfWh || 0));
+          var b = Math.max(0, Number(bin.exportWh || 0));
+          var ah = Math.floor((a / maxY) * (chartBottom - pad));
+          var bh = Math.floor((b / maxY) * (chartBottom - pad));
+          var x = Math.round(pad + (j * barW));
+          var xNext = Math.round(pad + ((j + 1) * barW));
+          var drawW = Math.max(1, xNext - x - 1);
+          var yB = chartBottom - bh;
+          var yA = yB - ah;
+          ctx.fillStyle = '#5fe08b';
+          ctx.fillRect(x, yB, drawW, Math.max(1, bh));
+          ctx.fillStyle = '#f2bb3c';
+          ctx.fillRect(x, yA, drawW, Math.max(1, ah));
+        }
+        drawHourAxis(ctx, w, h, pad, chartBottom, barsCount, barW);
       }
 
       function drawHourAxis(ctx, w, h, pad, chartBottom, barsCount, barWidth) {
@@ -1840,21 +1912,41 @@
         return totalWh / 1000;
       }
 
-      function buildBinsSignature(bins) {
-        if (!Array.isArray(bins) || !bins.length) {
-          return 'none';
+      function buildSolarPanelSignatures(usageBins, dawnBins, flowSummary, chartsLoading) {
+        var usage = chartsLoading ? 'loading' : 'none';
+        var dawn = chartsLoading ? 'loading' : 'none';
+        var flow = 'none';
+        if (!chartsLoading) {
+          if (Array.isArray(usageBins) && usageBins.length) {
+            usage = usageBins.slice(0, 24).map(function (item) {
+              return [
+                Math.round(Number((item && item.selfWh) || 0)),
+                Math.round(Number((item && item.importWh) || 0))
+              ].join(',');
+            }).join('|');
+          }
+          if (Array.isArray(dawnBins) && dawnBins.length) {
+            dawn = dawnBins.slice(0, 12).map(function (item) {
+              return [
+                Math.round(Number((item && item.selfWh) || 0)),
+                Math.round(Number((item && item.exportWh) || 0))
+              ].join(',');
+            }).join('|');
+          }
         }
-        var out = [];
-        var limit = Math.min(48, bins.length);
-        for (var i = 0; i < limit; i += 1) {
-          var item = bins[i] || {};
-          out.push(
-            Math.round(Number(item.selfWh || 0)),
-            Math.round(Number(item.importWh || 0)),
-            Math.round(Number(item.exportWh || 0))
-          );
-        }
-        return out.join('|');
+        var f = flowSummary || {};
+        flow = [
+          Number(f.producedKwh || 0).toFixed(3),
+          Number(f.selfUsedKwh || 0).toFixed(3),
+          Number(f.feedInKwh || 0).toFixed(3),
+          Number(f.importKwh || 0).toFixed(3),
+          Number(f.selfConsumptionPct || 0).toFixed(2)
+        ].join('|');
+        return {
+          usage: usage + '|' + usageBarCanvas.width + 'x' + usageBarCanvas.height,
+          dawn: dawn + '|' + solarBarCanvas.width + 'x' + solarBarCanvas.height,
+          flow: flow
+        };
       }
 
       function hasAnySolarData(bins, todayRaw) {
@@ -1890,6 +1982,7 @@
         for (var i = 0; i < bins.length; i += 1) {
           var item = bins[i] || {};
           if (
+            Number(item.producedWh || 0) > 0 ||
             Number(item.generatedWh || 0) > 0 ||
             Number(item.importWh || 0) > 0 ||
             Number(item.exportWh || 0) > 0 ||
@@ -1909,20 +2002,6 @@
           return true;
         }
         return !(today.generatedReady && today.importReady && today.exportReady);
-      }
-
-      function scheduleSolarBarsDraw(bins) {
-        pendingSolarBars = Array.isArray(bins) ? bins.slice(0, 48) : [];
-        if (solarBarsDrawScheduled) {
-          return;
-        }
-        solarBarsDrawScheduled = true;
-        requestAnimationFrame(function () {
-          solarBarsDrawScheduled = false;
-          var drawBins = pendingSolarBars;
-          drawStackedBars(usageBarCtx, usageBarCanvas, drawBins, 'selfWh', 'importWh', '#8edb7c', '#2d9cff');
-          drawStackedBars(solarBarCtx, solarBarCanvas, drawBins, 'selfWh', 'exportWh', '#f2bb3c', '#5fe08b');
-        });
       }
 
       function setSolarChartsLoading(isLoading) {
@@ -1946,6 +2025,15 @@
           drawLoadingBars(usageBarCtx, usageBarCanvas, 'rgba(128, 213, 255, 0.56)', 'rgba(128, 213, 255, 0.18)', 0);
           drawLoadingBars(solarBarCtx, solarBarCanvas, 'rgba(126, 225, 160, 0.62)', 'rgba(126, 225, 160, 0.2)', 0.4);
         }, 420);
+      }
+
+      function renderSolarFlowPanel(flowSummary) {
+        var flow = flowSummary || {};
+        document.getElementById('solarFlowProduced').textContent = Number(flow.producedKwh || 0).toFixed(2) + ' kWh';
+        document.getElementById('solarFlowSelfUsed').textContent = Number(flow.selfUsedKwh || 0).toFixed(2) + ' kWh';
+        document.getElementById('solarFlowFeedIn').textContent = Number(flow.feedInKwh || 0).toFixed(2) + ' kWh';
+        document.getElementById('solarFlowImport').textContent = Number(flow.importKwh || 0).toFixed(2) + ' kWh';
+        document.getElementById('solarFlowSelfPct').textContent = Number(flow.selfConsumptionPct || 0).toFixed(0) + '%';
       }
 
       function formatBinDate(dateInput) {
@@ -2159,21 +2247,32 @@
         var bins = (Array.isArray(state.solarHourlyBins) && state.solarHourlyBins.length)
           ? state.solarHourlyBins
           : (state.solarDailyBins || []);
-        var binsHaveEnergy = hasAnySolarBinEnergy(bins);
+        var usageHourlyBins = Array.isArray(state.solarUsageHourly) ? state.solarUsageHourly : [];
+        var dawnQuarterBins = Array.isArray(state.solarDawnQuarterly) ? state.solarDawnQuarterly : [];
+        var flowSummary = state.solarFlowSummary || {};
+        var binsHaveEnergy = hasAnySolarBinEnergy(bins) || hasAnySolarBinEnergy(usageHourlyBins) || hasAnySolarBinEnergy(dawnQuarterBins);
         var todayHasTotals = Number(todayRaw.generatedKwh || 0) > 0 || Number(todayRaw.importKwh || 0) > 0 || Number(todayRaw.exportKwh || 0) > 0;
         var chartsLoading = !binsHaveEnergy && (isSolarBackendPending(state.fronius || {}) || todayHasTotals);
         setSolarChartsLoading(chartsLoading);
-        var barsSig = (chartsLoading ? 'loading' : buildBinsSignature(bins)) + '|' +
-          usageBarCanvas.width + 'x' + usageBarCanvas.height + '|' +
-          solarBarCanvas.width + 'x' + solarBarCanvas.height;
-        if (barsSig !== lastSolarBarsSig) {
-          if (chartsLoading) {
-            drawLoadingBars(usageBarCtx, usageBarCanvas, 'rgba(128, 213, 255, 0.56)', 'rgba(128, 213, 255, 0.18)', 0);
-            drawLoadingBars(solarBarCtx, solarBarCanvas, 'rgba(126, 225, 160, 0.62)', 'rgba(126, 225, 160, 0.2)', 0.4);
-          } else {
-            scheduleSolarBarsDraw(bins);
+        var panelSigs = buildSolarPanelSignatures(usageHourlyBins, dawnQuarterBins, flowSummary, chartsLoading);
+        if (chartsLoading) {
+          drawLoadingBars(usageBarCtx, usageBarCanvas, 'rgba(128, 213, 255, 0.56)', 'rgba(128, 213, 255, 0.18)', 0);
+          drawLoadingBars(solarBarCtx, solarBarCanvas, 'rgba(126, 225, 160, 0.62)', 'rgba(126, 225, 160, 0.2)', 0.4);
+          lastSolarUsageSig = panelSigs.usage;
+          lastSolarDawnSig = panelSigs.dawn;
+        } else {
+          if (panelSigs.usage !== lastSolarUsageSig) {
+            drawUsageHourlyBars(usageBarCtx, usageBarCanvas, usageHourlyBins);
+            lastSolarUsageSig = panelSigs.usage;
           }
-          lastSolarBarsSig = barsSig;
+          if (panelSigs.dawn !== lastSolarDawnSig) {
+            drawDawnQuarterBars(solarBarCtx, solarBarCanvas, dawnQuarterBins);
+            lastSolarDawnSig = panelSigs.dawn;
+          }
+        }
+        if (panelSigs.flow !== lastSolarFlowSig) {
+          renderSolarFlowPanel(flowSummary);
+          lastSolarFlowSig = panelSigs.flow;
         }
 
         var today = {
