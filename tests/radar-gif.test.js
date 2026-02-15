@@ -23,6 +23,7 @@ module.exports = async function run() {
   if (!sharp) {
     const renderer = createRadarGifRenderer({
       sharp: null,
+      ffmpegBinary: '__ffmpeg_missing__',
       fetchMapTile: async function () {
         return { contentType: 'image/png', body: Buffer.alloc(0) };
       },
@@ -40,7 +41,7 @@ module.exports = async function run() {
     await assert.rejects(
       async function () { await renderer.renderOnce({ width: 120, height: 80 }); },
       function (err) {
-        return err && err.code === 'sharp_unavailable';
+        return err && (err.code === 'sharp_unavailable' || err.code === 'gif_renderer_unavailable');
       },
       'renderOnce should throw sharp_unavailable without sharp'
     );
@@ -268,6 +269,7 @@ module.exports = async function run() {
     {
       const disabledRenderer = createRadarGifRenderer({
         sharp: null,
+        ffmpegBinary: '__ffmpeg_missing__',
         fetchMapTile: async function () { return { contentType: 'image/png', body: fakeTilePng }; },
         fetchRadarTile: async function () { return { contentType: 'image/png', body: fakeRadarTilePng }; },
         getRadarState: function () { return { frames: [{ time: 1000, path: '/path/0' }] }; },
@@ -281,7 +283,7 @@ module.exports = async function run() {
       stopNoop();
       await assert.rejects(
         async function () { await disabledRenderer.renderOnce({ width: 100, height: 80 }); },
-        function (err) { return err && err.code === 'sharp_unavailable'; },
+        function (err) { return err && (err.code === 'sharp_unavailable' || err.code === 'gif_renderer_unavailable'); },
         'renderOnce should throw sharp_unavailable when rendering is disabled'
       );
     }

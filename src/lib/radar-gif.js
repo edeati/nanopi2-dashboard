@@ -3,16 +3,12 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-let sharp = null;
-let sharpLoadError = null;
-try {
-  sharp = require('sharp');
-} catch (error) {
-  sharpLoadError = error;
-}
+const { execFile, spawnSync } = require('child_process');
 const GIFEncoder = require('gif-encoder-2');
 
 const TILE_SIZE = 256;
+let sharpProbeState = null;
+let sharpLoadError = null;
 
 // ---------------------------------------------------------------------------
 // Utility
@@ -31,6 +27,67 @@ function toInteger(value, fallback, min, max) {
     return max;
   }
   return out;
+}
+
+function execFileAsync(binary, args, opts, execFileImpl) {
+  const runner = execFileImpl || execFile;
+  return new Promise((resolve, reject) => {
+    runner(binary, args, opts || {}, (error, stdout, stderr) => {
+      if (error) {
+        error.stdout = stdout;
+        error.stderr = stderr;
+        reject(error);
+        return;
+      }
+      resolve({ stdout, stderr });
+    });
+  });
+}
+
+function probeSharpAvailability() {
+  if (sharpProbeState) {
+    return sharpProbeState;
+  }
+
+  const probe = spawnSync(
+    process.execPath,
+    ['-e', 'require("sharp")'],
+    { stdio: 'ignore' }
+  );
+
+  if (!probe.error && probe.status === 0) {
+    sharpProbeState = { available: true, reason: '' };
+    return sharpProbeState;
+  }
+
+  let reason = 'sharp probe failed';
+  if (probe.error && probe.error.message) {
+    reason = probe.error.message;
+  } else if (probe.signal) {
+    reason = 'signal:' + probe.signal;
+  } else if (typeof probe.status === 'number') {
+    reason = 'status:' + probe.status;
+  }
+  sharpProbeState = { available: false, reason };
+  return sharpProbeState;
+}
+
+function loadSharpIfSafe() {
+  const probe = probeSharpAvailability();
+  if (!probe.available) {
+    return null;
+  }
+  try {
+    return require('sharp');
+  } catch (error) {
+    sharpLoadError = error;
+    return null;
+  }
+}
+
+function probeFfmpegAvailability(ffmpegBinary) {
+  const probe = spawnSync(ffmpegBinary, ['-version'], { stdio: 'ignore' });
+  return !probe.error && probe.status === 0;
 }
 
 function ensureSharp(sharpImpl) {
@@ -115,7 +172,7 @@ function computeVisibleTiles(params) {
  * Returns a raw RGBA Buffer of dimensions width x height.
  */
 async function compositeMapBackground(params) {
-  const sharpImpl = ensureSharp(params && params.sharpImpl ? params.sharpImpl : sharp);
+  const sharpImpl = ensureSharp(params && params.sharpImpl ? params.sharpImpl : loadSharpIfSafe());
   const { tiles, width, height, z, fetchMapTile } = params;
   const compositeInputs = [];
 
@@ -176,7 +233,7 @@ async function compositeMapBackground(params) {
  * Returns a raw RGBA Buffer of dimensions width x height.
  */
 async function compositeRadarFrame(params) {
-  const sharpImpl = ensureSharp(params && params.sharpImpl ? params.sharpImpl : sharp);
+  const sharpImpl = ensureSharp(params && params.sharpImpl ? params.sharpImpl : loadSharpIfSafe());
   const { tiles, width, height, z, mapBackground, fetchRadarTile, frameIndex, color, options } = params;
 
   // Start from the map background (clone it)
@@ -234,20 +291,62 @@ async function compositeRadarFrame(params) {
   return frame;
 }
 
+function buildOverlayFilter(inputs) {
+  if (!Array.isArray(inputs) || inputs.length === 0) {
+    return null;
+  }
+  const parts = [];
+  let prev = '[0:v]';
+  for (let i = 0; i < inputs.length; i += 1) {
+    const inputIndex = i + 1;
+    const out = (i === inputs.length - 1) ? '[vout]' : '[v' + inputIndex + ']';
+    parts.push(
+      prev +
+      '[' + inputIndex + ':v]' +
+      'overlay=' + Math.round(Number(inputs[i].x || 0)) + ':' + Math.round(Number(inputs[i].y || 0)) +
+      out
+    );
+    prev = out;
+  }
+  return parts.join(';');
+}
+
 // ---------------------------------------------------------------------------
 // Main factory
 // ---------------------------------------------------------------------------
 
 function createRadarGifRenderer(options) {
-  const sharpImpl = Object.prototype.hasOwnProperty.call(options || {}, 'sharp') ? options.sharp : sharp;
-  const fetchMapTile = options.fetchMapTile;
-  const fetchRadarTile = options.fetchRadarTile;
-  const getRadarState = options.getRadarState;
-  const config = options.config || {};
-  const gifCacheDir = options.gifCacheDir || path.join(os.tmpdir(), 'nanopi2-dashboard-radar-gifs');
+  const opts = options || {};
+  const sharpImpl = Object.prototype.hasOwnProperty.call(opts, 'sharp') ? opts.sharp : loadSharpIfSafe();
+  const ffmpegBinary = String((opts && opts.ffmpegBinary) || 'ffmpeg');
+  const ffmpegAvailable = probeFfmpegAvailability(ffmpegBinary);
+  const execFileImpl = opts.execFileImpl;
+  const fetchMapTile = opts.fetchMapTile;
+  const fetchRadarTile = opts.fetchRadarTile;
+  const getRadarState = opts.getRadarState;
+  const config = opts.config || {};
+  const gifCacheDir = opts.gifCacheDir || path.join(os.tmpdir(), 'nanopi2-dashboard-radar-gifs');
+  const radarConfig = config.radar || {};
+  const backendHint = String(radarConfig.gifBackend || 'auto').toLowerCase();
 
   const GIF_FILENAME = 'radar-latest.gif';
   const GIF_TMP_FILENAME = 'radar-latest.gif.tmp';
+
+  const rendererBackend = (function chooseRendererBackend() {
+    if (backendHint === 'sharp') {
+      return sharpImpl ? 'sharp' : null;
+    }
+    if (backendHint === 'ffmpeg') {
+      return ffmpegAvailable ? 'ffmpeg' : null;
+    }
+    if (sharpImpl) {
+      return 'sharp';
+    }
+    if (ffmpegAvailable) {
+      return 'ffmpeg';
+    }
+    return null;
+  })();
 
   // Cached map background — invalidated when the tile list fingerprint changes
   let cachedMapBg = null;
@@ -269,11 +368,203 @@ function createRadarGifRenderer(options) {
     return z + ':' + tiles.map(function (t) { return t.tx + ',' + t.ty; }).join(';');
   }
 
+  function resolveRenderPlan(params) {
+    const width = toInteger(params && params.width, 400, 64, 1920);
+    const height = toInteger(params && params.height, 300, 64, 1920);
+    const z = Math.min(
+      toInteger(radarConfig.zoom, 6, 1, 12),
+      toInteger(radarConfig.providerMaxZoom, 6, 1, 12)
+    );
+    const lat = Number(radarConfig.lat) || -27.47;
+    const lon = Number(radarConfig.lon) || 153.02;
+    const extraTiles = toInteger(radarConfig.gifExtraTiles, 1, 0, 6);
+    const gifMaxFrames = toInteger(radarConfig.gifMaxFrames, 8, 1, 30);
+    const gifFrameDelayMs = toInteger(radarConfig.gifFrameDelayMs, 500, 50, 5000);
+    const colorSetting = toInteger(radarConfig.color, 3, 0, 10);
+    const optionsSetting = radarConfig.options || '1_1';
+
+    const radarState = getRadarState();
+    const frames = Array.isArray(radarState && radarState.frames) ? radarState.frames : [];
+    if (!frames.length) {
+      const error = new Error('radar_unavailable');
+      error.code = 'radar_unavailable';
+      throw error;
+    }
+    const framesSubset = frames.slice(-gifMaxFrames);
+
+    return {
+      width,
+      height,
+      z,
+      colorSetting,
+      optionsSetting,
+      gifFrameDelayMs,
+      frameStartIndex: frames.length - framesSubset.length,
+      framesSubset,
+      tiles: computeVisibleTiles({ lat, lon, z, width, height, extraTiles })
+    };
+  }
+
+  async function renderOnceSharp(plan) {
+    ensureSharp(sharpImpl);
+
+    const key = tileListKey(plan.tiles, plan.z);
+    let mapBg;
+    if (cachedMapBgKey === key && cachedMapBg) {
+      mapBg = cachedMapBg;
+    } else {
+      mapBg = await compositeMapBackground({
+        tiles: plan.tiles,
+        width: plan.width,
+        height: plan.height,
+        z: plan.z,
+        fetchMapTile,
+        sharpImpl
+      });
+      cachedMapBg = mapBg;
+      cachedMapBgKey = key;
+    }
+
+    const rgbaFrames = [];
+    for (let i = 0; i < plan.framesSubset.length; i += 1) {
+      const rgba = await compositeRadarFrame({
+        tiles: plan.tiles,
+        width: plan.width,
+        height: plan.height,
+        z: plan.z,
+        mapBackground: mapBg,
+        fetchRadarTile,
+        frameIndex: plan.frameStartIndex + i,
+        color: plan.colorSetting,
+        options: plan.optionsSetting,
+        sharpImpl
+      });
+      rgbaFrames.push(rgba);
+    }
+
+    const encoder = new GIFEncoder(plan.width, plan.height, 'neuquant', true);
+    encoder.setDelay(plan.gifFrameDelayMs);
+    encoder.setRepeat(0);
+    encoder.setTransparent(false);
+    encoder.start();
+
+    for (let i = 0; i < rgbaFrames.length; i += 1) {
+      encoder.addFrame(rgbaFrames[i]);
+    }
+    encoder.finish();
+    return encoder.out.getData();
+  }
+
+  async function renderOnceFfmpeg(plan) {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanopi2-radar-gif-'));
+    try {
+      const mapAssets = [];
+      for (let t = 0; t < plan.tiles.length; t += 1) {
+        const tile = plan.tiles[t];
+        const norm = normalizeTileCoords(plan.z, tile.tx, tile.ty);
+        try {
+          const result = await fetchMapTile({ z: plan.z, x: norm.x, y: norm.y });
+          const filePath = path.join(tempDir, 'map-' + String(t).padStart(3, '0') + '.png');
+          fs.writeFileSync(filePath, result.body);
+          mapAssets.push({ filePath, x: tile.drawX, y: tile.drawY });
+        } catch (_error) {}
+      }
+
+      for (let i = 0; i < plan.framesSubset.length; i += 1) {
+        const radarAssets = [];
+        for (let t = 0; t < plan.tiles.length; t += 1) {
+          const tile = plan.tiles[t];
+          const norm = normalizeTileCoords(plan.z, tile.tx, tile.ty);
+          try {
+            const result = await fetchRadarTile({
+              frameIndex: plan.frameStartIndex + i,
+              z: plan.z,
+              x: norm.x,
+              y: norm.y,
+              color: plan.colorSetting,
+              options: plan.optionsSetting
+            });
+            const filePath = path.join(
+              tempDir,
+              'radar-' + String(i).padStart(3, '0') + '-' + String(t).padStart(3, '0') + '.png'
+            );
+            fs.writeFileSync(filePath, result.body);
+            radarAssets.push({ filePath, x: tile.drawX, y: tile.drawY });
+          } catch (_error) {}
+        }
+
+        const overlays = mapAssets.concat(radarAssets);
+        const framePath = path.join(tempDir, 'frame-' + String(i).padStart(3, '0') + '.png');
+        const composeArgs = [
+          '-y',
+          '-hide_banner',
+          '-loglevel',
+          'error',
+          '-f',
+          'lavfi',
+          '-i',
+          'color=c=0x121820:s=' + plan.width + 'x' + plan.height + ':d=1'
+        ];
+        overlays.forEach((item) => {
+          composeArgs.push('-i', item.filePath);
+        });
+        const overlayFilter = buildOverlayFilter(overlays.map((item) => ({ x: item.x, y: item.y })));
+        if (overlayFilter) {
+          composeArgs.push('-filter_complex', overlayFilter, '-map', '[vout]');
+        } else {
+          composeArgs.push('-map', '0:v');
+        }
+        composeArgs.push('-frames:v', '1', framePath);
+
+        await execFileAsync(
+          ffmpegBinary,
+          composeArgs,
+          { maxBuffer: 16 * 1024 * 1024 },
+          execFileImpl
+        );
+      }
+
+      const fps = Math.max(0.2, 1000 / Math.max(50, plan.gifFrameDelayMs));
+      const gifPath = path.join(tempDir, 'radar.gif');
+      const encodeArgs = [
+        '-y',
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-framerate',
+        String(fps),
+        '-i',
+        path.join(tempDir, 'frame-%03d.png'),
+        '-filter_complex',
+        'split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3',
+        '-loop',
+        '0',
+        gifPath
+      ];
+
+      await execFileAsync(
+        ffmpegBinary,
+        encodeArgs,
+        { maxBuffer: 16 * 1024 * 1024 },
+        execFileImpl
+      );
+
+      return fs.readFileSync(gifPath);
+    } catch (error) {
+      if (!error.code) {
+        error.code = 'ffmpeg_render_failed';
+      }
+      throw error;
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  }
+
   /**
-   * Rendering is available only when sharp can be loaded.
+   * Rendering is available via sharp or ffmpeg.
    */
   function canRender() {
-    return !!sharpImpl;
+    return rendererBackend === 'sharp' || rendererBackend === 'ffmpeg';
   }
 
   /**
@@ -299,77 +590,19 @@ function createRadarGifRenderer(options) {
    * Returns {contentType, body, isFallback}.
    */
   async function renderOnce(params) {
-    ensureSharp(sharpImpl);
-    const radarConfig = config.radar || {};
-    const width = toInteger(params && params.width, 400, 64, 1920);
-    const height = toInteger(params && params.height, 300, 64, 1920);
-    const z = Math.min(
-      toInteger(radarConfig.zoom, 6, 1, 12),
-      toInteger(radarConfig.providerMaxZoom, 6, 1, 12)
-    );
-    const lat = Number(radarConfig.lat) || -27.47;
-    const lon = Number(radarConfig.lon) || 153.02;
-    const extraTiles = toInteger(radarConfig.gifExtraTiles, 1, 0, 6);
-    const gifMaxFrames = toInteger(radarConfig.gifMaxFrames, 8, 1, 30);
-    const gifFrameDelayMs = toInteger(radarConfig.gifFrameDelayMs, 500, 50, 5000);
-    const colorSetting = toInteger(radarConfig.color, 3, 0, 10);
-    const optionsSetting = radarConfig.options || '1_1';
-
-    // Get radar frames
-    const radarState = getRadarState();
-    const frames = Array.isArray(radarState && radarState.frames) ? radarState.frames : [];
-    if (!frames.length) {
-      const error = new Error('radar_unavailable');
-      error.code = 'radar_unavailable';
+    if (!canRender()) {
+      const error = new Error('gif_renderer_unavailable');
+      error.code = 'gif_renderer_unavailable';
+      if (!sharpImpl && sharpLoadError) {
+        error.cause = sharpLoadError;
+      }
       throw error;
     }
-    const framesSubset = frames.slice(-gifMaxFrames);
 
-    // Compute visible tiles
-    const tiles = computeVisibleTiles({ lat, lon, z, width, height, extraTiles });
-
-    // Map background (cached if tile list unchanged)
-    const key = tileListKey(tiles, z);
-    let mapBg;
-    if (cachedMapBgKey === key && cachedMapBg) {
-      mapBg = cachedMapBg;
-    } else {
-      mapBg = await compositeMapBackground({ tiles, width, height, z, fetchMapTile, sharpImpl });
-      cachedMapBg = mapBg;
-      cachedMapBgKey = key;
-    }
-
-    // Render each radar frame
-    const rgbaFrames = [];
-    for (let i = 0; i < framesSubset.length; i += 1) {
-      const rgba = await compositeRadarFrame({
-        tiles,
-        width,
-        height,
-        z,
-        mapBackground: mapBg,
-        fetchRadarTile,
-        frameIndex: (frames.length - framesSubset.length) + i,
-        color: colorSetting,
-        options: optionsSetting,
-        sharpImpl
-      });
-      rgbaFrames.push(rgba);
-    }
-
-    // Encode animated GIF
-    const encoder = new GIFEncoder(width, height, 'neuquant', true);
-    encoder.setDelay(gifFrameDelayMs);
-    encoder.setRepeat(0); // infinite loop
-    encoder.setTransparent(false);
-    encoder.start();
-
-    for (let i = 0; i < rgbaFrames.length; i += 1) {
-      encoder.addFrame(rgbaFrames[i]);
-    }
-
-    encoder.finish();
-    const gifBuffer = encoder.out.getData();
+    const plan = resolveRenderPlan(params);
+    const gifBuffer = rendererBackend === 'sharp'
+      ? await renderOnceSharp(plan)
+      : await renderOnceFfmpeg(plan);
 
     // Write atomically: temp file then rename
     ensureCacheDir();
