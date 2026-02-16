@@ -61,6 +61,25 @@ function normalizeDashboardConfig(input) {
   }, config.weather || {});
   config.news = Object.assign({ feedUrl: '', maxItems: 5 }, config.news || {});
   config.bins = Object.assign({ sourceUrl: '', propertyId: '' }, config.bins || {});
+  config.homeAssistant = Object.assign({
+    enabled: false,
+    baseUrl: 'http://127.0.0.1:8123',
+    token: '',
+    refreshSeconds: 30,
+    cards: []
+  }, config.homeAssistant || {});
+  config.internet = Object.assign({
+    enabled: true,
+    probeUrls: [
+      'https://speed.cloudflare.com/__down?bytes=5000000',
+      'https://speed.cloudflare.com/cdn-cgi/trace'
+    ],
+    sampleIntervalSeconds: 15,
+    speedTestIntervalSeconds: 600,
+    timeoutMs: 8000,
+    offlineFailureThreshold: 3,
+    historySize: 60
+  }, config.internet || {});
   config.map = Object.assign({
     tileUrlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     fallbackTileUrlTemplates: [
@@ -130,6 +149,20 @@ function validateDashboardConfig(config) {
     typeof config.weather.forecastApiBase === 'string' &&
     typeof config.weather.refreshSeconds === 'number' &&
     typeof config.news.maxItems === 'number' &&
+    config.homeAssistant &&
+    typeof config.homeAssistant.enabled === 'boolean' &&
+    typeof config.homeAssistant.baseUrl === 'string' &&
+    typeof config.homeAssistant.token === 'string' &&
+    typeof config.homeAssistant.refreshSeconds === 'number' &&
+    Array.isArray(config.homeAssistant.cards) &&
+    config.internet &&
+    typeof config.internet.enabled === 'boolean' &&
+    Array.isArray(config.internet.probeUrls) &&
+    typeof config.internet.sampleIntervalSeconds === 'number' &&
+    typeof config.internet.speedTestIntervalSeconds === 'number' &&
+    typeof config.internet.timeoutMs === 'number' &&
+    typeof config.internet.offlineFailureThreshold === 'number' &&
+    typeof config.internet.historySize === 'number' &&
     typeof config.map.tileUrlTemplate === 'string' &&
     Array.isArray(config.map.fallbackTileUrlTemplates) &&
     typeof config.map.userAgent === 'string' &&

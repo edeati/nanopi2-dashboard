@@ -52,6 +52,25 @@
     "sourceUrl": "",
     "propertyId": "638788"
   },
+  "homeAssistant": {
+    "enabled": false,
+    "baseUrl": "http://127.0.0.1:8123",
+    "token": "",
+    "refreshSeconds": 30,
+    "cards": []
+  },
+  "internet": {
+    "enabled": true,
+    "probeUrls": [
+      "https://speed.cloudflare.com/__down?bytes=5000000",
+      "https://speed.cloudflare.com/cdn-cgi/trace"
+    ],
+    "sampleIntervalSeconds": 15,
+    "speedTestIntervalSeconds": 600,
+    "timeoutMs": 8000,
+    "offlineFailureThreshold": 3,
+    "historySize": 60
+  },
   "radar": {
     "provider": "rainviewer",
     "apiUrl": "https://api.rainviewer.com/public/weather-maps.json",
