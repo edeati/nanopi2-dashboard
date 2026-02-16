@@ -344,7 +344,7 @@
 
     #solarChartsRow {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 8px;
       min-height: 0;
     }
@@ -359,6 +359,7 @@
       grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 6px;
       min-height: 0;
+      display: none;
     }
 
     #solarDataQualityBadge {
@@ -372,6 +373,11 @@
       border: 1px solid rgba(114, 127, 146, 0.5);
       color: #b8c5d3;
       background: rgba(18, 24, 30, 0.8);
+      display: none;
+    }
+
+    #solarChartsRow .solar-chart-secondary {
+      display: none;
     }
 
     #solarDataQualityBadge.quality-est {
@@ -1016,11 +1022,11 @@
       </div>
 
       <div id="solarChartsRow">
-        <div>
+        <div class="solar-chart-main">
           <div class="chart-label">Usage (Self + Import)</div>
           <div class="chart-wrap skeleton"><canvas id="solarUsageChart" class="chart"></canvas></div>
         </div>
-        <div>
+        <div class="solar-chart-secondary">
           <div class="chart-label">Dawn Detail (Produced + Feed-In)</div>
           <div class="chart-wrap skeleton"><canvas id="solarDawnChart" class="chart"></canvas></div>
         </div>
