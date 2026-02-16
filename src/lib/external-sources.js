@@ -89,7 +89,7 @@ function mapForecast(rawList) {
       byDay[key] = item;
       picked.push(item);
     }
-    if (picked.length >= 3) {
+    if (picked.length >= 5) {
       break;
     }
   }

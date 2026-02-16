@@ -40,7 +40,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('--global-bar-clearance: 62px;') > -1, 'tablet clearance should reclaim vertical space after readability pass');
   assert.ok(html.indexOf('grid-template-rows: 1fr 0.45fr;') > -1, 'tablet row split should reduce dead gap while preserving larger lower metrics');
   assert.ok(html.indexOf('#mainRadar {\n        min-width: 0;\n      }') > -1, 'tablet radar panel should allow shrink to prevent edge stripe');
-  assert.ok(html.indexOf('grid-template-columns: minmax(0, 1.32fr) minmax(0, 0.78fr);') > -1, 'tablet weather layout should prioritize current conditions width');
+  assert.ok(html.indexOf('grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);') > -1, 'tablet weather layout should prioritize forecast width');
   assert.ok(html.indexOf('#timeBig {\n        font-size: 66px;') > -1, 'tablet clock should be more legible at distance');
   assert.ok(html.indexOf('.solar-gauge canvas {\n      width: 108px;') > -1, 'solar gauges should keep enough size for in-gauge detail text while preserving lower-card room');
   assert.ok(html.indexOf('min-height: 112px;') > -1, 'solar top gauge cards should be shorter to avoid truncating lower solar cards');
@@ -94,13 +94,15 @@ module.exports = async function run() {
   assert.ok(html.indexOf('id="weatherMainRow"') > -1, 'weather main row layout missing');
   assert.ok(html.indexOf('weather-now-panel') > -1, 'weather current panel treatment missing');
   assert.ok(html.indexOf('class="weather-current weather-now-panel"') > -1, 'weather card should use featured current panel');
-  assert.ok(html.indexOf('grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);') > -1, 'weather row should prioritize current conditions width');
+  assert.ok(html.indexOf('grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.17fr);') > -1, 'weather row should prioritize forecast width');
   assert.ok(html.indexOf('font-size: clamp(13px, 2vh, 16px);') > -1, 'weather summary should remain readable while current temp grows');
   assert.ok(html.indexOf('font-size: clamp(38px, 5.7vh, 52px);') > -1, 'weather temperature should be larger for at-distance readability');
   assert.ok(html.indexOf('weather-temp-large') > -1, 'large weather temperature style missing');
   assert.ok(html.indexOf('#weatherCard {') > -1 && html.indexOf('grid-template-rows: 1fr;') > -1, 'weather card should use full height without title row');
-  assert.ok(html.indexOf('padding: 10px 10px;') > -1, 'forecast cards should use compact padding');
-  assert.ok(html.indexOf('font-size: 14px;') > -1, 'forecast temperature should stay compact');
+  assert.ok(html.indexOf('grid-template-rows: repeat(5, minmax(0, 1fr));') > -1, 'forecast should reserve space for five rows');
+  assert.ok(html.indexOf('padding: 4px 8px;') > -1, 'forecast rows should be tighter to fit five days');
+  assert.ok(html.indexOf('font-size: 19px;') > -1, 'forecast temperature should be larger for readability');
+  assert.ok(html.indexOf('var forecast = Array.isArray(items) ? items.slice(0, 5) : [];') > -1, 'forecast renderer should show up to five days');
   assert.ok(html.indexOf('min-height: 0;') > -1, 'forecast layout should include truncation guards');
   assert.ok(html.indexOf('font-size: 128px;') > -1, 'bin icon should be a large background glyph for distance readability');
   assert.ok(html.indexOf('id="binDetails"') > -1, 'bin details wrapper missing');
