@@ -821,6 +821,7 @@
     .forecast-temp { font-size: 19px; line-height: 1; font-family: var(--font-data); color: #f2f8fd; text-align: right; }
     #weatherForecast.weather-rotator-mode {
       display: block;
+      height: 100%;
     }
     #weatherRotator {
       height: 100%;
@@ -830,19 +831,49 @@
       background: rgba(9, 24, 41, 0.35);
       padding: 8px 9px;
       overflow: hidden;
+      display: block;
+      position: relative;
+    }
+    .weather-rotator-card {
+      height: 100%;
+      min-height: 0;
       display: grid;
-      align-content: center;
-      gap: 6px;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: 8px;
+      animation: weatherRotatorIn 280ms ease both;
+    }
+    #weatherRotator.is-leaving .weather-rotator-card {
+      animation: weatherRotatorOut 220ms ease both;
+    }
+    @keyframes weatherRotatorIn {
+      from { opacity: 0; transform: translateY(10px) scale(0.985); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes weatherRotatorOut {
+      from { opacity: 1; transform: translateY(0) scale(1); }
+      to { opacity: 0; transform: translateY(-8px) scale(0.99); }
     }
     .weather-rotator-title {
       font-family: var(--font-display);
-      font-size: 12px;
+      font-size: 14px;
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: #b5d6ee;
-      white-space: nowrap;
+      white-space: normal;
+      line-height: 1.15;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    .weather-rotator-title-ha {
+      font-size: 16px;
+      letter-spacing: 0.05em;
+      margin-bottom: 2px;
+    }
+    .weather-rotator-divider {
+      height: 1px;
+      width: 100%;
+      background: linear-gradient(90deg, rgba(134, 183, 220, 0.05), rgba(134, 183, 220, 0.6), rgba(134, 183, 220, 0.05));
+      margin: 4px 0 8px;
     }
     .weather-rotator-value {
       font-family: var(--font-ui);
@@ -851,23 +882,115 @@
       color: #f2f8fd;
       font-weight: 700;
     }
+    .weather-rotator-metrics {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto auto;
+      gap: 6px;
+      align-items: center;
+      min-height: 0;
+    }
+    .weather-rotator-temp-value {
+      font-family: var(--font-ui);
+      font-size: clamp(34px, 4.8vh, 48px);
+      line-height: 1;
+      color: #f2f8fd;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .weather-rotator-temp-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+      min-width: 0;
+    }
+    .weather-rotator-metric-icon {
+      font-size: 20px;
+      line-height: 1;
+      opacity: 0.94;
+      filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35));
+    }
+    .weather-rotator-humidity-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+      min-width: 0;
+    }
+    .weather-rotator-forecast-list {
+      display: grid;
+      grid-template-rows: repeat(5, minmax(0, 1fr));
+      gap: 4px;
+      min-height: 0;
+      align-content: center;
+    }
+    .weather-rotator-forecast-item {
+      display: grid;
+      grid-template-columns: 42px 24px 1fr;
+      gap: 8px;
+      align-items: center;
+      font-size: 18px;
+      line-height: 1;
+      color: #e9f3fb;
+    }
+    .weather-rotator-forecast-day {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #b8d4e8;
+      font-family: var(--font-display);
+    }
+    .weather-rotator-forecast-icon {
+      font-size: 18px;
+      text-align: center;
+    }
+    .weather-rotator-forecast-temp {
+      justify-self: end;
+      font-family: var(--font-ui);
+      font-size: 20px;
+      color: #f4fbff;
+      font-weight: 700;
+    }
+    .weather-rotator-humidity-label {
+      font-family: var(--font-display);
+      font-size: 13px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #b7d6eb;
+      white-space: nowrap;
+    }
+    .weather-rotator-humidity-value {
+      font-family: var(--font-ui);
+      font-size: clamp(30px, 4.2vh, 40px);
+      line-height: 1;
+      color: #dff2ff;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .weather-rotator-sub {
       font-family: var(--font-data);
-      font-size: 13px;
+      font-size: 15px;
       line-height: 1.2;
       color: #d6e8f7;
     }
     .weather-battery-list {
       display: grid;
-      gap: 3px;
+      gap: 4px;
+      align-content: start;
     }
     .weather-battery-row {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
-      gap: 6px;
+      gap: 8px;
       align-items: center;
-      font-size: 13px;
+      font-size: 18px;
       color: #e2edf8;
+      line-height: 1.05;
     }
     .weather-battery-label {
       min-width: 0;
@@ -1317,6 +1440,9 @@
       var weatherRotatorCards = [];
       var weatherRotatorIndex = 0;
       var weatherRotatorTimer = null;
+      var weatherRotatorIsTransitioning = false;
+      var weatherRotatorQueuedIndex = -1;
+      var lastWeatherRotatorSig = '';
       var firstDataApplied = false;
       var radarLoopStarted = false;
       var stateFetchInFlight = false;
@@ -2541,6 +2667,15 @@
         for (var i = 0; i < samples.length; i += 1) {
           max = Math.max(max, Number(samples[i].downloadMbps || 0));
         }
+        if (samples.length === 1) {
+          var singleY = h - 1 - ((Number(samples[0].downloadMbps || 0) / max) * (h - 2));
+          var singleX = w - 6;
+          ctx.fillStyle = '#58b8ff';
+          ctx.beginPath();
+          ctx.arc(singleX, singleY, 3, 0, Math.PI * 2);
+          ctx.fill();
+          return;
+        }
         ctx.beginPath();
         ctx.strokeStyle = '#58b8ff';
         ctx.lineWidth = 2;
@@ -2558,6 +2693,16 @@
 
       function buildWeatherRotatorCards(state) {
         var cards = [];
+        var forecastItems = (state.weather && Array.isArray(state.weather.forecast))
+          ? state.weather.forecast.slice(0, 5)
+          : [];
+        if (forecastItems.length) {
+          cards.push({
+            kind: 'forecast5',
+            label: '5-Day Forecast',
+            items: forecastItems
+          });
+        }
         var haCards = (state.ha && Array.isArray(state.ha.cards)) ? state.ha.cards : [];
         for (var i = 0; i < haCards.length; i += 1) {
           var item = haCards[i] || {};
@@ -2578,16 +2723,59 @@
           }
         }
         if (state.internet) {
+          var history = Array.isArray(state.internet.history) ? state.internet.history : [];
+          var downNow = Number.isFinite(Number(state.internet.downloadMbps)) ? Number(state.internet.downloadMbps) : null;
+          var upNow = Number.isFinite(Number(state.internet.uploadMbps)) ? Number(state.internet.uploadMbps) : null;
+          if (!history.length && downNow !== null) {
+            history = [{
+              ts: Date.now(),
+              downloadMbps: downNow,
+              uploadMbps: upNow !== null ? upNow : 0,
+              online: !!state.internet.online
+            }];
+          }
           cards.push({
             kind: 'internet',
             label: 'Internet',
             online: !!state.internet.online,
-            downloadMbps: Number(state.internet.downloadMbps || 0),
-            uploadMbps: Number(state.internet.uploadMbps || 0),
-            history: Array.isArray(state.internet.history) ? state.internet.history : []
+            downloadMbps: downNow,
+            uploadMbps: upNow,
+            history: history
           });
         }
         return cards;
+      }
+
+      function weatherRotatorSignature(cards) {
+        var source = Array.isArray(cards) ? cards : [];
+        return source.map(function (card) {
+          if (!card) {
+            return 'none';
+          }
+          if (card.kind === 'climate') {
+            var t = card.temperature ? Number(card.temperature.value || 0).toFixed(1) : '--';
+            var h = card.humidity ? Number(card.humidity.value || 0).toFixed(0) : '--';
+            return ['climate', card.label || '', t, h].join('|');
+          }
+          if (card.kind === 'forecast5') {
+            var fItems = Array.isArray(card.items) ? card.items : [];
+            return 'forecast5|' + fItems.map(function (item) {
+              return [item.day || '--', Number(item.tempC || 0).toFixed(0), item.icon || '', item.summary || ''].join(':');
+            }).join(',');
+          }
+          if (card.kind === 'battery_summary') {
+            var items = Array.isArray(card.items) ? card.items : [];
+            return 'battery|' + items.map(function (item) {
+              return [item.label || '', Number(item.value || 0).toFixed(0), item.tone || ''].join(':');
+            }).join(',');
+          }
+          if (card.kind === 'internet') {
+            var d = Number.isFinite(Number(card.downloadMbps)) ? Number(card.downloadMbps).toFixed(1) : '--';
+            var u = Number.isFinite(Number(card.uploadMbps)) ? Number(card.uploadMbps).toFixed(1) : '--';
+            return ['internet', String(!!card.online), d, u].join('|');
+          }
+          return String(card.kind || 'unknown');
+        }).join('||');
       }
 
       function renderWeatherRotatorCard(card) {
@@ -2596,13 +2784,25 @@
           return;
         }
         if (card.kind === 'climate') {
-          var humidityText = card.humidity
-            ? ('Humidity ' + Number(card.humidity.value || 0).toFixed(0) + String(card.humidity.unit || '%'))
-            : 'Humidity --';
+          var humidityValue = card.humidity
+            ? (Number(card.humidity.value || 0).toFixed(0) + String(card.humidity.unit || '%'))
+            : '--';
           node.innerHTML =
-            '<div class=\"weather-rotator-title\">' + String(card.icon || '🌡') + ' ' + String(card.label || 'Climate') + '</div>' +
-            '<div class=\"weather-rotator-value\">' + Number(card.temperature.value || 0).toFixed(1).replace(/\\.0$/, '') + String(card.temperature.unit || '°C') + '</div>' +
-            '<div class=\"weather-rotator-sub\">' + humidityText + '</div>';
+            '<div class=\"weather-rotator-card\">' +
+            '<div class=\"weather-rotator-title weather-rotator-title-ha\">' + String(card.icon || '🌡') + ' ' + String(card.label || 'Climate') + '</div>' +
+            '<div class=\"weather-rotator-divider\"></div>' +
+            '<div class=\"weather-rotator-metrics\">' +
+            '<div class=\"weather-rotator-temp-row\">' +
+            '<div class=\"weather-rotator-metric-icon\">🌡</div>' +
+            '<div class=\"weather-rotator-temp-value\">' + Number(card.temperature.value || 0).toFixed(1).replace(/\\.0$/, '') + String(card.temperature.unit || '°C') + '</div>' +
+            '</div>' +
+            '<div class=\"weather-rotator-humidity-row\">' +
+            '<div class=\"weather-rotator-metric-icon\">💧</div>' +
+            '<div class=\"weather-rotator-humidity-value\">' + humidityValue + '</div>' +
+            '</div>' +
+            '</div>' +
+            '<div class=\"weather-rotator-sub\">Live from Home Assistant</div>' +
+            '</div>';
           return;
         }
         if (card.kind === 'battery_summary') {
@@ -2614,18 +2814,79 @@
               '</div>';
           }).join('');
           node.innerHTML =
-            '<div class=\"weather-rotator-title\">🔋 ' + String(card.label || 'Batteries') + '</div>' +
-            '<div class=\"weather-battery-list\">' + rows + '</div>';
+            '<div class=\"weather-rotator-card\">' +
+            '<div class=\"weather-rotator-title weather-rotator-title-ha\">🔋 ' + String(card.label || 'Batteries') + '</div>' +
+            '<div class=\"weather-rotator-divider\"></div>' +
+            '<div class=\"weather-battery-list\">' + rows + '</div>' +
+            '<div class=\"weather-rotator-sub\">Live battery levels</div>' +
+            '</div>';
+          return;
+        }
+        if (card.kind === 'forecast5') {
+          var forecastRows = (Array.isArray(card.items) ? card.items : []).slice(0, 5).map(function (item) {
+            return '<div class=\"weather-rotator-forecast-item\">' +
+              '<div class=\"weather-rotator-forecast-day\">' + String(item.day || '--') + '</div>' +
+              '<div class=\"weather-rotator-forecast-icon\">' + iconForWeather(item.icon, item.summary) + '</div>' +
+              '<div class=\"weather-rotator-forecast-temp\">' + Number(item.tempC || 0).toFixed(0) + ' °C</div>' +
+              '</div>';
+          }).join('');
+          node.innerHTML =
+            '<div class=\"weather-rotator-card\">' +
+            '<div class=\"weather-rotator-title\">☁ ' + String(card.label || '5-Day Forecast') + '</div>' +
+            '<div class=\"weather-rotator-forecast-list\">' + forecastRows + '</div>' +
+            '<div class=\"weather-rotator-sub\">From weather service</div>' +
+            '</div>';
           return;
         }
         if (card.kind === 'internet') {
+          var hasDown = Number.isFinite(Number(card.downloadMbps)) && Number(card.downloadMbps) > 0.01;
+          var hasUp = Number.isFinite(Number(card.uploadMbps)) && Number(card.uploadMbps) > 0.01;
+          var downText = hasDown ? (Number(card.downloadMbps).toFixed(1) + ' Mbps') : 'Sampling...';
+          var upText = hasUp ? (Number(card.uploadMbps).toFixed(1) + ' Mbps') : '--';
           node.innerHTML =
+            '<div class=\"weather-rotator-card\">' +
             '<div class=\"weather-rotator-title\">🌐 Internet</div>' +
-            '<div class=\"weather-rotator-value\">' + (card.online ? card.downloadMbps.toFixed(1) + ' Mbps' : 'Offline') + '</div>' +
-            '<div class=\"weather-rotator-sub\">Up ' + card.uploadMbps.toFixed(1) + ' Mbps</div>' +
-            '<canvas id=\"weatherInternetMiniChart\" width=\"220\" height=\"54\"></canvas>';
+            '<div class=\"weather-rotator-value\">' + (card.online ? downText : 'Offline') + '</div>' +
+            '<div class=\"weather-rotator-sub\">Up ' + upText + '</div>' +
+            '<canvas id=\"weatherInternetMiniChart\" width=\"220\" height=\"54\"></canvas>' +
+            '</div>';
           drawWeatherInternetMiniChart(card.history);
         }
+      }
+
+      function transitionWeatherRotatorTo(nextIndex, immediate) {
+        if (!weatherRotatorCards.length) {
+          return;
+        }
+        var node = document.getElementById('weatherRotator');
+        if (!node) {
+          return;
+        }
+        var bounded = Math.max(0, Math.min(weatherRotatorCards.length - 1, Number(nextIndex || 0)));
+        if (immediate) {
+          weatherRotatorIndex = bounded;
+          renderWeatherRotatorCard(weatherRotatorCards[weatherRotatorIndex]);
+          return;
+        }
+        if (weatherRotatorIsTransitioning) {
+          weatherRotatorQueuedIndex = bounded;
+          return;
+        }
+        weatherRotatorIsTransitioning = true;
+        node.classList.add('is-leaving');
+        setTimeout(function () {
+          weatherRotatorIndex = bounded;
+          renderWeatherRotatorCard(weatherRotatorCards[weatherRotatorIndex]);
+          node.classList.remove('is-leaving');
+          weatherRotatorIsTransitioning = false;
+          if (weatherRotatorQueuedIndex > -1 && weatherRotatorQueuedIndex !== weatherRotatorIndex) {
+            var queued = weatherRotatorQueuedIndex;
+            weatherRotatorQueuedIndex = -1;
+            transitionWeatherRotatorTo(queued, false);
+            return;
+          }
+          weatherRotatorQueuedIndex = -1;
+        }, 220);
       }
 
       function restartWeatherRotator() {
@@ -2639,11 +2900,11 @@
         if (weatherRotatorIndex >= weatherRotatorCards.length) {
           weatherRotatorIndex = 0;
         }
-        renderWeatherRotatorCard(weatherRotatorCards[weatherRotatorIndex]);
+        transitionWeatherRotatorTo(weatherRotatorIndex, true);
         if (weatherRotatorCards.length > 1) {
           weatherRotatorTimer = setInterval(function () {
-            weatherRotatorIndex = (weatherRotatorIndex + 1) % weatherRotatorCards.length;
-            renderWeatherRotatorCard(weatherRotatorCards[weatherRotatorIndex]);
+            var nextIndex = (weatherRotatorIndex + 1) % weatherRotatorCards.length;
+            transitionWeatherRotatorTo(nextIndex, false);
           }, WEATHER_ROTATE_MS);
         }
       }
@@ -2656,18 +2917,26 @@
         document.getElementById('weatherTemp').textContent = weatherTempC.toFixed(1).replace(/\.0$/, '') + ' °C';
         applyWeatherTempTone(weatherTempC);
         document.getElementById('weatherIcon').textContent = iconForWeather(state.weather.icon, state.weather.summary);
-        weatherRotatorCards = buildWeatherRotatorCards(state);
+        var nextRotatorCards = buildWeatherRotatorCards(state);
+        var nextWeatherRotatorSig = weatherRotatorSignature(nextRotatorCards);
+        weatherRotatorCards = nextRotatorCards;
         if (weatherRotatorCards.length) {
           var forecastNode = document.getElementById('weatherForecast');
           if (forecastNode) {
             forecastNode.classList.add('weather-rotator-mode');
           }
-          restartWeatherRotator();
+          if (nextWeatherRotatorSig !== lastWeatherRotatorSig) {
+            lastWeatherRotatorSig = nextWeatherRotatorSig;
+            restartWeatherRotator();
+          } else if (!weatherRotatorTimer && weatherRotatorCards.length > 1) {
+            restartWeatherRotator();
+          }
         } else {
           if (weatherRotatorTimer) {
             clearInterval(weatherRotatorTimer);
             weatherRotatorTimer = null;
           }
+          lastWeatherRotatorSig = '';
           var fallbackNode = document.getElementById('weatherForecast');
           if (fallbackNode) {
             fallbackNode.classList.remove('weather-rotator-mode');

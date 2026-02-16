@@ -60,6 +60,8 @@ module.exports = async function run() {
     assert.strictEqual(config.homeAssistant.enabled, false);
     assert.ok(Array.isArray(config.homeAssistant.cards));
     assert.strictEqual(config.internet.enabled, true);
+    assert.strictEqual(config.internet.provider, 'probe');
+    assert.strictEqual(config.internet.mySpeedUrl, '');
     assert.strictEqual(config.internet.speedTestIntervalSeconds, 600);
     assert.strictEqual(config.internet.offlineFailureThreshold, 3);
   });

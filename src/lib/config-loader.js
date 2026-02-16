@@ -70,6 +70,8 @@ function normalizeDashboardConfig(input) {
   }, config.homeAssistant || {});
   config.internet = Object.assign({
     enabled: true,
+    provider: 'probe',
+    mySpeedUrl: '',
     probeUrls: [
       'https://speed.cloudflare.com/__down?bytes=5000000',
       'https://speed.cloudflare.com/cdn-cgi/trace'
@@ -157,6 +159,8 @@ function validateDashboardConfig(config) {
     Array.isArray(config.homeAssistant.cards) &&
     config.internet &&
     typeof config.internet.enabled === 'boolean' &&
+    typeof config.internet.provider === 'string' &&
+    typeof config.internet.mySpeedUrl === 'string' &&
     Array.isArray(config.internet.probeUrls) &&
     typeof config.internet.sampleIntervalSeconds === 'number' &&
     typeof config.internet.speedTestIntervalSeconds === 'number' &&

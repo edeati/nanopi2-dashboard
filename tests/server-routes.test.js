@@ -107,6 +107,19 @@ module.exports = async function run() {
       configDir: dir,
       gitRunner: async () => ({ ok: true }),
       disablePolling: true,
+      internetProbe: {
+        getState: () => ({
+          online: true,
+          downloadMbps: 674.08,
+          uploadMbps: 37.27,
+          latencyMs: 16,
+          history: [
+            { ts: 1771219200000, downloadMbps: 640.2, uploadMbps: 36.1, online: true },
+            { ts: 1771219260000, downloadMbps: 674.08, uploadMbps: 37.27, online: true }
+          ],
+          lastUpdated: '2026-02-16T06:15:14.982Z'
+        })
+      },
       initialExternalState: {
         weather: { summary: 'Cloudy', tempC: 23 },
         news: { headlines: ['One', 'Two'] },
@@ -168,6 +181,8 @@ module.exports = async function run() {
     assert.ok(statePayload.internet && typeof statePayload.internet.online === 'boolean', 'internet payload should expose online state');
     assert.ok(Array.isArray(statePayload.internet.history), 'internet payload should expose history array');
     assert.ok(Object.prototype.hasOwnProperty.call(statePayload.internet, 'downloadMbps'), 'internet payload should expose download speed');
+    assert.ok(statePayload.internet.history.length >= 2, 'internet payload should pass through probe history samples');
+    assert.strictEqual(statePayload.internet.downloadMbps, 674.08, 'internet payload should pass through current download from probe state');
     assert.ok(statePayload.ha && Array.isArray(statePayload.ha.cards), 'ha payload should expose cards array');
     assert.ok(Object.prototype.hasOwnProperty.call(statePayload.ha, 'stale'), 'ha payload should expose stale flag');
 
