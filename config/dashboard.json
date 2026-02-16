@@ -54,7 +54,7 @@
   },
   "homeAssistant": {
     "enabled": true,
-    "baseUrl": "http://http://192.168.0.24:8123",
+    "baseUrl": "http://192.168.0.24:8123",
     "token": "",
     "refreshSeconds": 30,
     "cards": [
