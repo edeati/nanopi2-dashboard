@@ -92,6 +92,11 @@ module.exports = async function run() {
   assert.ok(html.indexOf('.solar-status-value {\n      font-family: var(--font-ui);\n      font-size: 26px;') > -1, 'solar status values should be reduced to prevent clipping');
   assert.ok(html.indexOf('padding: 7px 8px;') > -1, 'solar status cards should use tighter padding to avoid clipping');
   assert.ok(html.indexOf('id="weatherMainRow"') > -1, 'weather main row layout missing');
+  assert.ok(html.indexOf('id="weatherRotator"') > -1, 'weather rotator container missing');
+  assert.ok(html.indexOf('var WEATHER_ROTATE_MS = 15000;') > -1, 'weather rotator should use 15s interval');
+  assert.ok(html.indexOf('function buildWeatherRotatorCards(') > -1, 'weather rotator card builder missing');
+  assert.ok(html.indexOf('function renderWeatherRotatorCard(') > -1, 'weather rotator renderer missing');
+  assert.ok(html.indexOf('id="weatherInternetMiniChart"') > -1, 'weather internet mini chart missing');
   assert.ok(html.indexOf('weather-now-panel') > -1, 'weather current panel treatment missing');
   assert.ok(html.indexOf('class="weather-current weather-now-panel"') > -1, 'weather card should use featured current panel');
   assert.ok(html.indexOf('grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.17fr);') > -1, 'weather row should prioritize forecast width');
