@@ -127,6 +127,8 @@ module.exports = async function run() {
   assert.ok(html.indexOf('function drawUsageHourlyBars(') > -1, 'usage hourly draw helper missing');
   assert.ok(html.indexOf('function drawGeneratedLine(') > -1, 'generated line helper missing for hybrid chart');
   assert.ok(html.indexOf("ctx.strokeStyle = '#f2bb3c';") > -1, 'generated hybrid line color missing');
+  assert.ok(html.indexOf("ctx.lineJoin = 'round';") > -1, 'generated hybrid line should use rounded joins');
+  assert.ok(html.indexOf("ctx.lineCap = 'round';") > -1, 'generated hybrid line should use rounded caps');
   assert.ok(html.indexOf('function drawDawnQuarterBars(') > -1, 'dawn quarter draw helper missing');
   assert.ok(html.indexOf('function buildSolarPanelSignatures(') > -1, 'solar panel signature helper missing');
   assert.ok(html.indexOf('if (panelSigs.usage !== lastSolarUsageSig) {') > -1, 'usage panel redraw guard missing');

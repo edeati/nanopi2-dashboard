@@ -1844,6 +1844,8 @@
         ctx.save();
         ctx.lineWidth = 2;
         ctx.strokeStyle = '#f2bb3c';
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
         ctx.beginPath();
         var hasPoint = false;
         for (var i = 0; i < data.length; i += 1) {

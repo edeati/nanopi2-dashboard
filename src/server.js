@@ -268,6 +268,28 @@ function hasUsableArchiveDetail(detail) {
     Object.keys(payload.exportWhBySecond || {}).length > 0;
 }
 
+function binsDayKey(bins) {
+  const source = Array.isArray(bins) ? bins : [];
+  for (let i = 0; i < source.length; i += 1) {
+    const dayKey = source[i] && source[i].dayKey;
+    if (typeof dayKey === 'string' && dayKey) {
+      return dayKey;
+    }
+  }
+  return null;
+}
+
+function shouldRefreshFromRealtimeHistory(solarDailyBins, nowMs, timeZone, startupMs, archiveDetailReady) {
+  const bins = Array.isArray(solarDailyBins) ? solarDailyBins : [];
+  const currentDayKey = formatDateLocal(nowMs, timeZone);
+  const existingDayKey = binsDayKey(bins);
+  if (!bins.length || (existingDayKey && existingDayKey !== currentDayKey)) {
+    return true;
+  }
+  const earlyStartup = (Number(nowMs) - Number(startupMs || 0)) < 5 * 60 * 1000;
+  return earlyStartup && !archiveDetailReady;
+}
+
 function binHasEnergy(bin) {
   return Number((bin && bin.generatedWh) || 0) > 0 ||
     Number((bin && bin.importWh) || 0) > 0 ||
@@ -659,6 +681,7 @@ function createServer(options) {
   const solarHistory = ((options && options.initialSolarHistory) || []).slice();
   let solarDailyBins = ((options && options.initialSolarDailyBins) || []).slice();
   let solarHourlyBins = aggregateDailyToHourlyBins(solarDailyBins);
+  let archiveDetailReady = false;
   const startupMs = Date.now();
 
   const sharedConfig = Object.assign({}, dashboardConfig, { logger });
@@ -820,8 +843,7 @@ function createServer(options) {
       while (solarHistory.length > 0 && solarHistory[0].ts < cutoff) {
         solarHistory.shift();
       }
-      const earlyStartup = (now - startupMs) < 5 * 60 * 1000;
-      if (!solarDailyBins.length || earlyStartup) {
+      if (shouldRefreshFromRealtimeHistory(solarDailyBins, now, dashboardTimeZone, startupMs, archiveDetailReady)) {
         solarDailyBins = aggregateHistoryToDailyBins(solarHistory, now, dashboardTimeZone);
         solarHourlyBins = aggregateDailyToHourlyBins(solarDailyBins);
       }
@@ -829,6 +851,7 @@ function createServer(options) {
       const dayKey = formatDateLocal(now, dashboardTimeZone);
       const historyDaily = aggregateHistoryToDailyBins(solarHistory, now, dashboardTimeZone);
       const hasArchive = hasUsableArchiveDetail(detail);
+      archiveDetailReady = hasArchive;
       if (hasArchive) {
         const archiveDaily = aggregateDetailToDailyBins(detail, dayKey, dashboardTimeZone);
         solarDailyBins = mergeArchiveWithHistoryGaps(archiveDaily, historyDaily);
@@ -889,5 +912,6 @@ module.exports = {
   buildDawnQuarterlyFromHistory,
   buildFlowSummaryFromBins,
   buildSolarMeta,
-  hasUsableArchiveDetail
+  hasUsableArchiveDetail,
+  shouldRefreshFromRealtimeHistory
 };

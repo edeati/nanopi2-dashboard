@@ -10,7 +10,8 @@ const {
   buildDawnQuarterlyFromHistory,
   buildFlowSummaryFromBins,
   buildSolarMeta,
-  hasUsableArchiveDetail
+  hasUsableArchiveDetail,
+  shouldRefreshFromRealtimeHistory
 } = require('../src/server');
 
 module.exports = async function run() {
@@ -229,6 +230,25 @@ module.exports = async function run() {
     }),
     false,
     'archive detail with no series should be unusable'
+  );
+
+  const startupMs = Date.parse('2026-02-16T00:00:00.000Z');
+  const nowEarly = startupMs + (2 * 60 * 1000);
+  assert.strictEqual(
+    shouldRefreshFromRealtimeHistory(usageDaily, nowEarly, 'Australia/Brisbane', startupMs, true),
+    false,
+    'early startup realtime should not overwrite bins once archive detail is ready'
+  );
+  assert.strictEqual(
+    shouldRefreshFromRealtimeHistory(usageDaily, nowEarly, 'Australia/Brisbane', startupMs, false),
+    true,
+    'early startup realtime should seed bins until archive detail is ready'
+  );
+  const staleDayBins = createZeroBins('2026-02-15');
+  assert.strictEqual(
+    shouldRefreshFromRealtimeHistory(staleDayBins, Date.parse('2026-02-16T03:00:00.000Z'), 'Australia/Brisbane', startupMs, true),
+    true,
+    'stale-day bins should refresh from realtime regardless of startup window'
   );
 };
 
