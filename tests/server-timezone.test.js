@@ -9,7 +9,8 @@ const {
   buildUsageHourlyFromDailyBins,
   buildDawnQuarterlyFromHistory,
   buildFlowSummaryFromBins,
-  buildSolarMeta
+  buildSolarMeta,
+  hasUsableArchiveDetail
 } = require('../src/server');
 
 module.exports = async function run() {
@@ -210,6 +211,25 @@ module.exports = async function run() {
     [{ ts: afterMidnightUtc - 60000 }]
   );
   assert.strictEqual(metaMixed.dataQuality, 'mixed', 'non-ready bins with observed energy should be mixed quality');
+
+  assert.strictEqual(
+    hasUsableArchiveDetail({
+      producedWhBySecond: { 25200: 12 },
+      importWhBySecond: {},
+      exportWhBySecond: {}
+    }),
+    true,
+    'archive detail with produced series only should still be considered usable'
+  );
+  assert.strictEqual(
+    hasUsableArchiveDetail({
+      producedWhBySecond: {},
+      importWhBySecond: {},
+      exportWhBySecond: {}
+    }),
+    false,
+    'archive detail with no series should be unusable'
+  );
 };
 
 function createZeroBins(dayKey) {

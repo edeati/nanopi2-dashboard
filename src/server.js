@@ -261,6 +261,13 @@ function buildSolarMeta(nowMs, timeZone, froniusSnapshot, solarDailyBins, solarH
   };
 }
 
+function hasUsableArchiveDetail(detail) {
+  const payload = detail || {};
+  return Object.keys(payload.producedWhBySecond || {}).length > 0 ||
+    Object.keys(payload.importWhBySecond || {}).length > 0 ||
+    Object.keys(payload.exportWhBySecond || {}).length > 0;
+}
+
 function binHasEnergy(bin) {
   return Number((bin && bin.generatedWh) || 0) > 0 ||
     Number((bin && bin.importWh) || 0) > 0 ||
@@ -821,9 +828,7 @@ function createServer(options) {
     }, function onArchiveDetail(detail, now) {
       const dayKey = formatDateLocal(now, dashboardTimeZone);
       const historyDaily = aggregateHistoryToDailyBins(solarHistory, now, dashboardTimeZone);
-      const hasArchive = detail &&
-        Object.keys(detail.producedWhBySecond || {}).length > 0 &&
-        Object.keys(detail.importWhBySecond || {}).length > 0;
+      const hasArchive = hasUsableArchiveDetail(detail);
       if (hasArchive) {
         const archiveDaily = aggregateDetailToDailyBins(detail, dayKey, dashboardTimeZone);
         solarDailyBins = mergeArchiveWithHistoryGaps(archiveDaily, historyDaily);
@@ -883,5 +888,6 @@ module.exports = {
   buildUsageHourlyFromDailyBins,
   buildDawnQuarterlyFromHistory,
   buildFlowSummaryFromBins,
-  buildSolarMeta
+  buildSolarMeta,
+  hasUsableArchiveDetail
 };
