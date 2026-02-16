@@ -442,6 +442,10 @@ function createRadarGifRenderer(options) {
     const colorSetting = toInteger(radarConfig.color, 3, 0, 10);
     const optionsSetting = radarConfig.options || '1_1';
     const dashboardTimeZone = config.timeZone || (config.ui && config.ui.timeZone) || process.env.TZ || '';
+    const configuredFontFile = String(radarConfig.gifFontFile || '').trim();
+    const defaultFontFile = '/usr/share/fonts/TTF/DejaVuSans.ttf';
+    const fontFilePath = configuredFontFile || defaultFontFile;
+    const drawTextFontFile = fs.existsSync(fontFilePath) ? fontFilePath : '';
 
     const radarState = getRadarState();
     const frames = Array.isArray(radarState && radarState.frames) ? radarState.frames : [];
@@ -472,6 +476,7 @@ function createRadarGifRenderer(options) {
       framesSubset,
       generatedLabel: 'Generated: ' + formatGeneratedTimestamp(Date.now(), dashboardTimeZone),
       frameLabels: framesSubset.map((frame) => formatFrameTimestamp(frame && frame.time, dashboardTimeZone)),
+      drawTextFontFile,
       tiles: computeVisibleTiles({
         lat,
         lon,
@@ -591,6 +596,7 @@ function createRadarGifRenderer(options) {
           '[vmark]';
         const timestampFilter = '[vmark]' +
           'drawtext=text=\'' + tsLabel + '\'' +
+          (plan.drawTextFontFile ? (':fontfile=' + escapeFfmpegDrawtext(plan.drawTextFontFile)) : '') +
           ':fontcolor=white' +
           ':fontsize=24' +
           ':borderw=3' +
@@ -600,6 +606,7 @@ function createRadarGifRenderer(options) {
         const generatedLabel = escapeFfmpegDrawtext(plan.generatedLabel || '');
         const generatedFilter = '[vtxt]' +
           'drawtext=text=\'' + generatedLabel + '\'' +
+          (plan.drawTextFontFile ? (':fontfile=' + escapeFfmpegDrawtext(plan.drawTextFontFile)) : '') +
           ':fontcolor=white' +
           ':fontsize=14' +
           ':borderw=2' +

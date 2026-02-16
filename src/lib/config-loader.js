@@ -83,6 +83,7 @@ function normalizeDashboardConfig(input) {
     providerMaxZoom: 7,
     color: 3,
     options: '1_1',
+    gifFontFile: '/usr/share/fonts/TTF/DejaVuSans.ttf',
     frameHoldMs: 650,
     transitionMs: 350
   }, config.radar || {});
@@ -140,7 +141,8 @@ function validateDashboardConfig(config) {
     typeof config.radar.lat === 'number' &&
     typeof config.radar.lon === 'number' &&
     typeof config.radar.zoom === 'number' &&
-    typeof config.radar.providerMaxZoom === 'number';
+    typeof config.radar.providerMaxZoom === 'number' &&
+    typeof config.radar.gifFontFile === 'string';
 
   if (!valid) {
     throw new Error('dashboard.json is invalid');
