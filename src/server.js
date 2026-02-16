@@ -12,6 +12,7 @@ const { createExternalSources } = require('./lib/external-sources');
 const { createRainViewerClient } = require('./lib/rainviewer');
 const { createMapTileClient } = require('./lib/map-tiles');
 const { createRadarGifRenderer } = require('./lib/radar-gif');
+const { createInternetProbeService } = require('./lib/internet-probe');
 const { createLogger, readDebugConfig } = require('./lib/logger');
 const { createDebugEventStore } = require('./lib/debug-events');
 
@@ -552,6 +553,32 @@ function scheduleExternalPolling(sources, externalState, dashboardConfig, timers
   };
 }
 
+function scheduleInternetPolling(internetProbe, internetConfig, timers) {
+  async function connectivityTick() {
+    try {
+      await internetProbe.sampleConnectivity();
+    } catch (_error) {}
+  }
+
+  async function throughputTick() {
+    try {
+      await internetProbe.sampleThroughput();
+    } catch (_error) {}
+  }
+
+  connectivityTick();
+  throughputTick();
+
+  const sampleMs = Math.max(5, Number(internetConfig.sampleIntervalSeconds || 15)) * 1000;
+  const speedMs = Math.max(60, Number(internetConfig.speedTestIntervalSeconds || 600)) * 1000;
+  const sampleTimer = timers.setInterval(connectivityTick, sampleMs);
+  const speedTimer = timers.setInterval(throughputTick, speedMs);
+  return function stop() {
+    timers.clearInterval(sampleTimer);
+    timers.clearInterval(speedTimer);
+  };
+}
+
 function scheduleRadarPolling(radarClient, radarState, radarConfig, timers, onFramesAvailable) {
   const refreshMs = Math.max(30, Number(radarConfig.refreshSeconds || 120)) * 1000;
   const startupRetryMs = Math.max(2, Number(radarConfig.startupRetrySeconds || 5)) * 1000;
@@ -685,6 +712,11 @@ function createServer(options) {
     error: null
   }, (options && options.initialRadarState) || {});
   const solarHistory = ((options && options.initialSolarHistory) || []).slice();
+  const internetProbe = (options && options.internetProbe) || createInternetProbeService({
+    config: dashboardConfig.internet || {},
+    insecureTLS: !!dashboardConfig.insecureTLS,
+    logger
+  });
   let solarDailyBins = ((options && options.initialSolarDailyBins) || []).slice();
   let solarHourlyBins = aggregateDailyToHourlyBins(solarDailyBins);
   let archiveDetailReady = false;
@@ -830,6 +862,9 @@ function createServer(options) {
       const froniusSnapshot = froniusState.getState(now);
       return buildSolarMeta(now, dashboardTimeZone, froniusSnapshot, solarDailyBins, solarHistory);
     },
+    getInternetState: function getInternetState() {
+      return internetProbe.getState();
+    },
     fetchRadarTile,
     fetchRadarAnimation,
     warmRadarAnimation,
@@ -902,6 +937,7 @@ function createServer(options) {
 
     const sources = (options && options.externalSources) || createExternalSources(Object.assign({}, dashboardConfig, { logger }));
     stoppers.push(scheduleExternalPolling(sources, externalState, dashboardConfig, timers));
+    stoppers.push(scheduleInternetPolling(internetProbe, dashboardConfig.internet || {}, timers));
 
     stoppers.push(scheduleRadarPolling(
       radarClient,

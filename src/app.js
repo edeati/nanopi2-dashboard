@@ -130,6 +130,16 @@ function createApp(options) {
   const getSolarDawnQuarterly = options.getSolarDawnQuarterly || function emptyDawnQuarterly() { return []; };
   const getSolarFlowSummary = options.getSolarFlowSummary || function emptyFlowSummary() { return {}; };
   const getSolarMeta = options.getSolarMeta || function emptySolarMeta() { return {}; };
+  const getInternetState = options.getInternetState || function emptyInternetState() {
+    return {
+      online: false,
+      downloadMbps: null,
+      uploadMbps: null,
+      latencyMs: null,
+      history: [],
+      lastUpdated: null
+    };
+  };
   const fetchRadarTile = options.fetchRadarTile;
   const fetchRadarAnimation = options.fetchRadarAnimation;
   const warmRadarAnimation = options.warmRadarAnimation || function warmRadarAnimationDefault() { return false; };
@@ -230,6 +240,7 @@ function createApp(options) {
         solarDawnQuarterly: getSolarDawnQuarterly(),
         solarFlowSummary: getSolarFlowSummary(),
         solarMeta: getSolarMeta(),
+        internet: getInternetState(),
         radar: {
           available: Array.isArray(radarState.frames) && radarState.frames.length > 0,
           updatedAt: radarState.updatedAt,

@@ -165,6 +165,9 @@ module.exports = async function run() {
     assert.ok(statePayload.solarMeta && typeof statePayload.solarMeta.dayKey === 'string', 'solarMeta should include local day key');
     assert.ok(statePayload.solarMeta && typeof statePayload.solarMeta.tz === 'string', 'solarMeta should include timezone');
     assert.ok(statePayload.solarMeta && ['archive', 'mixed', 'realtime_estimated'].indexOf(statePayload.solarMeta.dataQuality) > -1, 'solarMeta should include data quality state');
+    assert.ok(statePayload.internet && typeof statePayload.internet.online === 'boolean', 'internet payload should expose online state');
+    assert.ok(Array.isArray(statePayload.internet.history), 'internet payload should expose history array');
+    assert.ok(Object.prototype.hasOwnProperty.call(statePayload.internet, 'downloadMbps'), 'internet payload should expose download speed');
 
     const realtimeState = await request(server, { path: '/api/state/realtime' });
     assert.strictEqual(realtimeState.statusCode, 200);
