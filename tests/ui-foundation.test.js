@@ -71,6 +71,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('id="solarFlowFeedIn"') > -1, 'solar flow feed-in metric missing');
   assert.ok(html.indexOf('id="solarFlowImport"') > -1, 'solar flow import metric missing');
   assert.ok(html.indexOf('id="solarFlowSelfPct"') > -1, 'solar flow self-consumption metric missing');
+  assert.ok(html.indexOf('id="solarDataQualityBadge"') > -1, 'solar data-quality badge missing');
   assert.strictEqual(html.indexOf('id="solarBarChart"'), -1, 'legacy second solar chart should be removed');
   assert.ok(html.indexOf('min-height: 104px;') > -1, 'solar chart cards should be tall while preserving room for lower KPIs');
   assert.ok(html.indexOf('height: 104px;') > -1, 'solar chart canvas should match the chart card height');
@@ -129,6 +130,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('if (panelSigs.usage !== lastSolarUsageSig) {') > -1, 'usage panel redraw guard missing');
   assert.ok(html.indexOf('if (panelSigs.dawn !== lastSolarDawnSig) {') > -1, 'dawn panel redraw guard missing');
   assert.ok(html.indexOf('if (panelSigs.flow !== lastSolarFlowSig) {') > -1, 'flow panel redraw guard missing');
+  assert.ok(html.indexOf("solarDataQuality === 'realtime_estimated'") > -1, 'estimated data-quality branch missing');
   assert.strictEqual(html.indexOf('function reduceBinsForChart('), -1, 'legacy chart reduction helper should be removed');
   assert.ok(html.indexOf('var stateFetchInFlight = false;') > -1, 'state fetch overlap guard missing');
   assert.ok(html.indexOf('if (stateFetchInFlight) { return; }') > -1, 'state fetch throttle branch missing');

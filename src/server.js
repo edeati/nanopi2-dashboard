@@ -239,6 +239,26 @@ function hasAnySolarBinsEnergy(bins) {
   return false;
 }
 
+function buildSolarMeta(nowMs, timeZone, froniusSnapshot, solarDailyBins, solarHistory) {
+  const now = Number(nowMs || Date.now());
+  const tz = resolveTimeZone(timeZone);
+  const snapshot = froniusSnapshot || {};
+  const today = snapshot.today || {};
+  const archiveReady = !!(today.generatedReady && today.importReady && today.exportReady);
+  const hasBins = hasAnySolarBinsEnergy(solarDailyBins);
+  const dataQuality = archiveReady && hasBins
+    ? 'archive'
+    : (hasBins ? 'mixed' : 'realtime_estimated');
+  const history = Array.isArray(solarHistory) ? solarHistory : [];
+  const lastHistory = history.length ? history[history.length - 1] : null;
+  return {
+    dayKey: formatDateLocal(now, tz),
+    tz,
+    lastDataAt: lastHistory ? new Date(lastHistory.ts).toISOString() : null,
+    dataQuality
+  };
+}
+
 function binHasEnergy(bin) {
   return Number((bin && bin.generatedWh) || 0) > 0 ||
     Number((bin && bin.importWh) || 0) > 0 ||
@@ -738,19 +758,7 @@ function createServer(options) {
     getSolarMeta: function getSolarMeta() {
       const now = Date.now();
       const froniusSnapshot = froniusState.getState(now);
-      const today = (froniusSnapshot && froniusSnapshot.today) || {};
-      const archiveReady = !!(today.generatedReady && today.importReady && today.exportReady);
-      const hasBins = hasAnySolarBinsEnergy(solarDailyBins);
-      const dataQuality = archiveReady && hasBins
-        ? 'archive'
-        : (hasBins ? 'mixed' : 'realtime_estimated');
-      const lastHistory = solarHistory.length ? solarHistory[solarHistory.length - 1] : null;
-      return {
-        dayKey: formatDateLocal(now, dashboardTimeZone),
-        tz: dashboardTimeZone,
-        lastDataAt: lastHistory ? new Date(lastHistory.ts).toISOString() : null,
-        dataQuality
-      };
+      return buildSolarMeta(now, dashboardTimeZone, froniusSnapshot, solarDailyBins, solarHistory);
     },
     fetchRadarTile,
     fetchRadarAnimation,
@@ -872,5 +880,6 @@ module.exports = {
   mergeArchiveWithHistoryGaps,
   buildUsageHourlyFromDailyBins,
   buildDawnQuarterlyFromHistory,
-  buildFlowSummaryFromBins
+  buildFlowSummaryFromBins,
+  buildSolarMeta
 };

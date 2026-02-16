@@ -361,6 +361,34 @@
       min-height: 0;
     }
 
+    #solarDataQualityBadge {
+      justify-self: end;
+      margin: 1px 0 0;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border: 1px solid rgba(114, 127, 146, 0.5);
+      color: #b8c5d3;
+      background: rgba(18, 24, 30, 0.8);
+    }
+
+    #solarDataQualityBadge.quality-est {
+      color: #f2bb3c;
+      border-color: rgba(242, 187, 60, 0.7);
+    }
+
+    #solarDataQualityBadge.quality-mixed {
+      color: #8edb7c;
+      border-color: rgba(142, 219, 124, 0.7);
+    }
+
+    #solarDataQualityBadge.quality-archive {
+      color: #87bcff;
+      border-color: rgba(135, 188, 255, 0.7);
+    }
+
     .solar-flow-card {
       border: 1px solid rgba(92, 106, 122, 0.45);
       border-radius: 8px;
@@ -997,6 +1025,8 @@
           <div class="chart-wrap skeleton"><canvas id="solarDawnChart" class="chart"></canvas></div>
         </div>
       </div>
+
+      <div id="solarDataQualityBadge" class="quality-est">EST</div>
 
       <div id="solarFlowPanel">
         <div class="solar-flow-card"><div class="solar-flow-label">Produced</div><div id="solarFlowProduced" class="solar-flow-value">--</div></div>
@@ -2273,6 +2303,19 @@
         if (panelSigs.flow !== lastSolarFlowSig) {
           renderSolarFlowPanel(flowSummary);
           lastSolarFlowSig = panelSigs.flow;
+        }
+        var solarDataQuality = String((state.solarMeta && state.solarMeta.dataQuality) || 'realtime_estimated');
+        var solarDataQualityBadge = document.getElementById('solarDataQualityBadge');
+        solarDataQualityBadge.classList.remove('quality-est', 'quality-mixed', 'quality-archive');
+        if (solarDataQuality === 'realtime_estimated') {
+          solarDataQualityBadge.textContent = 'EST';
+          solarDataQualityBadge.classList.add('quality-est');
+        } else if (solarDataQuality === 'mixed') {
+          solarDataQualityBadge.textContent = 'MIXED';
+          solarDataQualityBadge.classList.add('quality-mixed');
+        } else {
+          solarDataQualityBadge.textContent = 'ARCHIVE';
+          solarDataQualityBadge.classList.add('quality-archive');
         }
 
         var today = {

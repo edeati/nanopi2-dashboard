@@ -8,7 +8,8 @@ const {
   mergeArchiveWithHistoryGaps,
   buildUsageHourlyFromDailyBins,
   buildDawnQuarterlyFromHistory,
-  buildFlowSummaryFromBins
+  buildFlowSummaryFromBins,
+  buildSolarMeta
 } = require('../src/server');
 
 module.exports = async function run() {
@@ -174,6 +175,40 @@ module.exports = async function run() {
   assert.ok(Math.abs(flowSummary.selfUsedKwh - 0.4) < 0.001, 'flow self-use should equal produced-feed-in');
   assert.ok(Math.abs(flowSummary.importKwh - 0.05) < 0.001, 'flow import should sum from bins');
   assert.ok(Math.abs(flowSummary.selfConsumptionPct - (0.4 / 0.445 * 100)) < 0.01, 'flow self-consumption should be derived');
+
+  const beforeMidnightUtc = Date.parse('2026-02-15T13:59:30.000Z'); // 23:59:30 local
+  const afterMidnightUtc = Date.parse('2026-02-15T14:00:30.000Z'); // 00:00:30 local
+  const metaArchive = buildSolarMeta(
+    beforeMidnightUtc,
+    'Australia/Brisbane',
+    { today: { generatedReady: true, importReady: true, exportReady: true } },
+    usageDaily,
+    [{ ts: beforeMidnightUtc - 120000 }]
+  );
+  assert.strictEqual(metaArchive.dayKey, '2026-02-15', 'solar meta should use local day key before midnight rollover');
+  assert.strictEqual(metaArchive.dataQuality, 'archive', 'ready archive bins should be marked archive quality');
+
+  const postMidnightBins = createZeroBins('2026-02-16');
+  const metaEstimated = buildSolarMeta(
+    afterMidnightUtc,
+    'Australia/Brisbane',
+    { today: { generatedReady: false, importReady: false, exportReady: false } },
+    postMidnightBins,
+    []
+  );
+  assert.strictEqual(metaEstimated.dayKey, '2026-02-16', 'solar meta should roll day key after local midnight');
+  assert.strictEqual(metaEstimated.dataQuality, 'realtime_estimated', 'empty non-ready bins should be estimated quality');
+
+  const mixedBins = createZeroBins('2026-02-16');
+  mixedBins[14].generatedWh = 12;
+  const metaMixed = buildSolarMeta(
+    afterMidnightUtc,
+    'Australia/Brisbane',
+    { today: { generatedReady: false, importReady: false, exportReady: false } },
+    mixedBins,
+    [{ ts: afterMidnightUtc - 60000 }]
+  );
+  assert.strictEqual(metaMixed.dataQuality, 'mixed', 'non-ready bins with observed energy should be mixed quality');
 };
 
 function createZeroBins(dayKey) {
