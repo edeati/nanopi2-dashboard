@@ -749,6 +749,57 @@ module.exports = async function run() {
         'render should fail when radar tile body is not valid PNG'
       );
     }
+
+    // -------------------------------------------------------------------
+    // Test 12h: warm/scheduled render failures should be logged (not silent)
+    // -------------------------------------------------------------------
+    {
+      const logEvents = [];
+      const logger = {
+        isGifDebugEnabled: function () { return true; },
+        warn: function (event, fields) { logEvents.push({ level: 'warn', event: event, fields: fields || {} }); },
+        info: function (event, fields) { logEvents.push({ level: 'info', event: event, fields: fields || {} }); },
+        debug: function (event, fields) { logEvents.push({ level: 'debug', event: event, fields: fields || {} }); },
+        error: function (event, fields) { logEvents.push({ level: 'error', event: event, fields: fields || {} }); },
+        log: function (level, event, fields) { logEvents.push({ level: level, event: event, fields: fields || {} }); }
+      };
+      const noisyFailRenderer = createRadarGifRenderer({
+        logger: logger,
+        fetchMapTile: async function () { throw new Error('upstream map down'); },
+        fetchRadarTile: async function () { return { contentType: 'image/png', body: fakeRadarTilePng }; },
+        getRadarState: function () {
+          return { frames: [{ time: 1000, path: '/path/0' }] };
+        },
+        config: {
+          radar: {
+            zoom: 6,
+            providerMaxZoom: 6,
+            lat: -27.47,
+            lon: 153.02,
+            gifMaxFrames: 1,
+            gifExtraTiles: 0,
+            gifFrameDelayMs: 100,
+            color: 3,
+            options: '1_1'
+          }
+        },
+        gifCacheDir: path.join(tempDir, 'logged-failures')
+      });
+
+      noisyFailRenderer.warmGif();
+      const stop = noisyFailRenderer.startSchedule({ intervalMs: 5000 });
+      await new Promise(function (resolve) { setTimeout(resolve, 1200); });
+      stop();
+
+      assert.ok(
+        logEvents.some(function (entry) { return entry.event === 'radar_gif_warm_render_failed'; }),
+        'warmGif failure should emit radar_gif_warm_render_failed log event'
+      );
+      assert.ok(
+        logEvents.some(function (entry) { return entry.event === 'radar_gif_schedule_render_failed'; }),
+        'schedule failure should emit radar_gif_schedule_render_failed log event'
+      );
+    }
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

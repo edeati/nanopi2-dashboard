@@ -800,6 +800,7 @@ function createServer(options) {
     }
     : createRadarGifRenderer({
       config: dashboardConfig,
+      logger,
       fetchMapTile,
       fetchRadarTile,
       getRadarState: function getRadarStateRef() { return radarState; },

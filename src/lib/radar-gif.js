@@ -393,6 +393,7 @@ function createRadarGifRenderer(options) {
   const fetchRadarTile = opts.fetchRadarTile;
   const getRadarState = opts.getRadarState;
   const config = opts.config || {};
+  const logger = opts.logger || config.logger || null;
   const gifCacheDir = opts.gifCacheDir || path.join(os.tmpdir(), 'nanopi2-dashboard-radar-gifs');
   const radarConfig = config.radar || {};
   const backendHint = String(radarConfig.gifBackend || 'auto').toLowerCase();
@@ -412,11 +413,57 @@ function createRadarGifRenderer(options) {
   // Guard against concurrent renders
   let renderInProgress = false;
 
+  function errorSummary(error) {
+    if (!error) {
+      return { code: null, message: null, stderrTail: null };
+    }
+    const stderrTail = error.stderr
+      ? String(error.stderr).trim().split('\n').slice(-3).join(' | ')
+      : null;
+    return {
+      code: error.code || null,
+      message: error.message || null,
+      stderrTail: stderrTail || null
+    };
+  }
+
+  function shouldEmitGifDebug() {
+    if (!logger) {
+      return false;
+    }
+    if (typeof logger.isGifDebugEnabled === 'function') {
+      return !!logger.isGifDebugEnabled();
+    }
+    return !!logger.debugGif;
+  }
+
+  function logGif(level, event, fields) {
+    if (!logger) {
+      return;
+    }
+    const normalizedLevel = String(level || 'info').toLowerCase();
+    const isVerbose = normalizedLevel === 'debug' || normalizedLevel === 'trace' || normalizedLevel === 'info';
+    if (isVerbose && !shouldEmitGifDebug()) {
+      return;
+    }
+    const payload = Object.assign({
+      backend: rendererBackend || 'none'
+    }, fields || {});
+    if (typeof logger[normalizedLevel] === 'function') {
+      logger[normalizedLevel](event, payload);
+      return;
+    }
+    if (typeof logger.log === 'function') {
+      logger.log(normalizedLevel, event, payload);
+    }
+  }
+
   function ensureCacheDir() {
     try {
       fs.mkdirSync(gifCacheDir, { recursive: true });
       return true;
     } catch (_err) {
+      logGif('warn', 'radar_gif_cache_dir_create_failed', { cacheDir: gifCacheDir });
       return false;
     }
   }
@@ -489,6 +536,12 @@ function createRadarGifRenderer(options) {
   }
 
   async function renderOnceFfmpeg(plan) {
+    logGif('debug', 'radar_gif_ffmpeg_render_start', {
+      frames: plan.framesSubset.length,
+      tiles: plan.tiles.length,
+      outputWidth: plan.outputWidth,
+      outputHeight: plan.outputHeight
+    });
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanopi2-radar-gif-'));
     try {
       const mapAssets = [];
@@ -654,6 +707,10 @@ function createRadarGifRenderer(options) {
         execFileImpl
       );
 
+      logGif('debug', 'radar_gif_ffmpeg_render_complete', {
+        frames: plan.framesSubset.length,
+        tiles: plan.tiles.length
+      });
       return fs.readFileSync(gifPath);
     } catch (error) {
       const stderr = String((error && error.stderr) || '');
@@ -663,6 +720,7 @@ function createRadarGifRenderer(options) {
       if (!error.code) {
         error.code = 'ffmpeg_render_failed';
       }
+      logGif('warn', 'radar_gif_ffmpeg_render_failed', errorSummary(error));
       throw error;
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
@@ -691,13 +749,23 @@ function createRadarGifRenderer(options) {
       metaHeight = Number(meta.height || 0);
     } catch (_err) {
       // Do not serve legacy cache entries without metadata sidecar.
+      logGif('debug', 'radar_gif_cache_miss_metadata', { cacheDir: gifCacheDir });
       return null;
     }
     if (metaWidth <= 0 || metaHeight <= 0) {
+      logGif('debug', 'radar_gif_cache_invalid_metadata', {
+        width: metaWidth,
+        height: metaHeight
+      });
       return null;
     }
     try {
       const body = fs.readFileSync(filePath);
+      logGif('debug', 'radar_gif_cache_hit', {
+        bytes: body.length,
+        width: metaWidth,
+        height: metaHeight
+      });
       return {
         contentType: 'image/gif',
         body: body,
@@ -737,32 +805,44 @@ function createRadarGifRenderer(options) {
       if (!sharpImpl && sharpLoadError) {
         error.cause = sharpLoadError;
       }
+      logGif('warn', 'radar_gif_render_unavailable', errorSummary(error));
       throw error;
     }
 
-    const plan = resolveRenderPlan(params);
-    const gifBuffer = await renderOnceFfmpeg(plan);
+    logGif('info', 'radar_gif_render_start', { cacheDir: gifCacheDir });
+    try {
+      const plan = resolveRenderPlan(params);
+      const gifBuffer = await renderOnceFfmpeg(plan);
 
-    // Write atomically: temp file then rename
-    ensureCacheDir();
-    const tmpPath = path.join(gifCacheDir, GIF_TMP_FILENAME);
-    const finalPath = path.join(gifCacheDir, GIF_FILENAME);
-    const metaTmpPath = path.join(gifCacheDir, GIF_META_TMP_FILENAME);
-    const metaPath = path.join(gifCacheDir, GIF_META_FILENAME);
-    fs.writeFileSync(tmpPath, gifBuffer);
-    fs.renameSync(tmpPath, finalPath);
-    fs.writeFileSync(metaTmpPath, JSON.stringify({
-      width: plan.outputWidth,
-      height: plan.outputHeight,
-      renderedAt: new Date().toISOString()
-    }));
-    fs.renameSync(metaTmpPath, metaPath);
+      // Write atomically: temp file then rename
+      ensureCacheDir();
+      const tmpPath = path.join(gifCacheDir, GIF_TMP_FILENAME);
+      const finalPath = path.join(gifCacheDir, GIF_FILENAME);
+      const metaTmpPath = path.join(gifCacheDir, GIF_META_TMP_FILENAME);
+      const metaPath = path.join(gifCacheDir, GIF_META_FILENAME);
+      fs.writeFileSync(tmpPath, gifBuffer);
+      fs.renameSync(tmpPath, finalPath);
+      fs.writeFileSync(metaTmpPath, JSON.stringify({
+        width: plan.outputWidth,
+        height: plan.outputHeight,
+        renderedAt: new Date().toISOString()
+      }));
+      fs.renameSync(metaTmpPath, metaPath);
 
-    return {
-      contentType: 'image/gif',
-      body: gifBuffer,
-      isFallback: false
-    };
+      logGif('info', 'radar_gif_render_success', {
+        bytes: gifBuffer.length,
+        width: plan.outputWidth,
+        height: plan.outputHeight
+      });
+      return {
+        contentType: 'image/gif',
+        body: gifBuffer,
+        isFallback: false
+      };
+    } catch (error) {
+      logGif('warn', 'radar_gif_render_failed', errorSummary(error));
+      throw error;
+    }
   }
 
   /**
@@ -771,6 +851,7 @@ function createRadarGifRenderer(options) {
    */
   function startSchedule(params) {
     if (!canRender()) {
+      logGif('warn', 'radar_gif_schedule_disabled', { reason: 'renderer_unavailable' });
       return function stopNoop() {};
     }
     const intervalMs = toInteger(params && params.intervalMs, 120000, 5000, 600000);
@@ -782,8 +863,9 @@ function createRadarGifRenderer(options) {
       if (stopped) {
         return;
       }
-      renderOnce(renderParams).catch(function () {
-        // Swallow errors — next tick will retry
+      logGif('debug', 'radar_gif_schedule_tick', { intervalMs: intervalMs });
+      renderOnce(renderParams).catch(function (error) {
+        logGif('warn', 'radar_gif_schedule_render_failed', errorSummary(error));
       }).then(function () {
         if (!stopped) {
           timer = setTimeout(tick, intervalMs);
@@ -809,9 +891,11 @@ function createRadarGifRenderer(options) {
    */
   function warmGif(params) {
     if (!canRender()) {
+      logGif('warn', 'radar_gif_warm_skip', { reason: 'renderer_unavailable' });
       return false;
     }
     if (renderInProgress) {
+      logGif('debug', 'radar_gif_warm_skip', { reason: 'render_in_progress' });
       return true;
     }
 
@@ -819,14 +903,17 @@ function createRadarGifRenderer(options) {
     const radarState = getRadarState();
     const frames = Array.isArray(radarState && radarState.frames) ? radarState.frames : [];
     if (!frames.length) {
+      logGif('warn', 'radar_gif_warm_skip', { reason: 'no_frames' });
       return false;
     }
 
     renderInProgress = true;
-    renderOnce(params).catch(function () {
-      // Swallow errors
+    logGif('debug', 'radar_gif_warm_start', { frames: frames.length });
+    renderOnce(params).catch(function (error) {
+      logGif('warn', 'radar_gif_warm_render_failed', errorSummary(error));
     }).then(function () {
       renderInProgress = false;
+      logGif('debug', 'radar_gif_warm_finish');
     });
 
     return true;
