@@ -1421,7 +1421,7 @@
       var radarTileCache = {};
       var radarAnimStart = Date.now();
       var radarLastFrameKey = '';
-      var radarRenderMode = 'png';
+      var radarRenderMode = 'gif';
       var radarGifReady = false;
       var radarGifLoading = false;
       var radarGifUrl = '';
@@ -2020,94 +2020,17 @@
       }
 
       async function animateRadar() {
-        if (radarRenderMode === 'gif') {
-          if (!radarGifReady) {
-            radarCtx.fillStyle = '#101418';
-            radarCtx.fillRect(0, 0, radarCanvas.width, radarCanvas.height);
-            radarCtx.fillStyle = '#c6d6ea';
-            radarCtx.fillText('Radar animation generating...', 12, 20);
-          }
-          applyRainClassification(
-            isWeatherRainLikely(latestWeatherSummary),
-            isWeatherHeavyRainLikely(latestWeatherSummary),
-            0.08
-          );
-          updateRainIndicator();
-          requestAnimationFrame(animateRadar);
-          return;
-        }
-
-        if (radarGifReady) {
-          applyRainClassification(
-            isWeatherRainLikely(latestWeatherSummary),
-            isWeatherHeavyRainLikely(latestWeatherSummary),
-            0.08
-          );
-          updateRainIndicator();
-          requestAnimationFrame(animateRadar);
-          return;
-        }
-
-        if (!radarMeta) {
+        if (!radarGifReady) {
           radarCtx.fillStyle = '#101418';
           radarCtx.fillRect(0, 0, radarCanvas.width, radarCanvas.height);
-          radarCtx.fillStyle = '#9aa8b8';
-          radarCtx.fillText('Radar unavailable', 12, 20);
-          applyRainClassification(
-            isWeatherRainLikely(latestWeatherSummary),
-            isWeatherHeavyRainLikely(latestWeatherSummary),
-            0.08
-          );
-          updateRainIndicator();
-          requestAnimationFrame(animateRadar);
-          return;
-        }
-
-        var z = radarMeta.zoom;
-        var tiles = computeVisibleTiles(z);
-        if (!radarMeta.frames || radarMeta.frames.length === 0) {
-          await Promise.all(tiles.map(function (tile) { return loadMapTileWithFallback(z, tile.tx, tile.ty); }));
-          radarCtx.clearRect(0, 0, radarCanvas.width, radarCanvas.height);
-          await drawLayer(tiles, 1, function (tx, ty) { return loadMapTileWithFallback(z, tx, ty); }, MAP_TILE_OVERDRAW);
           radarCtx.fillStyle = '#c6d6ea';
-          radarCtx.fillText('Generating radar animation...', 12, 20);
-          applyRainClassification(
-            isWeatherRainLikely(latestWeatherSummary),
-            isWeatherHeavyRainLikely(latestWeatherSummary),
-            0.08
-          );
-          updateRainIndicator();
-          requestAnimationFrame(animateRadar);
-          return;
+          radarCtx.fillText('Radar animation generating...', 12, 20);
         }
-
-        var frameCount = radarMeta.frames.length;
-        var hold = radarMeta.frameHoldMs || 650;
-        var transition = radarMeta.transitionMs || 350;
-        var cycle = hold + transition;
-        var elapsed = Date.now() - radarAnimStart;
-        var position = Math.floor(elapsed / cycle);
-        var t = elapsed % cycle;
-        var current = position % frameCount;
-        var next = (current + 1) % frameCount;
-        var fade = t > hold ? Math.min(1, (t - hold) / transition) : 0;
-        var frameKey = current + ':' + next + ':' + z + ':' + tiles.length;
-
-        if (frameKey !== radarLastFrameKey) {
-          await Promise.all(tiles.map(function (tile) { return loadMapTileWithFallback(z, tile.tx, tile.ty); }));
-          await Promise.all(tiles.map(function (tile) { return loadRadarTile(current, z, tile.tx, tile.ty); }));
-          await Promise.all(tiles.map(function (tile) { return loadRadarTile(next, z, tile.tx, tile.ty); }));
-          radarLastFrameKey = frameKey;
-        }
-
-        radarCtx.clearRect(0, 0, radarCanvas.width, radarCanvas.height);
-        await drawLayer(tiles, 1, function (tx, ty) { return loadMapTileWithFallback(z, tx, ty); }, MAP_TILE_OVERDRAW);
-        await drawLayer(tiles, 0.9, function (tx, ty) { return loadRadarTile(current, z, tx, ty); }, RADAR_TILE_OVERDRAW);
-        if (fade > 0) {
-          await drawLayer(tiles, fade * 0.9, function (tx, ty) { return loadRadarTile(next, z, tx, ty); }, RADAR_TILE_OVERDRAW);
-        }
-
-        await detectRadarRain(tiles, z, current, next, fade);
+        applyRainClassification(
+          isWeatherRainLikely(latestWeatherSummary),
+          isWeatherHeavyRainLikely(latestWeatherSummary),
+          0.08
+        );
         updateRainIndicator();
         requestAnimationFrame(animateRadar);
       }
@@ -2120,8 +2043,8 @@
       }
 
       function setRadarMode(mode) {
-        radarRenderMode = mode;
-        if (mode === 'gif' && radarGifReady) {
+        radarRenderMode = 'gif';
+        if (radarGifReady) {
           radarGifImage.style.display = 'block';
           radarCanvas.style.display = 'none';
         } else {
@@ -2165,9 +2088,7 @@
         fetch('/api/radar/animation')
           .then(function (res) { return res.json(); })
           .then(function (payload) {
-            if (payload && payload.mode) {
-              setRadarMode(payload.mode);
-            }
+            setRadarMode('gif');
             if (payload.gifPath) {
               radarGifUrl = payload.gifPath;
               loadRadarGif(false);
