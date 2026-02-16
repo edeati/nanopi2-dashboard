@@ -1932,8 +1932,7 @@
         var generatedSeries = data.map(function (item) {
           return Math.max(0, Number((item || {}).generatedWh || 0));
         });
-        var generatedSmoothed = smoothSeries(generatedSeries, 3);
-        var generatedLinePeakWh = generatedSmoothed.reduce(function (peak, value) { return Math.max(peak, Number(value || 0)); }, 0);
+        var generatedLinePeakWh = generatedSeries.reduce(function (peak, value) { return Math.max(peak, Number(value || 0)); }, 0);
         var generatedCapWh = 6000 * 1.02;
         var generatedLineMaxY = Math.min(generatedCapWh, Math.max(1, generatedLinePeakWh * 1.02));
         drawGeneratedLine(ctx, data, pad, chartBottom, barW, generatedLineMaxY);
@@ -1947,12 +1946,11 @@
         var generatedSeries = data.map(function (item) {
           return Math.max(0, Number((item || {}).generatedWh || 0));
         });
-        var smoothed = smoothSeries(generatedSeries, 3);
         var points = [];
-        for (var i = 0; i < smoothed.length; i += 1) {
+        for (var i = 0; i < generatedSeries.length; i += 1) {
           points.push({
             x: Math.round(pad + (i * barW) + (barW / 2)),
-            y: chartBottom - Math.floor((smoothed[i] / Math.max(1, maxY)) * (chartBottom - pad))
+            y: chartBottom - Math.floor((generatedSeries[i] / Math.max(1, maxY)) * (chartBottom - pad))
           });
         }
         ctx.save();
@@ -1963,45 +1961,12 @@
         ctx.beginPath();
         if (points.length) {
           ctx.moveTo(points[0].x, points[0].y);
-          if (points.length === 1) {
-            ctx.lineTo(points[0].x, points[0].y);
-          } else if (points.length === 2) {
-            ctx.lineTo(points[1].x, points[1].y);
-          } else {
-            for (var j = 1; j < points.length - 1; j += 1) {
-              var midX = (points[j].x + points[j + 1].x) / 2;
-              var midY = (points[j].y + points[j + 1].y) / 2;
-              ctx.quadraticCurveTo(points[j].x, points[j].y, midX, midY);
-            }
-            ctx.quadraticCurveTo(
-              points[points.length - 2].x,
-              points[points.length - 2].y,
-              points[points.length - 1].x,
-              points[points.length - 1].y
-            );
+          for (var j = 1; j < points.length; j += 1) {
+            ctx.lineTo(points[j].x, points[j].y);
           }
           ctx.stroke();
         }
         ctx.restore();
-      }
-
-      function smoothSeries(values, radius) {
-        var out = [];
-        var r = Math.max(1, Number(radius || 2));
-        for (var i = 0; i < values.length; i += 1) {
-          var sum = 0;
-          var count = 0;
-          for (var off = -r; off <= r; off += 1) {
-            var idx = i + off;
-            if (idx < 0 || idx >= values.length) {
-              continue;
-            }
-            sum += Number(values[idx] || 0);
-            count += 1;
-          }
-          out.push(count ? (sum / count) : Number(values[i] || 0));
-        }
-        return out;
       }
 
       function drawDawnQuarterBars(ctx, canvas, bins) {
