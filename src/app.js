@@ -183,7 +183,7 @@ function createApp(options) {
       const gifWidth = gifMeta ? Number(gifMeta.width || 0) : 0;
       const gifHeight = gifMeta ? Number(gifMeta.height || 0) : 0;
       const gifPath = (gifWidth > 0 && gifHeight > 0)
-        ? ('/api/radar/animation.gif?width=' + gifWidth + '&height=' + gifHeight)
+        ? '/api/radar/animation.gif'
         : null;
       return sendJson(res, 200, {
         fronius: {
@@ -207,7 +207,7 @@ function createApp(options) {
       const gifWidth = gifMeta ? Number(gifMeta.width || 0) : 0;
       const gifHeight = gifMeta ? Number(gifMeta.height || 0) : 0;
       const gifPath = (gifWidth > 0 && gifHeight > 0)
-        ? ('/api/radar/animation.gif?width=' + gifWidth + '&height=' + gifHeight)
+        ? '/api/radar/animation.gif'
         : null;
       return sendJson(res, 200, {
         server: {
@@ -287,13 +287,13 @@ function createApp(options) {
       const height = parseDimension(requestUrl.searchParams.get('height'), 480);
       const hasFrames = Array.isArray(radarState.frames) && radarState.frames.length > 0;
       const mode = hasFrames && canRenderRadarGif() ? 'gif' : 'png';
-      const warmStarted = mode === 'gif' ? !!warmRadarAnimation({ width, height }) : false;
+      const warmStarted = mode === 'gif' ? !!warmRadarAnimation() : false;
       return sendJson(res, 200, {
         mode,
         width,
         height,
         warmStarted,
-        gifPath: '/api/radar/animation.gif?width=' + width + '&height=' + height,
+        gifPath: '/api/radar/animation.gif',
         pngFallbackMetaPath: '/api/radar/meta',
         updatedAt: radarState.updatedAt || null
       });
@@ -303,14 +303,17 @@ function createApp(options) {
       if (typeof fetchRadarAnimation !== 'function') {
         return sendJson(res, 503, { error: 'radar_gif_unavailable' });
       }
-      const width = parseDimension(requestUrl.searchParams.get('width'), 800);
-      const height = parseDimension(requestUrl.searchParams.get('height'), 480);
       const strict = ['1', 'true', 'yes'].indexOf(String(requestUrl.searchParams.get('strict') || '').toLowerCase()) > -1;
       try {
-        const result = await fetchRadarAnimation({ width, height, strict });
+        const result = await fetchRadarAnimation({ strict });
         if (!result || !Buffer.isBuffer(result.body)) {
           throw new Error('radar_gif_invalid_payload');
         }
+        // Prevent browser/proxy caching so each refresh can pick up the latest render.
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.setHeader('Surrogate-Control', 'no-store');
         res.setHeader('X-Radar-Gif-Fallback', result.isFallback ? '1' : '0');
         return sendBinary(res, 200, result.contentType || 'image/gif', result.body);
       } catch (error) {

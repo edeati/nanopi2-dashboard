@@ -19,6 +19,39 @@ function requestBuffer(urlString, insecureTLS, userAgent, logger, serviceName) {
   }));
 }
 
+function buildCandidateTemplates(template, fallbackTemplates) {
+  const primary = String(template || '').trim();
+  const fallbacks = Array.isArray(fallbackTemplates) ? fallbackTemplates.filter(Boolean) : [];
+  const seen = new Set();
+  const out = [];
+
+  function add(urlTemplate) {
+    const t = String(urlTemplate || '').trim();
+    if (!t || seen.has(t)) {
+      return;
+    }
+    seen.add(t);
+    out.push(t);
+  }
+
+  const isOsmPrimary = /:\/\/tile\.openstreetmap\.org\//i.test(primary);
+  add(primary);
+  if (isOsmPrimary) {
+    add(primary.replace('://tile.openstreetmap.org/', '://a.tile.openstreetmap.org/'));
+    add(primary.replace('://tile.openstreetmap.org/', '://b.tile.openstreetmap.org/'));
+    add(primary.replace('://tile.openstreetmap.org/', '://c.tile.openstreetmap.org/'));
+  }
+
+  const filteredFallbacks = isOsmPrimary
+    ? fallbacks.filter((urlTemplate) => !/basemaps\.cartocdn\.com\/dark_all/i.test(String(urlTemplate)))
+    : fallbacks;
+
+  for (let i = 0; i < filteredFallbacks.length; i += 1) {
+    add(filteredFallbacks[i]);
+  }
+  return out;
+}
+
 function createMapTileClient(config) {
   const template = (config.map && config.map.tileUrlTemplate) || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
   const fallbackTemplates = (config.map && Array.isArray(config.map.fallbackTileUrlTemplates))
@@ -41,11 +74,11 @@ function createMapTileClient(config) {
       tile.contentType.indexOf('image/png') > -1 &&
       tile.body &&
       tile.body.length > 0 &&
-      tile.body.length <= 120;
+      tile.body.length <= 200;
   }
 
   async function fetchTile(z, x, y) {
-    const templates = [template].concat(fallbackTemplates);
+    const templates = buildCandidateTemplates(template, fallbackTemplates);
     let lastError = null;
     for (let i = 0; i < templates.length; i += 1) {
       try {
@@ -67,5 +100,6 @@ function createMapTileClient(config) {
 }
 
 module.exports = {
-  createMapTileClient
+  createMapTileClient,
+  buildCandidateTemplates
 };

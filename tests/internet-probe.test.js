@@ -44,4 +44,9 @@ module.exports = async function run() {
   const arrayState = arrayService.getState();
   assert.strictEqual(arrayState.downloadMbps, 674.08);
   assert.strictEqual(arrayState.uploadMbps, 37.27);
+  assert.strictEqual(arrayState.history.length, 2, 'array payload should seed history from samples');
+  assert.strictEqual(arrayState.history[0].downloadMbps, 286.11, 'history should be chronological (oldest first)');
+  assert.strictEqual(arrayState.history[1].downloadMbps, 674.08, 'latest history sample should match current throughput');
+  assert.strictEqual(arrayState.history[0].ts, Date.parse('2026-02-16T06:14:28.609Z'));
+  assert.strictEqual(arrayState.history[1].ts, Date.parse('2026-02-16T06:15:14.982Z'));
 };

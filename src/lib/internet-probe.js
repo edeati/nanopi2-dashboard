@@ -47,11 +47,25 @@ function createInternetProbeService(options) {
     return NaN;
   }
 
-  function parseMySpeedMbps(payload) {
-    let obj = payload && typeof payload === 'object' ? payload : {};
-    if (Array.isArray(obj)) {
-      obj = obj.length ? obj[0] : {};
+  function parseTimestamp(value, fallbackTs) {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+      return value > 1e12 ? Math.floor(value) : Math.floor(value * 1000);
     }
+    if (typeof value === 'string' && value.trim()) {
+      const isoTs = Date.parse(value);
+      if (Number.isFinite(isoTs)) {
+        return isoTs;
+      }
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric > 0) {
+        return numeric > 1e12 ? Math.floor(numeric) : Math.floor(numeric * 1000);
+      }
+    }
+    return Math.floor(fallbackTs);
+  }
+
+  function parseMySpeedSample(obj, fallbackTs) {
+    const payload = obj && typeof obj === 'object' ? obj : {};
     const downCandidates = [
       'downloadMbps',
       'download',
@@ -79,13 +93,13 @@ function createInternetProbeService(options) {
     let down = NaN;
     let up = NaN;
     for (let i = 0; i < downCandidates.length; i += 1) {
-      down = toNumber(readNested(obj, downCandidates[i]));
+      down = toNumber(readNested(payload, downCandidates[i]));
       if (Number.isFinite(down)) {
         break;
       }
     }
     for (let i = 0; i < upCandidates.length; i += 1) {
-      up = toNumber(readNested(obj, upCandidates[i]));
+      up = toNumber(readNested(payload, upCandidates[i]));
       if (Number.isFinite(up)) {
         break;
       }
@@ -93,9 +107,50 @@ function createInternetProbeService(options) {
     if (!Number.isFinite(down) || !Number.isFinite(up)) {
       return null;
     }
+    const timestampCandidates = ['ts', 'timestamp', 'createdAt', 'created', 'time'];
+    let ts = Math.floor(fallbackTs);
+    for (let i = 0; i < timestampCandidates.length; i += 1) {
+      const raw = readNested(payload, timestampCandidates[i]);
+      if (raw === undefined || raw === null || raw === '') {
+        continue;
+      }
+      ts = parseTimestamp(raw, fallbackTs);
+      break;
+    }
     return {
+      ts: ts,
       downloadMbps: Number(down.toFixed(2)),
       uploadMbps: Number(up.toFixed(2))
+    };
+  }
+
+  function parseMySpeedPayload(payload) {
+    if (Array.isArray(payload)) {
+      const samples = [];
+      const now = Date.now();
+      for (let i = 0; i < payload.length; i += 1) {
+        const sample = parseMySpeedSample(payload[i], now - ((payload.length - i) * 1000));
+        if (sample) {
+          samples.push(sample);
+        }
+      }
+      if (!samples.length) {
+        return null;
+      }
+      samples.sort(function (a, b) { return a.ts - b.ts; });
+      return {
+        latest: samples[samples.length - 1],
+        history: samples
+      };
+    }
+
+    const single = parseMySpeedSample(payload, Date.now());
+    if (!single) {
+      return null;
+    }
+    return {
+      latest: single,
+      history: [single]
     };
   }
 
@@ -178,20 +233,32 @@ function createInternetProbeService(options) {
             service: 'external.internet.myspeed'
           });
           const payload = JSON.parse(response.body.toString('utf8'));
-          const parsed = parseMySpeedMbps(payload);
+          const parsed = parseMySpeedPayload(payload);
           if (!parsed) {
             continue;
           }
-          state.downloadMbps = parsed.downloadMbps;
-          state.uploadMbps = parsed.uploadMbps;
-          state.history.push({
-            ts: Date.now(),
-            downloadMbps: state.downloadMbps,
-            uploadMbps: state.uploadMbps,
-            online: state.online
-          });
-          while (state.history.length > historySize) {
-            state.history.shift();
+          state.downloadMbps = parsed.latest.downloadMbps;
+          state.uploadMbps = parsed.latest.uploadMbps;
+          if (Array.isArray(payload)) {
+            state.history = parsed.history.slice(-historySize).map(function (sample) {
+              return {
+                ts: sample.ts,
+                downloadMbps: sample.downloadMbps,
+                uploadMbps: sample.uploadMbps,
+                online: state.online
+              };
+            });
+          } else {
+            const latest = parsed.latest;
+            state.history.push({
+              ts: latest.ts,
+              downloadMbps: latest.downloadMbps,
+              uploadMbps: latest.uploadMbps,
+              online: state.online
+            });
+            while (state.history.length > historySize) {
+              state.history.shift();
+            }
           }
           state.lastUpdated = new Date().toISOString();
           return getState();

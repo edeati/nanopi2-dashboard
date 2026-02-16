@@ -810,24 +810,14 @@ function createServer(options) {
     if (!radarAnimationRenderer) {
       throw new Error('radar_animation_unavailable');
     }
-    const strict = !!(params && params.strict);
-    // Try serving exact static file first
-    const cached = radarAnimationRenderer.getLatestGif(params);
+    // Serve one stable cached GIF regardless of requested viewport dimensions.
+    const cached = radarAnimationRenderer.getLatestGif();
     if (cached) {
       return cached;
     }
-    // Fallback: serve latest cached gif even if dimensions differ.
-    // This avoids stampeding renders and gives the client a usable image immediately.
-    const latestAnySize = strict ? null : radarAnimationRenderer.getLatestGif();
-    if (latestAnySize) {
-      // Kick off a background render for the requested viewport so the client
-      // can switch to a fresh, correctly-sized GIF on the next refresh signal.
-      warmRadarAnimation(params);
-      return latestAnySize;
-    }
     // No static file yet — render on demand as fallback
     if (typeof radarAnimationRenderer.renderOnce === 'function') {
-      return radarAnimationRenderer.renderOnce(params);
+      return radarAnimationRenderer.renderOnce();
     }
     throw new Error('radar_animation_unavailable');
   }
@@ -962,15 +952,13 @@ function createServer(options) {
       (options && typeof options.onRadarFramesAvailable === 'function')
         ? options.onRadarFramesAvailable
         : function onRadarFramesAvailableDefault() {
-          warmRadarAnimation({ width: 800, height: 480 });
+          warmRadarAnimation();
         }
     ));
 
     // Start periodic GIF rendering (fires first render immediately)
     if (canRenderRadarGif()) {
       const gifStop = radarAnimationRenderer.startSchedule({
-        width: 800,
-        height: 480,
         intervalMs: Math.max(30, Number(dashboardConfig.radar.refreshSeconds || 120)) * 1000
       });
       stoppers.push(gifStop);

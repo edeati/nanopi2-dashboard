@@ -142,12 +142,14 @@ module.exports = async function run() {
   assert.ok(html.indexOf('object-fit: cover;') > -1, 'radar gif should fill the viewport to remove side banding');
   assert.ok(html.indexOf('#radarGifImage {\n      position: absolute;') > -1 && html.indexOf('transform: none;') > -1, 'radar gif should not zoom so bottom timestamp stays visible');
   assert.ok(html.indexOf('function initRadarGifMode(') > -1, 'radar GIF init function should exist');
-  assert.ok(html.indexOf('var radarGifViewportSig = \'\';') > -1, 'radar gif viewport signature cache missing');
+  assert.strictEqual(html.indexOf('var radarGifViewportSig = \'\';'), -1, 'radar gif should not use viewport signature cache');
   assert.ok(html.indexOf('var radarGifLastUpdatedAt = \'\';') > -1, 'radar gif realtime update marker missing');
   assert.ok(html.indexOf('var radarGifReloadQueued = false;') > -1, 'radar gif queued reload flag missing');
   assert.ok(html.indexOf('var radarGifReloadForceQueued = false;') > -1, 'radar gif queued force-reload flag missing');
   assert.ok(html.indexOf('function refreshRadarGifMode(') > -1, 'radar GIF viewport refresh helper missing');
   assert.ok(html.indexOf('refreshRadarGifMode(false);') > -1, 'resize path should refresh radar GIF dimensions');
+  assert.ok(html.indexOf("fetch('/api/radar/animation')") > -1, 'radar gif mode refresh should use size-agnostic endpoint');
+  assert.strictEqual(html.indexOf("fetch('/api/radar/animation?width=' + width + '&height=' + height)"), -1, 'radar gif mode refresh should not request viewport dimensions');
   assert.ok(html.indexOf("patch.radar && patch.radar.gifUpdatedAt") > -1, 'realtime state should inspect radar gif update timestamp');
   assert.ok(html.indexOf('if (gifUpdatedAt && gifUpdatedAt !== radarGifLastUpdatedAt) {') > -1, 'gif reload should only trigger on update timestamp changes');
   assert.ok(html.indexOf('radarGifReloadQueued = true;') > -1, 'gif update should queue reload when image is already loading');

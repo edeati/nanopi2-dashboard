@@ -213,12 +213,19 @@ module.exports = async function run() {
     assert.strictEqual(radarAnimationInfo.statusCode, 200);
     const animationInfo = JSON.parse(radarAnimationInfo.body);
     assert.strictEqual(animationInfo.mode, 'gif');
-    assert.strictEqual(animationInfo.gifPath, '/api/radar/animation.gif?width=800&height=480');
+    assert.strictEqual(animationInfo.gifPath, '/api/radar/animation.gif');
     assert.strictEqual(animationInfo.pngFallbackMetaPath, '/api/radar/meta');
 
-    const radarAnimationGif = await request(server, { path: '/api/radar/animation.gif?width=800&height=480' });
+    const radarAnimationGif = await request(server, { path: '/api/radar/animation.gif' });
     assert.strictEqual(radarAnimationGif.statusCode, 200);
     assert.strictEqual(radarAnimationGif.headers['content-type'], 'image/gif');
+    assert.strictEqual(
+      radarAnimationGif.headers['cache-control'],
+      'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0'
+    );
+    assert.strictEqual(radarAnimationGif.headers.pragma, 'no-cache');
+    assert.strictEqual(radarAnimationGif.headers.expires, '0');
+    assert.strictEqual(radarAnimationGif.headers['surrogate-control'], 'no-store');
     assert.strictEqual(radarAnimationGif.bodyBuffer.toString('utf8'), 'GIF89a');
 
     const dashboardPage = await request(server, { path: '/' });
@@ -245,7 +252,7 @@ module.exports = async function run() {
     });
     await new Promise((resolve) => invalidGifServer.listen(0, '127.0.0.1', resolve));
 
-    const invalidGif = await request(invalidGifServer, { path: '/api/radar/animation.gif?width=800&height=480' });
+    const invalidGif = await request(invalidGifServer, { path: '/api/radar/animation.gif' });
     assert.strictEqual(invalidGif.statusCode, 503);
     const invalidPayload = JSON.parse(invalidGif.body);
     assert.strictEqual(invalidPayload.error, 'radar_gif_unavailable');
@@ -296,7 +303,7 @@ module.exports = async function run() {
       }
     });
     await new Promise((resolve) => cachedGifFallbackServer.listen(0, '127.0.0.1', resolve));
-    const fallbackGifWithoutMetaResponse = await request(cachedGifFallbackServer, { path: '/api/radar/animation.gif?width=800&height=480' });
+    const fallbackGifWithoutMetaResponse = await request(cachedGifFallbackServer, { path: '/api/radar/animation.gif' });
     assert.strictEqual(fallbackGifWithoutMetaResponse.statusCode, 503, 'legacy gif cache without metadata should not be served');
 
     // When metadata sidecar exists with dimensions, server should return latest gif
@@ -305,7 +312,7 @@ module.exports = async function run() {
       height: 180,
       renderedAt: '2026-02-16T00:00:00.000Z'
     }));
-    const mismatchMetaGifResponse = await request(cachedGifFallbackServer, { path: '/api/radar/animation.gif?width=800&height=480' });
+    const mismatchMetaGifResponse = await request(cachedGifFallbackServer, { path: '/api/radar/animation.gif' });
     assert.strictEqual(mismatchMetaGifResponse.statusCode, 200);
     assert.strictEqual(mismatchMetaGifResponse.headers['content-type'], 'image/gif');
     assert.strictEqual(mismatchMetaGifResponse.bodyBuffer.toString('utf8'), fallbackGif.toString('utf8'));
@@ -317,12 +324,12 @@ module.exports = async function run() {
     assert.strictEqual(realtimeWithGifMetaPayload.radar.gifHeight, 180);
     assert.strictEqual(
       realtimeWithGifMetaPayload.radar.gifPath,
-      '/api/radar/animation.gif?width=320&height=180',
+      '/api/radar/animation.gif',
       'realtime radar payload should expose latest gif path from metadata'
     );
 
-    const mismatchMetaStrictGifResponse = await request(cachedGifFallbackServer, { path: '/api/radar/animation.gif?width=800&height=480&strict=1' });
-    assert.strictEqual(mismatchMetaStrictGifResponse.statusCode, 503);
+    const mismatchMetaStrictGifResponse = await request(cachedGifFallbackServer, { path: '/api/radar/animation.gif?strict=1' });
+    assert.strictEqual(mismatchMetaStrictGifResponse.statusCode, 200);
 
     // When no static file and no frames, should get 503
     const emptyGifDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanopi2-gif-empty-'));
@@ -343,7 +350,7 @@ module.exports = async function run() {
       }
     });
     await new Promise((resolve) => noGifServer.listen(0, '127.0.0.1', resolve));
-    const noGifResponse = await request(noGifServer, { path: '/api/radar/animation.gif?width=800&height=480' });
+    const noGifResponse = await request(noGifServer, { path: '/api/radar/animation.gif' });
     assert.strictEqual(noGifResponse.statusCode, 503);
     const noGifPayload = JSON.parse(noGifResponse.body);
     assert.strictEqual(noGifPayload.error, 'radar_gif_unavailable');

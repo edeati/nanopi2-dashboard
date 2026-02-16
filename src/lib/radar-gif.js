@@ -422,8 +422,9 @@ function createRadarGifRenderer(options) {
   }
 
   function resolveRenderPlan(params) {
-    const outputWidth = toInteger(params && params.width, 400, 64, 1920);
-    const outputHeight = toInteger(params && params.height, 300, 64, 1920);
+    // Keep rendering dimension stable and independent from request query params.
+    const outputWidth = toInteger(radarConfig.gifWidth, 800, 64, 1920);
+    const outputHeight = toInteger(radarConfig.gifHeight, 480, 64, 1920);
     const z = Math.min(
       toInteger(radarConfig.zoom, 6, 1, 12),
       toInteger(radarConfig.providerMaxZoom, 6, 1, 12)
@@ -434,9 +435,8 @@ function createRadarGifRenderer(options) {
     const gifMaxFrames = toInteger(radarConfig.gifMaxFrames, 8, 1, 30);
     const gifFrameDelayMs = toInteger(radarConfig.gifFrameDelayMs, 500, 50, 5000);
     const requestedOverscanPx = toInteger(radarConfig.gifCropOverscanPx, 24, 0, 512);
-    const requestedRightTrimPx = toInteger(radarConfig.gifRightTrimPx, 18, 0, 512);
-    const overscanPx = Math.max(requestedOverscanPx, requestedRightTrimPx);
-    const rightTrimPx = Math.min(requestedRightTrimPx, overscanPx);
+    const overscanPx = requestedOverscanPx;
+    const rightTrimPx = 0;
     const renderWidth = Math.min(1920, outputWidth + (overscanPx * 2));
     const renderHeight = Math.min(1920, outputHeight + (overscanPx * 2));
     const colorSetting = toInteger(radarConfig.color, 3, 0, 10);
@@ -483,9 +483,7 @@ function createRadarGifRenderer(options) {
         z,
         width: renderWidth,
         height: renderHeight,
-        extraTiles,
-        // Compensate right-side crop trim so configured lat/lon remains centered in final output.
-        centerOffsetXPx: rightTrimPx
+        extraTiles
       })
     };
   }
@@ -582,7 +580,7 @@ function createRadarGifRenderer(options) {
           x: item.x + plan.overscanPx,
           y: item.y + plan.overscanPx
         })));
-        const cropX = Math.max(0, plan.overscanPx - plan.rightTrimPx);
+        const cropX = plan.overscanPx;
         const cropY = plan.overscanPx;
         const tsLabel = escapeFfmpegDrawtext(plan.frameLabels[i] || '');
         const baseInput = overlayFilter ? '[vout]' : '[0:v]';
@@ -601,7 +599,7 @@ function createRadarGifRenderer(options) {
           ':fontsize=24' +
           ':borderw=3' +
           ':bordercolor=black' +
-          ':x=(w-text_w)/2:y=h-th-28' +
+          ':x=(w-text_w)/2:y=h-th-34' +
           '[vtxt]';
         const generatedLabel = escapeFfmpegDrawtext(plan.generatedLabel || '');
         const generatedFilter = '[vtxt]' +
@@ -611,7 +609,7 @@ function createRadarGifRenderer(options) {
           ':fontsize=14' +
           ':borderw=2' +
           ':bordercolor=black' +
-          ':x=w-text_w-8:y=h-th-8' +
+          ':x=(w-text_w)/2:y=h-th-8' +
           '[vouttxt]';
         composeArgs.push(
           '-filter_complex',
@@ -685,8 +683,6 @@ function createRadarGifRenderer(options) {
   function getLatestGif(params) {
     const filePath = path.join(gifCacheDir, GIF_FILENAME);
     const metaPath = path.join(gifCacheDir, GIF_META_FILENAME);
-    const requestedWidth = toInteger(params && params.width, 0, 0, 1920);
-    const requestedHeight = toInteger(params && params.height, 0, 0, 1920);
     let metaWidth = 0;
     let metaHeight = 0;
     try {
@@ -698,10 +694,6 @@ function createRadarGifRenderer(options) {
       return null;
     }
     if (metaWidth <= 0 || metaHeight <= 0) {
-      return null;
-    }
-    if (requestedWidth > 0 && requestedHeight > 0 &&
-      (metaWidth !== requestedWidth || metaHeight !== requestedHeight)) {
       return null;
     }
     try {

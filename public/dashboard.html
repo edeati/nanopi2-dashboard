@@ -231,7 +231,7 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      object-position: 47% center;
+      object-position: center center;
       transform: none;
       transform-origin: center;
       display: none;
@@ -349,7 +349,7 @@
     #usageGaugeText.is-importing,
     #usageGaugeText.is-importing .g-overlay-main,
     #usageGaugeText.is-importing .g-overlay-sub {
-      color: #ff1300 !important;
+      color: #ff3f00 !important;
     }
 
     .g-overlay {
@@ -1425,7 +1425,6 @@
       var radarGifReady = false;
       var radarGifLoading = false;
       var radarGifUrl = '';
-      var radarGifViewportSig = '';
       var radarGifLastUpdatedAt = '';
       var radarGifReloadQueued = false;
       var radarGifReloadForceQueued = false;
@@ -2160,15 +2159,10 @@
       }
 
       function refreshRadarGifMode(force) {
-        var rect = radarViewport.getBoundingClientRect();
-        var width = Math.max(240, Math.floor(rect.width || 800));
-        var height = Math.max(240, Math.floor(rect.height || 480));
-        var sig = width + 'x' + height;
-        if (!force && sig === radarGifViewportSig) {
+        if (!force && radarGifUrl) {
           return;
         }
-        radarGifViewportSig = sig;
-        fetch('/api/radar/animation?width=' + width + '&height=' + height)
+        fetch('/api/radar/animation')
           .then(function (res) { return res.json(); })
           .then(function (payload) {
             if (payload && payload.mode) {
@@ -2772,7 +2766,10 @@
           if (card.kind === 'internet') {
             var d = Number.isFinite(Number(card.downloadMbps)) ? Number(card.downloadMbps).toFixed(1) : '--';
             var u = Number.isFinite(Number(card.uploadMbps)) ? Number(card.uploadMbps).toFixed(1) : '--';
-            return ['internet', String(!!card.online), d, u].join('|');
+            var h = Array.isArray(card.history) ? card.history : [];
+            var hl = h.length;
+            var ht = hl ? String(h[hl - 1].ts || '') : '';
+            return ['internet', String(!!card.online), d, u, String(hl), ht].join('|');
           }
           return String(card.kind || 'unknown');
         }).join('||');

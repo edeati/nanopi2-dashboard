@@ -217,7 +217,8 @@ module.exports = async function run() {
       assert.strictEqual(latest.isFallback, false);
 
       const mismatch = renderer.getLatestGif({ width: 120, height: 90 });
-      assert.strictEqual(mismatch, null, 'getLatestGif should not return cached gif for mismatched dimensions');
+      assert.ok(mismatch, 'getLatestGif should return cached gif regardless of requested dimensions');
+      assert.strictEqual(mismatch.contentType, 'image/gif');
     }
 
     // -------------------------------------------------------------------
@@ -457,7 +458,7 @@ module.exports = async function run() {
       assert.ok(out && Buffer.isBuffer(out.body) && out.body.length > 0, 'overscan render should produce a GIF');
 
       const composeCall = ffmpegCalls.find(function (args) {
-        return args.indexOf('color=c=0x121820:s=168x138:d=1') > -1;
+        return args.indexOf('color=c=0x121820:s=848x528:d=1') > -1;
       });
       assert.ok(composeCall, 'compose command should render larger frame with overscan dimensions');
 
@@ -474,15 +475,16 @@ module.exports = async function run() {
         var idx = args.indexOf('-filter_complex');
         if (idx < 0) return false;
         var f = String(args[idx + 1] || '');
-        return f.indexOf('crop=120:90:6:24') > -1 &&
+        return f.indexOf('crop=800:480:24:24') > -1 &&
           f.indexOf('drawtext=') > -1 &&
           f.indexOf('Generated\\:') > -1 &&
           f.indexOf('drawbox=x=(w/2)-1') > -1 &&
           f.indexOf('drawbox=x=(w/2)-8') > -1 &&
           f.indexOf('fontcolor=white') > -1 &&
           f.indexOf('bordercolor=black') > -1 &&
-          f.indexOf('x=w-text_w-8') > -1 &&
-          f.indexOf('y=h-th-28') > -1;
+          f.indexOf('x=(w-text_w)/2') > -1 &&
+          f.indexOf('y=h-th-34') > -1 &&
+          f.indexOf('y=h-th-8') > -1;
       });
       assert.ok(composeWithTimestamp, 'frame compose should crop and then draw bottom timestamp');
       assert.strictEqual(filter.indexOf('crop=') > -1, false, 'encode stage should not crop again');
@@ -490,7 +492,7 @@ module.exports = async function run() {
     }
 
     // -------------------------------------------------------------------
-    // Test 12b: gifRightTrimPx larger than overscan must still be honored
+    // Test 12b: gifRightTrimPx should be ignored to keep stitching centered
     // -------------------------------------------------------------------
     {
       const ffmpegCalls = [];
@@ -533,9 +535,9 @@ module.exports = async function run() {
         var idx = args.indexOf('-filter_complex');
         if (idx < 0) return false;
         var f = String(args[idx + 1] || '');
-        return f.indexOf('crop=120:90:0:80') > -1;
+        return f.indexOf('crop=800:480:24:24') > -1;
       });
-      assert.ok(composeWithTrim, 'compose stage should honor large right trim by increasing overscan');
+      assert.ok(composeWithTrim, 'compose stage should ignore right-trim offsets and keep centered crop');
     }
 
     // -------------------------------------------------------------------
