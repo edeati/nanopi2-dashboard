@@ -302,9 +302,14 @@ function createApp(options) {
         res.setHeader('X-Radar-Gif-Fallback', result.isFallback ? '1' : '0');
         return sendBinary(res, 200, result.contentType || 'image/gif', result.body);
       } catch (error) {
+        const stderrTail = error && error.stderr
+          ? String(error.stderr).trim().split('\n').slice(-3).join(' | ')
+          : '';
+        const detail = (error && error.code ? String(error.code) : '') ||
+          (error && error.message ? String(error.message) : 'render_failed');
         return sendJson(res, 503, {
           error: 'radar_gif_unavailable',
-          detail: error && error.message ? error.message : 'render_failed'
+          detail: stderrTail ? (detail + ' :: ' + stderrTail) : detail
         });
       }
     }

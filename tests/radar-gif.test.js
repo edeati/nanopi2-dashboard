@@ -669,6 +669,84 @@ module.exports = async function run() {
         'render should fail when any radar tile cannot be fetched'
       );
     }
+
+    // -------------------------------------------------------------------
+    // Test 12f: render should fail when map tile body is not PNG
+    // -------------------------------------------------------------------
+    {
+      const invalidMapRenderer = createRadarGifRenderer({
+        fetchMapTile: async function () { return { contentType: 'text/html', body: Buffer.from('<html>429</html>') }; },
+        fetchRadarTile: async function () { return { contentType: 'image/png', body: fakeRadarTilePng }; },
+        getRadarState: function () {
+          return {
+            frames: [
+              { time: 1000, path: '/path/0' },
+              { time: 2000, path: '/path/1' }
+            ]
+          };
+        },
+        config: {
+          radar: {
+            zoom: 6,
+            providerMaxZoom: 6,
+            lat: -27.47,
+            lon: 153.02,
+            gifMaxFrames: 2,
+            gifExtraTiles: 0,
+            gifFrameDelayMs: 100,
+            color: 3,
+            options: '1_1'
+          }
+        },
+        gifCacheDir: path.join(tempDir, 'invalid-map-body-test')
+      });
+      await assert.rejects(
+        async function () { await invalidMapRenderer.renderOnce({ width: 120, height: 90 }); },
+        function (err) {
+          return err && (err.code === 'map_tile_invalid_png' || err.code === 'map_tiles_unavailable');
+        },
+        'render should fail when map tile body is not valid PNG'
+      );
+    }
+
+    // -------------------------------------------------------------------
+    // Test 12g: render should fail when radar tile body is not PNG
+    // -------------------------------------------------------------------
+    {
+      const invalidRadarRenderer = createRadarGifRenderer({
+        fetchMapTile: async function () { return { contentType: 'image/png', body: fakeTilePng }; },
+        fetchRadarTile: async function () { return { contentType: 'text/plain', body: Buffer.from('oops') }; },
+        getRadarState: function () {
+          return {
+            frames: [
+              { time: 1000, path: '/path/0' },
+              { time: 2000, path: '/path/1' }
+            ]
+          };
+        },
+        config: {
+          radar: {
+            zoom: 6,
+            providerMaxZoom: 6,
+            lat: -27.47,
+            lon: 153.02,
+            gifMaxFrames: 2,
+            gifExtraTiles: 0,
+            gifFrameDelayMs: 100,
+            color: 3,
+            options: '1_1'
+          }
+        },
+        gifCacheDir: path.join(tempDir, 'invalid-radar-body-test')
+      });
+      await assert.rejects(
+        async function () { await invalidRadarRenderer.renderOnce({ width: 120, height: 90 }); },
+        function (err) {
+          return err && err.code === 'radar_tiles_incomplete';
+        },
+        'render should fail when radar tile body is not valid PNG'
+      );
+    }
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

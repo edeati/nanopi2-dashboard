@@ -43,6 +43,20 @@ function execFileAsync(binary, args, opts, execFileImpl) {
   });
 }
 
+function isPngBuffer(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 8) {
+    return false;
+  }
+  return buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a;
+}
+
 function escapeFfmpegDrawtext(text) {
   return String(text || '')
     .replace(/\\/g, '\\\\')
@@ -480,6 +494,11 @@ function createRadarGifRenderer(options) {
         const norm = normalizeTileCoords(plan.z, tile.tx, tile.ty);
         try {
           const result = await fetchMapTile({ z: plan.z, x: norm.x, y: norm.y });
+          if (!result || !Buffer.isBuffer(result.body) || !isPngBuffer(result.body)) {
+            const invalidMapTile = new Error('map_tile_invalid_png');
+            invalidMapTile.code = 'map_tile_invalid_png';
+            throw invalidMapTile;
+          }
           const filePath = path.join(tempDir, 'map-' + String(t).padStart(3, '0') + '.png');
           fs.writeFileSync(filePath, result.body);
           mapAssets.push({ filePath, x: tile.drawX, y: tile.drawY });
@@ -512,6 +531,11 @@ function createRadarGifRenderer(options) {
               color: plan.colorSetting,
               options: plan.optionsSetting
             });
+            if (!result || !Buffer.isBuffer(result.body) || !isPngBuffer(result.body)) {
+              const invalidRadarTile = new Error('radar_tile_invalid_png');
+              invalidRadarTile.code = 'radar_tile_invalid_png';
+              throw invalidRadarTile;
+            }
             filePath = path.join(
               tempDir,
               'radar-' + String(i).padStart(3, '0') + '-' + String(t).padStart(3, '0') + '.png'
