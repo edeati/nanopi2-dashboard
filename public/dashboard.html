@@ -727,7 +727,7 @@
 
     #weatherMainRow {
       display: grid;
-      grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.17fr);
       gap: 10px;
       align-items: stretch;
       height: 100%;
@@ -801,24 +801,24 @@
     #weatherForecast {
       margin-top: 0;
       display: grid;
-      grid-template-rows: repeat(3, minmax(0, 1fr));
-      gap: 4px;
+      grid-template-rows: repeat(5, minmax(0, 1fr));
+      gap: 2px;
       min-height: 0;
       overflow: hidden;
     }
 
     .forecast-item {
-      margin-top: -10px;
-      padding: 10px 10px;
+      margin-top: 0;
+      padding: 4px 8px;
       display: grid;
-      grid-template-columns: 38px 18px 1fr;
+      grid-template-columns: 44px 20px 1fr;
       align-items: center;
       min-height: 0;
     }
 
-    .forecast-day { font-size: 10px; line-height: 1; color: #d8e9f5; text-transform: uppercase; letter-spacing: 0.06em; font-family: var(--font-display); }
-    .forecast-icon { font-size: 15px; line-height: 1; text-align: center; }
-    .forecast-temp { font-size: 14px; line-height: 1; font-family: var(--font-data); color: #f2f8fd; text-align: right; }
+    .forecast-day { font-size: 12px; line-height: 1; color: #d8e9f5; text-transform: uppercase; letter-spacing: 0.06em; font-family: var(--font-display); }
+    .forecast-icon { font-size: 18px; line-height: 1; text-align: center; }
+    .forecast-temp { font-size: 19px; line-height: 1; font-family: var(--font-data); color: #f2f8fd; text-align: right; }
 
     #timeBig {
       font-family: var(--font-time);
@@ -989,7 +989,7 @@
 
       #weatherMainRow {
         gap: 8px;
-        grid-template-columns: minmax(0, 1.32fr) minmax(0, 0.78fr);
+        grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
       }
 
       #weatherSummary {
@@ -1001,16 +1001,16 @@
       }
 
       .forecast-item {
-        margin-top: -2px;
-        padding: 6px 8px;
+        margin-top: 0;
+        padding: 4px 8px;
       }
 
       .forecast-day {
-        font-size: 11px;
+        font-size: 12px;
       }
 
       .forecast-temp {
-        font-size: 15px;
+        font-size: 18px;
       }
 
       #binsIcon {
@@ -2442,7 +2442,7 @@
 
       function renderForecast(items) {
         var node = document.getElementById('weatherForecast');
-        var forecast = Array.isArray(items) ? items.slice(0, 3) : [];
+        var forecast = Array.isArray(items) ? items.slice(0, 5) : [];
         if (!forecast.length) {
           node.innerHTML = '';
           return;

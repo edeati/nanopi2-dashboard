@@ -22,8 +22,12 @@ module.exports = async function run() {
     main: { temp: 24.6 },
     list: [
       { dt: 1771089600, main: { temp: 24 }, weather: [{ main: 'Clouds', icon: '03d' }] },
+      { dt: 1771122000, main: { temp: 25 }, weather: [{ main: 'Clouds', icon: '03d' }] },
       { dt: 1771176000, main: { temp: 26 }, weather: [{ main: 'Rain', icon: '10d' }] },
-      { dt: 1771262400, main: { temp: 23 }, weather: [{ main: 'Clear', icon: '01d' }] }
+      { dt: 1771262400, main: { temp: 23 }, weather: [{ main: 'Clear', icon: '01d' }] },
+      { dt: 1771348800, main: { temp: 22 }, weather: [{ main: 'Clouds', icon: '04d' }] },
+      { dt: 1771435200, main: { temp: 21 }, weather: [{ main: 'Rain', icon: '10d' }] },
+      { dt: 1771521600, main: { temp: 20 }, weather: [{ main: 'Clear', icon: '01d' }] }
     ]
   };
   const sources = createExternalSources({
@@ -55,7 +59,7 @@ module.exports = async function run() {
   assert.strictEqual(weather.summary, 'Rain');
   assert.strictEqual(weather.tempC, 24.6);
   assert.strictEqual(Array.isArray(weather.forecast), true);
-  assert.strictEqual(weather.forecast.length, 3);
+  assert.strictEqual(weather.forecast.length, 5);
   const bins = await sources.fetchBins();
   assert.strictEqual(bins.nextType, 'Recycle');
   assert.strictEqual(bins.nextDate, '2026-02-21');
