@@ -651,21 +651,25 @@ function createRadarGifRenderer(options) {
    */
   function getLatestGif(params) {
     const filePath = path.join(gifCacheDir, GIF_FILENAME);
+    const metaPath = path.join(gifCacheDir, GIF_META_FILENAME);
     const requestedWidth = toInteger(params && params.width, 0, 0, 1920);
     const requestedHeight = toInteger(params && params.height, 0, 0, 1920);
-    if (requestedWidth > 0 && requestedHeight > 0) {
-      const metaPath = path.join(gifCacheDir, GIF_META_FILENAME);
-      try {
-        const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-        const metaWidth = Number(meta.width || 0);
-        const metaHeight = Number(meta.height || 0);
-        if (metaWidth > 0 && metaHeight > 0 &&
-          (metaWidth !== requestedWidth || metaHeight !== requestedHeight)) {
-          return null;
-        }
-      } catch (_err) {
-        // Legacy cache entries may not have metadata sidecar; allow serving.
-      }
+    let metaWidth = 0;
+    let metaHeight = 0;
+    try {
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      metaWidth = Number(meta.width || 0);
+      metaHeight = Number(meta.height || 0);
+    } catch (_err) {
+      // Do not serve legacy cache entries without metadata sidecar.
+      return null;
+    }
+    if (metaWidth <= 0 || metaHeight <= 0) {
+      return null;
+    }
+    if (requestedWidth > 0 && requestedHeight > 0 &&
+      (metaWidth !== requestedWidth || metaHeight !== requestedHeight)) {
+      return null;
     }
     try {
       const body = fs.readFileSync(filePath);

@@ -1827,6 +1827,23 @@
       }
 
       async function animateRadar() {
+        if (radarRenderMode === 'gif') {
+          if (!radarGifReady) {
+            radarCtx.fillStyle = '#101418';
+            radarCtx.fillRect(0, 0, radarCanvas.width, radarCanvas.height);
+            radarCtx.fillStyle = '#c6d6ea';
+            radarCtx.fillText('Radar animation generating...', 12, 20);
+          }
+          applyRainClassification(
+            isWeatherRainLikely(latestWeatherSummary),
+            isWeatherHeavyRainLikely(latestWeatherSummary),
+            0.08
+          );
+          updateRainIndicator();
+          requestAnimationFrame(animateRadar);
+          return;
+        }
+
         if (radarGifReady) {
           applyRainClassification(
             isWeatherRainLikely(latestWeatherSummary),

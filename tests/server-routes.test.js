@@ -276,12 +276,10 @@ module.exports = async function run() {
       }
     });
     await new Promise((resolve) => cachedGifFallbackServer.listen(0, '127.0.0.1', resolve));
-    const fallbackGifResponse = await request(cachedGifFallbackServer, { path: '/api/radar/animation.gif?width=800&height=480' });
-    assert.strictEqual(fallbackGifResponse.statusCode, 200);
-    assert.strictEqual(fallbackGifResponse.headers['content-type'], 'image/gif');
-    assert.strictEqual(fallbackGifResponse.bodyBuffer.toString('utf8'), fallbackGif.toString('utf8'));
+    const fallbackGifWithoutMetaResponse = await request(cachedGifFallbackServer, { path: '/api/radar/animation.gif?width=800&height=480' });
+    assert.strictEqual(fallbackGifWithoutMetaResponse.statusCode, 503, 'legacy gif cache without metadata should not be served');
 
-    // Even when a metadata sidecar exists with different dimensions, server should still return latest gif
+    // When metadata sidecar exists with dimensions, server should return latest gif
     fs.writeFileSync(path.join(gifCacheDir, 'radar-latest.meta.json'), JSON.stringify({
       width: 320,
       height: 180,

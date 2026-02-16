@@ -134,6 +134,8 @@ module.exports = async function run() {
   assert.ok(html.indexOf('requestAnimationFrame(animateRadar);') > -1, 'radar startup should launch canvas animation loop immediately');
   assert.ok(html.indexOf('id="radarGifStatus"') > -1, 'radar GIF status indicator missing');
   assert.ok(html.indexOf('function updateRadarGifStatus(') > -1, 'radar GIF status updater missing');
+  assert.ok(html.indexOf("if (radarRenderMode === 'gif') {") > -1, 'gif mode should short-circuit png tile rendering');
+  assert.ok(html.indexOf('Radar animation generating...') > -1, 'gif mode should render loading message without png tile fetches');
   assert.ok(html.indexOf('radarGifImage.onload') > -1, 'gif readiness promotion missing');
   assert.ok(html.indexOf('function classifyRadarRain(') > -1, 'radar rain classification helper missing');
   assert.ok(html.indexOf('var isYellow = (r > 150 && g > 130 && b < 160);') > -1, 'radar classifier should detect yellow precipitation echoes');

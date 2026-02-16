@@ -221,6 +221,27 @@ module.exports = async function run() {
     }
 
     // -------------------------------------------------------------------
+    // Test 6a: getLatestGif should not serve legacy gif without metadata
+    // -------------------------------------------------------------------
+    {
+      const legacyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanopi2-radar-gif-legacy-'));
+      try {
+        const legacyRenderer = createRadarGifRenderer({
+          fetchMapTile: async function () { return { contentType: 'image/png', body: fakeTilePng }; },
+          fetchRadarTile: async function () { return { contentType: 'image/png', body: fakeRadarTilePng }; },
+          getRadarState: function () { return { frames: [{ time: 1000, path: '/path/0' }] }; },
+          config: { radar: {} },
+          gifCacheDir: legacyDir
+        });
+        fs.writeFileSync(path.join(legacyDir, 'radar-latest.gif'), Buffer.from('GIF89a-legacy'));
+        const legacy = legacyRenderer.getLatestGif();
+        assert.strictEqual(legacy, null, 'legacy gif without metadata should not be served');
+      } finally {
+        fs.rmSync(legacyDir, { recursive: true, force: true });
+      }
+    }
+
+    // -------------------------------------------------------------------
     // Test 6b: opaque map frame stays visible (not fully transparent)
     // -------------------------------------------------------------------
     {
