@@ -1809,7 +1809,11 @@
         var maxY = 1;
         for (var i = 0; i < barsCount; i += 1) {
           var item = data[i] || {};
-          maxY = Math.max(maxY, Number(item.selfWh || 0) + Number(item.importWh || 0));
+          maxY = Math.max(
+            maxY,
+            Number(item.selfWh || 0) + Number(item.importWh || 0),
+            Number(item.generatedWh || 0)
+          );
         }
 
         var barW = (w - pad * 2) / barsCount;
@@ -1829,7 +1833,35 @@
           ctx.fillStyle = '#8edb7c';
           ctx.fillRect(x, yA, drawW, Math.max(1, ah));
         }
+        drawGeneratedLine(ctx, data, pad, chartBottom, barW, maxY);
         drawHourAxis(ctx, w, h, pad, chartBottom, barsCount, barW);
+      }
+
+      function drawGeneratedLine(ctx, data, pad, chartBottom, barW, maxY) {
+        if (!Array.isArray(data) || !data.length) {
+          return;
+        }
+        ctx.save();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#f2bb3c';
+        ctx.beginPath();
+        var hasPoint = false;
+        for (var i = 0; i < data.length; i += 1) {
+          var item = data[i] || {};
+          var generated = Math.max(0, Number(item.generatedWh || 0));
+          var y = chartBottom - Math.floor((generated / Math.max(1, maxY)) * (chartBottom - pad));
+          var x = Math.round(pad + (i * barW) + (barW / 2));
+          if (!hasPoint) {
+            ctx.moveTo(x, y);
+            hasPoint = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+        if (hasPoint) {
+          ctx.stroke();
+        }
+        ctx.restore();
       }
 
       function drawDawnQuarterBars(ctx, canvas, bins) {

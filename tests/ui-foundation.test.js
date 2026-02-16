@@ -125,6 +125,8 @@ module.exports = async function run() {
   assert.ok(html.indexOf('rgba(126, 225, 160') > -1, 'solar loading bars should use green tone');
   assert.ok(html.indexOf('setSolarChartsLoading(chartsLoading);') > -1, 'solar loading chart toggling missing');
   assert.ok(html.indexOf('function drawUsageHourlyBars(') > -1, 'usage hourly draw helper missing');
+  assert.ok(html.indexOf('function drawGeneratedLine(') > -1, 'generated line helper missing for hybrid chart');
+  assert.ok(html.indexOf("ctx.strokeStyle = '#f2bb3c';") > -1, 'generated hybrid line color missing');
   assert.ok(html.indexOf('function drawDawnQuarterBars(') > -1, 'dawn quarter draw helper missing');
   assert.ok(html.indexOf('function buildSolarPanelSignatures(') > -1, 'solar panel signature helper missing');
   assert.ok(html.indexOf('if (panelSigs.usage !== lastSolarUsageSig) {') > -1, 'usage panel redraw guard missing');

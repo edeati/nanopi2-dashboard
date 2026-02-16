@@ -137,11 +137,13 @@ function buildUsageHourlyFromDailyBins(dailyBins) {
   for (let hour = 0; hour < 24; hour += 1) {
     const first = source[hour * 2] || {};
     const second = source[(hour * 2) + 1] || {};
+    const generatedWh = Number(first.generatedWh || 0) + Number(second.generatedWh || 0);
     const selfWh = Number(first.selfWh || 0) + Number(second.selfWh || 0);
     const importWh = Number(first.importWh || 0) + Number(second.importWh || 0);
     const loadWhFromBins = Number(first.loadWh || 0) + Number(second.loadWh || 0);
     out.push({
       hour,
+      generatedWh,
       selfWh,
       importWh,
       loadWh: loadWhFromBins > 0 ? loadWhFromBins : (selfWh + importWh)

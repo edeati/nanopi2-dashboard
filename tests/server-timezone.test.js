@@ -155,6 +155,7 @@ module.exports = async function run() {
   assert.strictEqual(usageHourly.length, 24, 'usage hourly should contain all 24 hours');
   assert.ok(usageHourly[7].selfWh > 0, '7am hourly bucket should retain dawn energy');
   assert.ok(usageHourly[8].selfWh > 0, '8am hourly bucket should retain current-hour energy');
+  assert.ok(usageHourly[7].generatedWh > 0, 'usage hourly should include generated line series values');
 
   const dawnNowUtc = Date.parse('2026-02-15T23:45:00.000Z'); // 09:45 local
   const dawnHistory = [
