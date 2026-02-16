@@ -591,7 +591,6 @@ function createRadarGifRenderer(options) {
           '[vmark]';
         const timestampFilter = '[vmark]' +
           'drawtext=text=\'' + tsLabel + '\'' +
-          ':font=Sans Bold' +
           ':fontcolor=white' +
           ':fontsize=24' +
           ':borderw=3' +
@@ -601,7 +600,6 @@ function createRadarGifRenderer(options) {
         const generatedLabel = escapeFfmpegDrawtext(plan.generatedLabel || '');
         const generatedFilter = '[vtxt]' +
           'drawtext=text=\'' + generatedLabel + '\'' +
-          ':font=Sans Bold' +
           ':fontcolor=white' +
           ':fontsize=14' +
           ':borderw=2' +
@@ -653,6 +651,10 @@ function createRadarGifRenderer(options) {
 
       return fs.readFileSync(gifPath);
     } catch (error) {
+      const stderr = String((error && error.stderr) || '');
+      if (stderr.toLowerCase().indexOf('cannot find a valid font') > -1) {
+        error.code = 'ffmpeg_font_unavailable';
+      }
       if (!error.code) {
         error.code = 'ffmpeg_render_failed';
       }
