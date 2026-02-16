@@ -429,6 +429,7 @@ function batteryBand(percent) {
 }
 
 function createExternalSources(config, overrides) {
+  const hasFetchTextOverride = !!(overrides && typeof overrides.fetchText === 'function');
   const fetchText = (overrides && overrides.fetchText) || createFetcher({
     insecureTLS: !!config.insecureTLS,
     logger: (overrides && overrides.traceLogger) || config.logger
@@ -472,8 +473,20 @@ function createExternalSources(config, overrides) {
     if (!baseUrl) {
       throw new Error('ha_base_url_missing');
     }
-    const raw = await fetchText(baseUrl + '/api/states/' + encodeURIComponent(entityId), 'external.ha.state');
-    return JSON.parse(raw);
+    if (hasFetchTextOverride) {
+      const raw = await fetchText(baseUrl + '/api/states/' + encodeURIComponent(entityId), 'external.ha.state');
+      return JSON.parse(raw);
+    }
+    const token = String(homeAssistantConfig.token || '');
+    const response = await requestWithDebug({
+      urlString: baseUrl + '/api/states/' + encodeURIComponent(entityId),
+      method: 'GET',
+      insecureTLS: !!config.insecureTLS,
+      logger: (overrides && overrides.traceLogger) || config.logger,
+      service: 'external.ha.state',
+      headers: token ? { Authorization: 'Bearer ' + token } : {}
+    });
+    return JSON.parse(response.body.toString('utf8'));
   }
 
   function stateValueNumber(payload) {
