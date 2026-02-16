@@ -540,6 +540,20 @@ function scheduleExternalPolling(sources, externalState, dashboardConfig, timers
     } catch (error) {
       externalState.bins = Object.assign({}, externalState.bins, { error: 'bins_unavailable' });
     }
+
+    try {
+      externalState.ha = {
+        cards: await sources.fetchHomeAssistantCards(),
+        stale: false,
+        error: null
+      };
+    } catch (error) {
+      externalState.ha = {
+        cards: Array.isArray(externalState.ha && externalState.ha.cards) ? externalState.ha.cards : [],
+        stale: true,
+        error: error && error.message ? error.message : 'ha_unavailable'
+      };
+    }
   }
 
   tick();
@@ -702,7 +716,8 @@ function createServer(options) {
   const externalState = Object.assign({
     weather: { summary: 'Loading', tempC: 0 },
     news: { headlines: [] },
-    bins: { nextType: 'Unknown', nextDate: null }
+    bins: { nextType: 'Unknown', nextDate: null },
+    ha: { cards: [], stale: true, error: null }
   }, (options && options.initialExternalState) || {});
 
   const radarState = Object.assign({

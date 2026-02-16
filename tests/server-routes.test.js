@@ -168,6 +168,8 @@ module.exports = async function run() {
     assert.ok(statePayload.internet && typeof statePayload.internet.online === 'boolean', 'internet payload should expose online state');
     assert.ok(Array.isArray(statePayload.internet.history), 'internet payload should expose history array');
     assert.ok(Object.prototype.hasOwnProperty.call(statePayload.internet, 'downloadMbps'), 'internet payload should expose download speed');
+    assert.ok(statePayload.ha && Array.isArray(statePayload.ha.cards), 'ha payload should expose cards array');
+    assert.ok(Object.prototype.hasOwnProperty.call(statePayload.ha, 'stale'), 'ha payload should expose stale flag');
 
     const realtimeState = await request(server, { path: '/api/state/realtime' });
     assert.strictEqual(realtimeState.statusCode, 200);

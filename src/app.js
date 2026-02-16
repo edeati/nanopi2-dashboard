@@ -233,6 +233,7 @@ function createApp(options) {
         weather: externalState.weather,
         news: externalState.news,
         bins: externalState.bins,
+        ha: externalState.ha || { cards: [], stale: true, error: 'ha_unavailable' },
         solarHistory: getSolarHistory(),
         solarDailyBins: getSolarDailyBins(),
         solarHourlyBins: getSolarHourlyBins(),
