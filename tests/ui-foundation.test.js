@@ -144,6 +144,12 @@ module.exports = async function run() {
   assert.ok(html.indexOf("ctx.lineJoin = 'round';") > -1, 'generated hybrid line should use rounded joins');
   assert.ok(html.indexOf("ctx.lineCap = 'round';") > -1, 'generated hybrid line should use rounded caps');
   assert.ok(html.indexOf('ctx.quadraticCurveTo(') > -1, 'generated hybrid line should be smoothed');
+  assert.ok(html.indexOf('var usagePeakWh = 1;') > -1, 'usage bars should track usage peak independently');
+  assert.ok(html.indexOf('usagePeakWh = Math.max(usagePeakWh, Number(item.selfWh || 0) + Number(item.importWh || 0));') > -1, 'usage bars should scale from self+import stack only');
+  assert.ok(html.indexOf('var generatedSmoothed = smoothSeries(generatedSeries, 3);') > -1, 'generated line scale should use the same smoothed series that is drawn');
+  assert.ok(html.indexOf('var generatedLinePeakWh = generatedSmoothed.reduce(function (peak, value) { return Math.max(peak, Number(value || 0)); }, 0);') > -1, 'generated line scale should derive peak from smoothed values');
+  assert.ok(html.indexOf('var generatedCapWh = 6000 * 1.02;') > -1, 'generated line scaling should cap at 6kW plus headroom');
+  assert.ok(html.indexOf('var generatedLineMaxY = Math.min(generatedCapWh, Math.max(1, generatedLinePeakWh * 1.02));') > -1, 'generated line should use smoothed dynamic peak scale with cap');
   assert.ok(html.indexOf('.solar-gauge-usage.is-no-import') > -1, 'usage/import gauge should expose no-import state class');
   assert.ok(html.indexOf('.solar-gauge-usage.is-importing') > -1, 'usage/import gauge should expose importing state class');
   assert.ok(html.indexOf('.solar-gauge-generation.is-maxed') > -1, 'generation gauge should expose maxed pulse state class');

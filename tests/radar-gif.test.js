@@ -217,6 +217,46 @@ module.exports = async function run() {
     }
 
     // -------------------------------------------------------------------
+    // Test 6b: opaque map frame stays visible (not fully transparent)
+    // -------------------------------------------------------------------
+    {
+      const opaqueMapTilePng = await sharp({
+        create: { width: 256, height: 256, channels: 4, background: { r: 100, g: 120, b: 140, alpha: 255 } }
+      }).png().toBuffer();
+      const transparentRadarTilePng = await sharp({
+        create: { width: 256, height: 256, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } }
+      }).png().toBuffer();
+      const singleFrameRenderer = createRadarGifRenderer({
+        fetchMapTile: async function () { return { contentType: 'image/png', body: opaqueMapTilePng }; },
+        fetchRadarTile: async function () { return { contentType: 'image/png', body: transparentRadarTilePng }; },
+        getRadarState: function () { return { frames: [{ time: 1000, path: '/path/0' }] }; },
+        config: {
+          radar: {
+            zoom: 6,
+            providerMaxZoom: 6,
+            lat: -27.47,
+            lon: 153.02,
+            gifMaxFrames: 1,
+            gifExtraTiles: 0,
+            gifFrameDelayMs: 200,
+            color: 3,
+            options: '1_1'
+          }
+        },
+        gifCacheDir: path.join(tempDir, 'single-frame')
+      });
+      const singleFrameGif = await singleFrameRenderer.renderOnce({ width: 120, height: 90 });
+      const decoded = await sharp(singleFrameGif.body, { animated: true }).raw().toBuffer();
+      let nonTransparentPixels = 0;
+      for (let i = 3; i < decoded.length; i += 4) {
+        if (decoded[i] > 0) {
+          nonTransparentPixels += 1;
+        }
+      }
+      assert.ok(nonTransparentPixels > 0, 'decoded GIF should contain non-transparent map pixels');
+    }
+
+    // -------------------------------------------------------------------
     // Test 7: getLatestGif returns null when no file exists
     // -------------------------------------------------------------------
     {
@@ -285,6 +325,26 @@ module.exports = async function run() {
         async function () { await disabledRenderer.renderOnce({ width: 100, height: 80 }); },
         function (err) { return err && (err.code === 'sharp_unavailable' || err.code === 'gif_renderer_unavailable'); },
         'renderOnce should throw sharp_unavailable when rendering is disabled'
+      );
+    }
+
+    // -------------------------------------------------------------------
+    // Test 10b: renderer must not fall back to sharp when ffmpeg is missing
+    // -------------------------------------------------------------------
+    {
+      const noFfmpegRenderer = createRadarGifRenderer({
+        sharp: sharp,
+        ffmpegBinary: '__ffmpeg_missing__',
+        fetchMapTile: async function () { return { contentType: 'image/png', body: fakeTilePng }; },
+        fetchRadarTile: async function () { return { contentType: 'image/png', body: fakeRadarTilePng }; },
+        getRadarState: function () { return { frames: [{ time: 1000, path: '/path/0' }] }; },
+        config: { radar: {} },
+        gifCacheDir: path.join(tempDir, 'no-ffmpeg')
+      });
+      assert.strictEqual(
+        noFfmpegRenderer.canRender(),
+        false,
+        'canRender should be false without ffmpeg even when sharp is available'
       );
     }
 

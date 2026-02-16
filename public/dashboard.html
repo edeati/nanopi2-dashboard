@@ -249,7 +249,7 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 4px;
-      margin-bottom: 0;
+      margin-bottom: 15px;
       height: 120px;
     }
 
@@ -1905,14 +1905,10 @@
           drawHourAxis(ctx, w, h, pad, chartBottom, 24, (w - pad * 2) / 24);
           return;
         }
-        var maxY = 1;
+        var usagePeakWh = 1;
         for (var i = 0; i < barsCount; i += 1) {
           var item = data[i] || {};
-          maxY = Math.max(
-            maxY,
-            Number(item.selfWh || 0) + Number(item.importWh || 0),
-            Number(item.generatedWh || 0)
-          );
+          usagePeakWh = Math.max(usagePeakWh, Number(item.selfWh || 0) + Number(item.importWh || 0));
         }
 
         var barW = (w - pad * 2) / barsCount;
@@ -1920,8 +1916,8 @@
           var bin = data[j] || {};
           var a = Math.max(0, Number(bin.selfWh || 0));
           var b = Math.max(0, Number(bin.importWh || 0));
-          var ah = Math.floor((a / maxY) * (chartBottom - pad));
-          var bh = Math.floor((b / maxY) * (chartBottom - pad));
+          var ah = Math.floor((a / usagePeakWh) * (chartBottom - pad));
+          var bh = Math.floor((b / usagePeakWh) * (chartBottom - pad));
           var x = Math.round(pad + (j * barW));
           var xNext = Math.round(pad + ((j + 1) * barW));
           var drawW = Math.max(1, xNext - x - 1);
@@ -1932,7 +1928,14 @@
           ctx.fillStyle = '#8edb7c';
           ctx.fillRect(x, yA, drawW, Math.max(1, ah));
         }
-        drawGeneratedLine(ctx, data, pad, chartBottom, barW, maxY);
+        var generatedSeries = data.map(function (item) {
+          return Math.max(0, Number((item || {}).generatedWh || 0));
+        });
+        var generatedSmoothed = smoothSeries(generatedSeries, 3);
+        var generatedLinePeakWh = generatedSmoothed.reduce(function (peak, value) { return Math.max(peak, Number(value || 0)); }, 0);
+        var generatedCapWh = 6000 * 1.02;
+        var generatedLineMaxY = Math.min(generatedCapWh, Math.max(1, generatedLinePeakWh * 1.02));
+        drawGeneratedLine(ctx, data, pad, chartBottom, barW, generatedLineMaxY);
         drawHourAxis(ctx, w, h, pad, chartBottom, barsCount, barW);
       }
 
