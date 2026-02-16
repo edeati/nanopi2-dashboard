@@ -83,6 +83,11 @@ function applyEnvOverrides(config, envMap) {
     config.insecureTLS = env.INSECURE_TLS === '1' || env.INSECURE_TLS.toLowerCase() === 'true';
   }
 
+  const haToken = env.HOME_ASSISTANT_TOKEN || env.HASS_TOKEN || env.HA_TOKEN || '';
+  if (haToken) {
+    config.homeAssistant.token = String(haToken);
+  }
+
   if (env.DASHBOARD_TIMEZONE || env.TIME_ZONE) {
     config.timeZone = String(env.DASHBOARD_TIMEZONE || env.TIME_ZONE || '').trim() || config.timeZone;
   }
