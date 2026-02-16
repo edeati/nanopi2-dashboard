@@ -238,6 +238,24 @@
       background: #131922;
     }
 
+    #radarGifStatus {
+      position: absolute;
+      left: 10px;
+      top: 10px;
+      z-index: 4;
+      display: none;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(140, 170, 208, 0.5);
+      background: rgba(12, 18, 26, 0.82);
+      color: #c6d6ea;
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-family: var(--font-display);
+      pointer-events: none;
+    }
+
     #mainSolar {
       display: grid;
       grid-template-rows: auto auto 1fr;
@@ -1076,6 +1094,7 @@
       <div id="radarViewport">
         <img id="radarGifImage" alt="Radar animation">
         <canvas id="radarCanvas"></canvas>
+        <div id="radarGifStatus">Generating radar animation...</div>
       </div>
     </section>
 
@@ -1183,6 +1202,7 @@
       var radarCanvas = document.getElementById('radarCanvas');
       var radarViewport = document.getElementById('radarViewport');
       var radarGifImage = document.getElementById('radarGifImage');
+      var radarGifStatusNode = document.getElementById('radarGifStatus');
       var radarCtx = radarCanvas.getContext('2d');
       var radarClassifyCanvas = document.createElement('canvas');
       var radarClassifyCtx = radarClassifyCanvas.getContext('2d');
@@ -1252,6 +1272,7 @@
         rainOverrideCooldownSeconds: 300
       };
       var focusCursor = -1;
+      var lastFocusMode = '';
       var takeoverActive = false;
       var nextTakeoverAtMs = Date.now() + 180000;
       var takeoverUntilMs = 0;
@@ -1276,6 +1297,17 @@
         return 'main';
       }
 
+      function normalizeFocusMode(mode) {
+        var value = String(mode || '').toLowerCase();
+        if (value.indexOf('solar') > -1) {
+          return 'solar';
+        }
+        if (value === 'radar') {
+          return 'radar';
+        }
+        return '';
+      }
+
       function parseMsParam(value) {
         var n = Number(value || 0);
         if (!Number.isFinite(n) || n <= 0) {
@@ -1288,6 +1320,11 @@
         var url = new URL(window.location.href);
         var mode = normalizeViewMode(viewMode);
         url.searchParams.set('view', mode);
+        if (lastFocusMode) {
+          url.searchParams.set('lastfocus', lastFocusMode);
+        } else {
+          url.searchParams.delete('lastfocus');
+        }
         if (untilMs > 0) {
           url.searchParams.set('until', String(Math.floor(untilMs)));
         } else {
@@ -1319,6 +1356,7 @@
       function applyInitialViewFromUrl() {
         var search = new URL(window.location.href).searchParams;
         currentViewMode = normalizeViewMode(search.get('view'));
+        lastFocusMode = normalizeFocusMode(search.get('lastfocus'));
         takeoverUntilMs = parseMsParam(search.get('until'));
         takeoverNextAtMs = parseMsParam(search.get('next'));
         if (takeoverNextAtMs > Date.now()) {
@@ -1340,8 +1378,8 @@
       radarGifImage.onload = function () {
         radarGifLoading = false;
         radarGifReady = true;
-        radarGifImage.style.display = 'block';
-        radarCanvas.style.display = 'none';
+        setRadarMode(radarRenderMode);
+        updateRadarGifStatus();
         if (radarGifReloadQueued) {
           var queuedForce = radarGifReloadForceQueued;
           radarGifReloadQueued = false;
@@ -1353,8 +1391,8 @@
       radarGifImage.onerror = function () {
         radarGifLoading = false;
         radarGifReady = false;
-        radarGifImage.style.display = 'none';
-        radarCanvas.style.display = 'block';
+        setRadarMode(radarRenderMode);
+        updateRadarGifStatus();
         if (radarGifReloadQueued) {
           var queuedForce = radarGifReloadForceQueued;
           radarGifReloadQueued = false;
@@ -1413,10 +1451,8 @@
         }
         var out = [];
         for (var i = 0; i < views.length; i += 1) {
-          var key = String(views[i] || '').toLowerCase();
-          if (key.indexOf('solar') > -1) { key = 'solar'; }
-          else if (key === 'radar') { key = 'radar'; }
-          else { continue; }
+          var key = normalizeFocusMode(views[i]);
+          if (!key) { continue; }
           if (out.indexOf(key) === -1) { out.push(key); }
         }
         return out.length ? out : ['solar', 'radar'];
@@ -1802,7 +1838,7 @@
           return;
         }
 
-        if (!radarMeta || !radarMeta.frames || radarMeta.frames.length === 0) {
+        if (!radarMeta) {
           radarCtx.fillStyle = '#101418';
           radarCtx.fillRect(0, 0, radarCanvas.width, radarCanvas.height);
           radarCtx.fillStyle = '#9aa8b8';
@@ -1819,6 +1855,22 @@
 
         var z = radarMeta.zoom;
         var tiles = computeVisibleTiles(z);
+        if (!radarMeta.frames || radarMeta.frames.length === 0) {
+          await Promise.all(tiles.map(function (tile) { return loadMapTileWithFallback(z, tile.tx, tile.ty); }));
+          radarCtx.clearRect(0, 0, radarCanvas.width, radarCanvas.height);
+          await drawLayer(tiles, 1, function (tx, ty) { return loadMapTileWithFallback(z, tx, ty); }, MAP_TILE_OVERDRAW);
+          radarCtx.fillStyle = '#c6d6ea';
+          radarCtx.fillText('Generating radar animation...', 12, 20);
+          applyRainClassification(
+            isWeatherRainLikely(latestWeatherSummary),
+            isWeatherHeavyRainLikely(latestWeatherSummary),
+            0.08
+          );
+          updateRainIndicator();
+          requestAnimationFrame(animateRadar);
+          return;
+        }
+
         var frameCount = radarMeta.frames.length;
         var hold = radarMeta.frameHoldMs || 650;
         var transition = radarMeta.transitionMs || 350;
@@ -1866,6 +1918,21 @@
           radarGifImage.style.display = 'none';
           radarCanvas.style.display = 'block';
         }
+        updateRadarGifStatus();
+      }
+
+      function updateRadarGifStatus() {
+        if (!radarGifStatusNode) {
+          return;
+        }
+        var shouldShow = radarRenderMode === 'gif' && (!radarGifReady || radarGifLoading);
+        radarGifStatusNode.style.display = shouldShow ? 'block' : 'none';
+        if (!shouldShow) {
+          return;
+        }
+        radarGifStatusNode.textContent = radarGifLoading
+          ? 'Loading latest radar animation...'
+          : 'Generating radar animation...';
       }
 
       function loadRadarGif(force) {
@@ -1876,10 +1943,8 @@
           return;
         }
         radarGifLoading = true;
+        updateRadarGifStatus();
         var src = radarGifUrl;
-        if (force) {
-          src += (src.indexOf('?') > -1 ? '&' : '?') + 'strict=1';
-        }
         radarGifImage.src = src + (src.indexOf('?') > -1 ? '&' : '?') + '_=' + Date.now();
       }
 
@@ -1895,9 +1960,12 @@
         fetch('/api/radar/animation?width=' + width + '&height=' + height)
           .then(function (res) { return res.json(); })
           .then(function (payload) {
+            if (payload && payload.mode) {
+              setRadarMode(payload.mode);
+            }
             if (payload.gifPath) {
               radarGifUrl = payload.gifPath;
-              loadRadarGif(true);
+              loadRadarGif(false);
               if (!radarGifRefreshTimer) {
                 radarGifRefreshTimer = setInterval(loadRadarGif, radarGifRefreshMs);
               }
@@ -1908,6 +1976,7 @@
 
       function initRadarGifMode() {
         refreshRadarGifMode(true);
+        requestAnimationFrame(animateRadar);
       }
 
       function drawDonut(ctx, canvas, ratio, colorA, colorB) {
@@ -2541,7 +2610,17 @@
           rotationConfig.rainOverrideCooldownSeconds = Number(state.layout.focus.rainOverrideCooldownSeconds || 0);
         }
 
+        if (state && state.radar) {
+          if (state.radar.gifUpdatedAt) {
+            radarGifLastUpdatedAt = String(state.radar.gifUpdatedAt);
+          }
+          if (state.radar.gifPath) {
+            radarGifUrl = String(state.radar.gifPath);
+          }
+        }
+
         updateRainIndicator();
+        updateRadarGifStatus();
 
         if (!firstDataApplied) {
           firstDataApplied = true;
@@ -2573,11 +2652,13 @@
               return;
             }
             var gifUpdatedAt = patch.radar && patch.radar.gifUpdatedAt ? String(patch.radar.gifUpdatedAt) : '';
+            if (patch.radar && patch.radar.gifPath) {
+              radarGifUrl = String(patch.radar.gifPath);
+            }
             if (gifUpdatedAt && gifUpdatedAt !== radarGifLastUpdatedAt) {
               radarGifLastUpdatedAt = gifUpdatedAt;
               if (radarGifUrl) {
-                radarGifReady = false;
-                loadRadarGif(true);
+                loadRadarGif(false);
               }
             }
             latestState = Object.assign({}, latestState, {
@@ -2603,6 +2684,12 @@
         }
 
         var views = sanitizeFocusViews(rotationConfig.focusViews);
+        if (lastFocusMode) {
+          var lastIdx = views.indexOf(lastFocusMode);
+          if (lastIdx > -1) {
+            return views[(lastIdx + 1) % views.length];
+          }
+        }
         focusCursor = (focusCursor + 1) % views.length;
         return views[focusCursor];
       }
@@ -2613,6 +2700,7 @@
         var durationMs = Math.max(5, Number(rotationConfig.focusDurationSeconds || 30)) * 1000;
         var intervalMs = Math.max(30, Number(rotationConfig.intervalSeconds || 180)) * 1000;
         var nextAtMs = now + intervalMs;
+        lastFocusMode = mode;
         transitionReloadToView(mode === 'radar' ? 'radar' : 'solar', now + durationMs, nextAtMs);
       }
 
@@ -2653,6 +2741,3 @@
   </script>
 </body>
 </html>
-        if (state && state.radar && state.radar.gifUpdatedAt) {
-          radarGifLastUpdatedAt = String(state.radar.gifUpdatedAt);
-        }

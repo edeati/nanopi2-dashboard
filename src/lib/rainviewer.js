@@ -83,6 +83,22 @@ function createRainViewerClient(config) {
     return requestBuffer(tileUrl, insecureTLS, logger, 'external.rainviewer.tile');
   }
 
+  async function fetchTileByPath(framePath, z, x, y, color, styleOptions) {
+    const normalizedPath = String(framePath || '');
+    if (!normalizedPath || normalizedPath.charAt(0) !== '/') {
+      throw new Error('frame path invalid');
+    }
+    const tileUrl = buildRainViewerTileUrl(state.host, normalizedPath, {
+      size: 256,
+      z,
+      x,
+      y,
+      color,
+      options: styleOptions
+    });
+    return requestBuffer(tileUrl, insecureTLS, logger, 'external.rainviewer.tile');
+  }
+
   function getState() {
     return {
       host: state.host,
@@ -95,6 +111,7 @@ function createRainViewerClient(config) {
   return {
     refresh,
     fetchTile,
+    fetchTileByPath,
     getState
   };
 }

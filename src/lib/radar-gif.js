@@ -419,8 +419,10 @@ function createRadarGifRenderer(options) {
     const extraTiles = toInteger(radarConfig.gifExtraTiles, 1, 0, 6);
     const gifMaxFrames = toInteger(radarConfig.gifMaxFrames, 8, 1, 30);
     const gifFrameDelayMs = toInteger(radarConfig.gifFrameDelayMs, 500, 50, 5000);
-    const overscanPx = toInteger(radarConfig.gifCropOverscanPx, 24, 0, 256);
-    const rightTrimPx = toInteger(radarConfig.gifRightTrimPx, 18, 0, overscanPx);
+    const requestedOverscanPx = toInteger(radarConfig.gifCropOverscanPx, 24, 0, 512);
+    const requestedRightTrimPx = toInteger(radarConfig.gifRightTrimPx, 18, 0, 512);
+    const overscanPx = Math.max(requestedOverscanPx, requestedRightTrimPx);
+    const rightTrimPx = Math.min(requestedRightTrimPx, overscanPx);
     const renderWidth = Math.min(1920, outputWidth + (overscanPx * 2));
     const renderHeight = Math.min(1920, outputHeight + (overscanPx * 2));
     const colorSetting = toInteger(radarConfig.color, 3, 0, 10);
@@ -434,7 +436,13 @@ function createRadarGifRenderer(options) {
       error.code = 'radar_unavailable';
       throw error;
     }
-    const framesSubset = frames.slice(-gifMaxFrames);
+    const rawFramesSubset = frames.slice(-gifMaxFrames);
+    const frameStartIndex = frames.length - rawFramesSubset.length;
+    const framesSubset = rawFramesSubset.map((frame, idx) => ({
+      time: Number(frame && frame.time),
+      path: frame && frame.path ? String(frame.path) : '',
+      index: frameStartIndex + idx
+    }));
 
     return {
       outputWidth,
@@ -447,7 +455,6 @@ function createRadarGifRenderer(options) {
       colorSetting,
       optionsSetting,
       gifFrameDelayMs,
-      frameStartIndex: frames.length - framesSubset.length,
       framesSubset,
       generatedLabel: 'Generated: ' + formatGeneratedTimestamp(Date.now(), dashboardTimeZone),
       frameLabels: framesSubset.map((frame) => formatFrameTimestamp(frame && frame.time, dashboardTimeZone)),
@@ -476,30 +483,55 @@ function createRadarGifRenderer(options) {
           const filePath = path.join(tempDir, 'map-' + String(t).padStart(3, '0') + '.png');
           fs.writeFileSync(filePath, result.body);
           mapAssets.push({ filePath, x: tile.drawX, y: tile.drawY });
-        } catch (_error) {}
+        } catch (_error) {
+          const mapError = new Error('map_tiles_unavailable');
+          mapError.code = 'map_tiles_unavailable';
+          throw mapError;
+        }
+      }
+      if (mapAssets.length !== plan.tiles.length) {
+        const mapCountError = new Error('map_tiles_unavailable');
+        mapCountError.code = 'map_tiles_unavailable';
+        throw mapCountError;
       }
 
       for (let i = 0; i < plan.framesSubset.length; i += 1) {
+        const frameRef = plan.framesSubset[i] || {};
         const radarAssets = [];
         for (let t = 0; t < plan.tiles.length; t += 1) {
           const tile = plan.tiles[t];
           const norm = normalizeTileCoords(plan.z, tile.tx, tile.ty);
+          let filePath = '';
           try {
             const result = await fetchRadarTile({
-              frameIndex: plan.frameStartIndex + i,
+              frameIndex: Number.isInteger(frameRef.index) ? frameRef.index : i,
+              framePath: frameRef.path || '',
               z: plan.z,
               x: norm.x,
               y: norm.y,
               color: plan.colorSetting,
               options: plan.optionsSetting
             });
-            const filePath = path.join(
+            filePath = path.join(
               tempDir,
               'radar-' + String(i).padStart(3, '0') + '-' + String(t).padStart(3, '0') + '.png'
             );
             fs.writeFileSync(filePath, result.body);
+          } catch (_error) {
+            const radarError = new Error('radar_tiles_incomplete');
+            radarError.code = 'radar_tiles_incomplete';
+            throw radarError;
+          }
+
+          if (filePath) {
             radarAssets.push({ filePath, x: tile.drawX, y: tile.drawY });
-          } catch (_error) {}
+          }
+        }
+
+        if (radarAssets.length !== plan.tiles.length) {
+          const noTilesError = new Error('radar_tiles_incomplete');
+          noTilesError.code = 'radar_tiles_incomplete';
+          throw noTilesError;
         }
 
         const overlays = mapAssets.concat(radarAssets);

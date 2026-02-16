@@ -170,12 +170,20 @@ function createApp(options) {
     if (req.method === 'GET' && urlPath === '/api/state/realtime') {
       const now = Date.now();
       const gifMeta = getRadarGifMeta();
+      const gifWidth = gifMeta ? Number(gifMeta.width || 0) : 0;
+      const gifHeight = gifMeta ? Number(gifMeta.height || 0) : 0;
+      const gifPath = (gifWidth > 0 && gifHeight > 0)
+        ? ('/api/radar/animation.gif?width=' + gifWidth + '&height=' + gifHeight)
+        : null;
       return sendJson(res, 200, {
         fronius: {
           realtime: froniusState.getState(now).realtime
         },
         radar: {
-          gifUpdatedAt: gifMeta && gifMeta.renderedAt ? gifMeta.renderedAt : null
+          gifUpdatedAt: gifMeta && gifMeta.renderedAt ? gifMeta.renderedAt : null,
+          gifWidth: gifWidth > 0 ? gifWidth : null,
+          gifHeight: gifHeight > 0 ? gifHeight : null,
+          gifPath
         },
         generatedAt: new Date(now).toISOString()
       });
@@ -186,6 +194,11 @@ function createApp(options) {
       const externalState = getExternalState();
       const radarState = getRadarState();
       const gifMeta = getRadarGifMeta();
+      const gifWidth = gifMeta ? Number(gifMeta.width || 0) : 0;
+      const gifHeight = gifMeta ? Number(gifMeta.height || 0) : 0;
+      const gifPath = (gifWidth > 0 && gifHeight > 0)
+        ? ('/api/radar/animation.gif?width=' + gifWidth + '&height=' + gifHeight)
+        : null;
       return sendJson(res, 200, {
         server: {
           host: dashboardConfig.host,
@@ -221,6 +234,9 @@ function createApp(options) {
           available: Array.isArray(radarState.frames) && radarState.frames.length > 0,
           updatedAt: radarState.updatedAt,
           gifUpdatedAt: gifMeta && gifMeta.renderedAt ? gifMeta.renderedAt : null,
+          gifWidth: gifWidth > 0 ? gifWidth : null,
+          gifHeight: gifHeight > 0 ? gifHeight : null,
+          gifPath,
           refreshSeconds: dashboardConfig.radar.refreshSeconds,
           metaPath: '/api/radar/meta'
         },

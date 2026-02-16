@@ -467,6 +467,187 @@ module.exports = async function run() {
       assert.strictEqual(filter.indexOf('crop=') > -1, false, 'encode stage should not crop again');
       assert.strictEqual(filter.indexOf('drawtext=') > -1, false, 'encode stage should not redraw timestamp');
     }
+
+    // -------------------------------------------------------------------
+    // Test 12b: gifRightTrimPx larger than overscan must still be honored
+    // -------------------------------------------------------------------
+    {
+      const ffmpegCalls = [];
+      const rightTrimRenderer = createRadarGifRenderer({
+        execFileImpl: function wrappedExecFile(binary, args, opts, cb) {
+          ffmpegCalls.push(args.slice());
+          return execFile(binary, args, opts, cb);
+        },
+        fetchMapTile: async function () { return { contentType: 'image/png', body: fakeTilePng }; },
+        fetchRadarTile: async function () { return { contentType: 'image/png', body: fakeRadarTilePng }; },
+        getRadarState: function () {
+          return {
+            frames: [
+              { time: 1000, path: '/path/0' },
+              { time: 2000, path: '/path/1' }
+            ]
+          };
+        },
+        config: {
+          radar: {
+            zoom: 6,
+            providerMaxZoom: 6,
+            lat: -27.47,
+            lon: 153.02,
+            gifMaxFrames: 2,
+            gifExtraTiles: 0,
+            gifFrameDelayMs: 100,
+            color: 3,
+            options: '1_1',
+            gifCropOverscanPx: 24,
+            gifRightTrimPx: 80
+          }
+        },
+        gifCacheDir: path.join(tempDir, 'right-trim-test')
+      });
+      const out = await rightTrimRenderer.renderOnce({ width: 120, height: 90 });
+      assert.ok(out && Buffer.isBuffer(out.body) && out.body.length > 0, 'large right trim render should produce a GIF');
+
+      const composeWithTrim = ffmpegCalls.find(function (args) {
+        var idx = args.indexOf('-filter_complex');
+        if (idx < 0) return false;
+        var f = String(args[idx + 1] || '');
+        return f.indexOf('crop=120:90:0:80') > -1;
+      });
+      assert.ok(composeWithTrim, 'compose stage should honor large right trim by increasing overscan');
+    }
+
+    // -------------------------------------------------------------------
+    // Test 12c: renderer should pass stable framePath to tile fetches
+    // -------------------------------------------------------------------
+    {
+      const expectedPaths = ['/path/0', '/path/1'];
+      const seenPaths = [];
+      const framePathRenderer = createRadarGifRenderer({
+        fetchMapTile: async function () { return { contentType: 'image/png', body: fakeTilePng }; },
+        fetchRadarTile: async function (params) {
+          seenPaths.push(params.framePath);
+          if (expectedPaths.indexOf(params.framePath) === -1) {
+            throw new Error('unexpected_frame_path:' + String(params.framePath));
+          }
+          return { contentType: 'image/png', body: fakeRadarTilePng };
+        },
+        getRadarState: function () {
+          return {
+            frames: [
+              { time: 1000, path: '/path/0' },
+              { time: 2000, path: '/path/1' }
+            ]
+          };
+        },
+        config: {
+          radar: {
+            zoom: 6,
+            providerMaxZoom: 6,
+            lat: -27.47,
+            lon: 153.02,
+            gifMaxFrames: 2,
+            gifExtraTiles: 0,
+            gifFrameDelayMs: 100,
+            color: 3,
+            options: '1_1'
+          }
+        },
+        gifCacheDir: path.join(tempDir, 'frame-path-test')
+      });
+      const out = await framePathRenderer.renderOnce({ width: 120, height: 90 });
+      assert.ok(out && Buffer.isBuffer(out.body) && out.body.length > 0, 'frame path render should produce a GIF');
+      assert.ok(seenPaths.length > 0, 'renderer should call tile fetcher');
+      assert.ok(seenPaths.every(function (p) { return expectedPaths.indexOf(p) > -1; }), 'renderer should pass known frame paths');
+    }
+
+    // -------------------------------------------------------------------
+    // Test 12d: render should fail if any map tile is missing
+    // -------------------------------------------------------------------
+    {
+      let mapCalls = 0;
+      const strictMapRenderer = createRadarGifRenderer({
+        fetchMapTile: async function () {
+          mapCalls += 1;
+          if (mapCalls === 1) {
+            throw new Error('map tile missing');
+          }
+          return { contentType: 'image/png', body: fakeTilePng };
+        },
+        fetchRadarTile: async function () { return { contentType: 'image/png', body: fakeRadarTilePng }; },
+        getRadarState: function () {
+          return {
+            frames: [
+              { time: 1000, path: '/path/0' },
+              { time: 2000, path: '/path/1' }
+            ]
+          };
+        },
+        config: {
+          radar: {
+            zoom: 6,
+            providerMaxZoom: 6,
+            lat: -27.47,
+            lon: 153.02,
+            gifMaxFrames: 2,
+            gifExtraTiles: 0,
+            gifFrameDelayMs: 100,
+            color: 3,
+            options: '1_1'
+          }
+        },
+        gifCacheDir: path.join(tempDir, 'strict-map-test')
+      });
+      await assert.rejects(
+        async function () { await strictMapRenderer.renderOnce({ width: 120, height: 90 }); },
+        function (err) { return err && err.code === 'map_tiles_unavailable'; },
+        'render should fail when any map tile cannot be fetched'
+      );
+    }
+
+    // -------------------------------------------------------------------
+    // Test 12e: render should fail if any radar tile is missing
+    // -------------------------------------------------------------------
+    {
+      let radarCalls = 0;
+      const strictRadarRenderer = createRadarGifRenderer({
+        fetchMapTile: async function () { return { contentType: 'image/png', body: fakeTilePng }; },
+        fetchRadarTile: async function () {
+          radarCalls += 1;
+          if (radarCalls === 1) {
+            throw new Error('radar tile missing');
+          }
+          return { contentType: 'image/png', body: fakeRadarTilePng };
+        },
+        getRadarState: function () {
+          return {
+            frames: [
+              { time: 1000, path: '/path/0' },
+              { time: 2000, path: '/path/1' }
+            ]
+          };
+        },
+        config: {
+          radar: {
+            zoom: 6,
+            providerMaxZoom: 6,
+            lat: -27.47,
+            lon: 153.02,
+            gifMaxFrames: 2,
+            gifExtraTiles: 0,
+            gifFrameDelayMs: 100,
+            color: 3,
+            options: '1_1'
+          }
+        },
+        gifCacheDir: path.join(tempDir, 'strict-radar-test')
+      });
+      await assert.rejects(
+        async function () { await strictRadarRenderer.renderOnce({ width: 120, height: 90 }); },
+        function (err) { return err && err.code === 'radar_tiles_incomplete'; },
+        'render should fail when any radar tile cannot be fetched'
+      );
+    }
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }

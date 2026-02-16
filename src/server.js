@@ -695,19 +695,33 @@ function createServer(options) {
   const radarTileCache = new Map();
   const mapTileCache = new Map();
   const mapClient = (options && options.mapClient) || createMapTileClient(sharedConfig);
+  const mapTileCacheMs = Math.max(
+    60,
+    Number(
+      (dashboardConfig.map && dashboardConfig.map.cacheTtlSeconds) ||
+      (dashboardConfig.radar && dashboardConfig.radar.mapCacheTtlSeconds) ||
+      86400
+    )
+  ) * 1000;
 
   async function fetchRadarTile(params) {
     if (options && options.radarTileProvider) {
       return options.radarTileProvider(params);
     }
 
-    const key = [params.frameIndex, params.z, params.x, params.y, params.color, params.options].join(':');
+    const frameKey = params.framePath ? ('path=' + String(params.framePath)) : ('index=' + String(params.frameIndex));
+    const key = [frameKey, params.z, params.x, params.y, params.color, params.options].join(':');
     const cached = radarTileCache.get(key);
     if (cached && (Date.now() - cached.at) < 120000) {
       return cached.value;
     }
 
-    const value = await radarClient.fetchTile(params.frameIndex, params.z, params.x, params.y, params.color, params.options);
+    let value;
+    if (params.framePath && typeof radarClient.fetchTileByPath === 'function') {
+      value = await radarClient.fetchTileByPath(params.framePath, params.z, params.x, params.y, params.color, params.options);
+    } else {
+      value = await radarClient.fetchTile(params.frameIndex, params.z, params.x, params.y, params.color, params.options);
+    }
     radarTileCache.set(key, { at: Date.now(), value });
     return value;
   }
@@ -719,7 +733,7 @@ function createServer(options) {
 
     const key = [params.z, params.x, params.y].join(':');
     const cached = mapTileCache.get(key);
-    if (cached && (Date.now() - cached.at) < 600000) {
+    if (cached && (Date.now() - cached.at) < mapTileCacheMs) {
       return cached.value;
     }
 

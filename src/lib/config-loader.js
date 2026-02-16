@@ -67,7 +67,8 @@ function normalizeDashboardConfig(input) {
       'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
       'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
     ],
-    userAgent: 'NanoPi2-Dashboard/1.0 (+https://local.nanopi2)'
+    userAgent: 'NanoPi2-Dashboard/1.0 (+https://local.nanopi2)',
+    cacheTtlSeconds: 86400
   }, config.map || {});
   config.radar = Object.assign({
     provider: 'rainviewer',
@@ -131,6 +132,8 @@ function validateDashboardConfig(config) {
     typeof config.map.tileUrlTemplate === 'string' &&
     Array.isArray(config.map.fallbackTileUrlTemplates) &&
     typeof config.map.userAgent === 'string' &&
+    typeof config.map.cacheTtlSeconds === 'number' &&
+    config.map.cacheTtlSeconds >= 60 &&
     typeof config.radar.refreshSeconds === 'number' &&
     typeof config.radar.startupRetrySeconds === 'number' &&
     typeof config.radar.startupRetryMaxAttempts === 'number' &&

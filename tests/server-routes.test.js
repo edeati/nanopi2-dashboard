@@ -292,6 +292,17 @@ module.exports = async function run() {
     assert.strictEqual(mismatchMetaGifResponse.headers['content-type'], 'image/gif');
     assert.strictEqual(mismatchMetaGifResponse.bodyBuffer.toString('utf8'), fallbackGif.toString('utf8'));
 
+    const realtimeWithGifMeta = await request(cachedGifFallbackServer, { path: '/api/state/realtime' });
+    assert.strictEqual(realtimeWithGifMeta.statusCode, 200);
+    const realtimeWithGifMetaPayload = JSON.parse(realtimeWithGifMeta.body);
+    assert.strictEqual(realtimeWithGifMetaPayload.radar.gifWidth, 320);
+    assert.strictEqual(realtimeWithGifMetaPayload.radar.gifHeight, 180);
+    assert.strictEqual(
+      realtimeWithGifMetaPayload.radar.gifPath,
+      '/api/radar/animation.gif?width=320&height=180',
+      'realtime radar payload should expose latest gif path from metadata'
+    );
+
     const mismatchMetaStrictGifResponse = await request(cachedGifFallbackServer, { path: '/api/radar/animation.gif?width=800&height=480&strict=1' });
     assert.strictEqual(mismatchMetaStrictGifResponse.statusCode, 503);
 
