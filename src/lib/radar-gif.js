@@ -43,6 +43,61 @@ function execFileAsync(binary, args, opts, execFileImpl) {
   });
 }
 
+function escapeFfmpegDrawtext(text) {
+  return String(text || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/:/g, '\\:')
+    .replace(/'/g, "\\'")
+    .replace(/,/g, '\\,')
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]');
+}
+
+function formatFrameTimestamp(rawTime, timeZone) {
+  const n = Number(rawTime || 0);
+  if (!Number.isFinite(n) || n <= 0) {
+    return '';
+  }
+  const tsMs = n > 1e12 ? n : (n * 1000);
+  const dt = new Date(tsMs);
+  const tz = String(timeZone || '').trim();
+  try {
+    return new Intl.DateTimeFormat('en-AU', {
+      timeZone: tz || undefined,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).format(dt);
+  } catch (_error) {
+    return new Intl.DateTimeFormat('en-AU', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).format(dt);
+  }
+}
+
+function formatGeneratedTimestamp(rawMs, timeZone) {
+  const dt = new Date(Number(rawMs || Date.now()));
+  const tz = String(timeZone || '').trim();
+  try {
+    return new Intl.DateTimeFormat('en-AU', {
+      timeZone: tz || undefined,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }).format(dt);
+  } catch (_error) {
+    return new Intl.DateTimeFormat('en-AU', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }).format(dt);
+  }
+}
+
 function probeSharpAvailability() {
   if (sharpProbeState) {
     return sharpProbeState;
@@ -135,8 +190,8 @@ function normalizeTileCoords(z, x, y) {
  */
 function computeVisibleTiles(params) {
   const center = latLonToTile(params.lat, params.lon, params.z);
-  const cx = center.x * TILE_SIZE;
-  const cy = center.y * TILE_SIZE;
+  const cx = (center.x * TILE_SIZE) + Number(params.centerOffsetXPx || 0);
+  const cy = (center.y * TILE_SIZE) + Number(params.centerOffsetYPx || 0);
   const extra = TILE_SIZE * toInteger(params.extraTiles, 1, 0, 8);
   const left = cx - params.width / 2 - extra;
   const top = cy - params.height / 2 - extra;
@@ -330,6 +385,8 @@ function createRadarGifRenderer(options) {
 
   const GIF_FILENAME = 'radar-latest.gif';
   const GIF_TMP_FILENAME = 'radar-latest.gif.tmp';
+  const GIF_META_FILENAME = 'radar-latest.meta.json';
+  const GIF_META_TMP_FILENAME = 'radar-latest.meta.json.tmp';
 
   const rendererBackend = (function chooseRendererBackend() {
     if (backendHint === 'sharp') {
@@ -363,11 +420,12 @@ function createRadarGifRenderer(options) {
     const gifMaxFrames = toInteger(radarConfig.gifMaxFrames, 8, 1, 30);
     const gifFrameDelayMs = toInteger(radarConfig.gifFrameDelayMs, 500, 50, 5000);
     const overscanPx = toInteger(radarConfig.gifCropOverscanPx, 24, 0, 256);
-    const rightTrimPx = toInteger(radarConfig.gifRightTrimPx, 6, 0, overscanPx);
+    const rightTrimPx = toInteger(radarConfig.gifRightTrimPx, 18, 0, overscanPx);
     const renderWidth = Math.min(1920, outputWidth + (overscanPx * 2));
     const renderHeight = Math.min(1920, outputHeight + (overscanPx * 2));
     const colorSetting = toInteger(radarConfig.color, 3, 0, 10);
     const optionsSetting = radarConfig.options || '1_1';
+    const dashboardTimeZone = config.timeZone || (config.ui && config.ui.timeZone) || process.env.TZ || '';
 
     const radarState = getRadarState();
     const frames = Array.isArray(radarState && radarState.frames) ? radarState.frames : [];
@@ -391,7 +449,18 @@ function createRadarGifRenderer(options) {
       gifFrameDelayMs,
       frameStartIndex: frames.length - framesSubset.length,
       framesSubset,
-      tiles: computeVisibleTiles({ lat, lon, z, width: renderWidth, height: renderHeight, extraTiles })
+      generatedLabel: 'Generated: ' + formatGeneratedTimestamp(Date.now(), dashboardTimeZone),
+      frameLabels: framesSubset.map((frame) => formatFrameTimestamp(frame && frame.time, dashboardTimeZone)),
+      tiles: computeVisibleTiles({
+        lat,
+        lon,
+        z,
+        width: renderWidth,
+        height: renderHeight,
+        extraTiles,
+        // Compensate right-side crop trim so configured lat/lon remains centered in final output.
+        centerOffsetXPx: rightTrimPx
+      })
     };
   }
 
@@ -452,11 +521,45 @@ function createRadarGifRenderer(options) {
           x: item.x + plan.overscanPx,
           y: item.y + plan.overscanPx
         })));
-        if (overlayFilter) {
-          composeArgs.push('-filter_complex', overlayFilter, '-map', '[vout]');
-        } else {
-          composeArgs.push('-map', '0:v');
-        }
+        const cropX = Math.max(0, plan.overscanPx - plan.rightTrimPx);
+        const cropY = plan.overscanPx;
+        const tsLabel = escapeFfmpegDrawtext(plan.frameLabels[i] || '');
+        const baseInput = overlayFilter ? '[vout]' : '[0:v]';
+        const cropFilter = baseInput +
+          'crop=' + plan.outputWidth + ':' + plan.outputHeight + ':' + cropX + ':' + cropY +
+          '[vcrop]';
+        const markerFilter = '[vcrop]' +
+          'drawbox=x=(w/2)-1:y=(h/2)-8:w=2:h=16:color=white@0.95:t=fill,' +
+          'drawbox=x=(w/2)-8:y=(h/2)-1:w=16:h=2:color=white@0.95:t=fill,' +
+          'drawbox=x=(w/2)-2:y=(h/2)-2:w=4:h=4:color=black@0.85:t=fill' +
+          '[vmark]';
+        const timestampFilter = '[vmark]' +
+          'drawtext=text=\'' + tsLabel + '\'' +
+          ':font=Sans Bold' +
+          ':fontcolor=white' +
+          ':fontsize=24' +
+          ':borderw=3' +
+          ':bordercolor=black' +
+          ':x=(w-text_w)/2:y=h-th-28' +
+          '[vtxt]';
+        const generatedLabel = escapeFfmpegDrawtext(plan.generatedLabel || '');
+        const generatedFilter = '[vtxt]' +
+          'drawtext=text=\'' + generatedLabel + '\'' +
+          ':font=Sans Bold' +
+          ':fontcolor=white' +
+          ':fontsize=14' +
+          ':borderw=2' +
+          ':bordercolor=black' +
+          ':x=w-text_w-8:y=h-th-8' +
+          '[vouttxt]';
+        composeArgs.push(
+          '-filter_complex',
+          overlayFilter
+            ? (overlayFilter + ';' + cropFilter + ';' + markerFilter + ';' + timestampFilter + ';' + generatedFilter)
+            : (cropFilter + ';' + markerFilter + ';' + timestampFilter + ';' + generatedFilter),
+          '-map',
+          '[vouttxt]'
+        );
         composeArgs.push('-frames:v', '1', framePath);
 
         await execFileAsync(
@@ -479,9 +582,7 @@ function createRadarGifRenderer(options) {
         '-i',
         path.join(tempDir, 'frame-%03d.png'),
         '-filter_complex',
-        (plan.overscanPx > 0
-          ? 'split[s0][s1];[s0]crop=' + plan.outputWidth + ':' + plan.outputHeight + ':' + Math.max(0, plan.overscanPx - plan.rightTrimPx) + ':' + plan.overscanPx + ',palettegen=stats_mode=diff[p];[s1]crop=' + plan.outputWidth + ':' + plan.outputHeight + ':' + Math.max(0, plan.overscanPx - plan.rightTrimPx) + ':' + plan.overscanPx + '[c];[c][p]paletteuse=dither=bayer:bayer_scale=3'
-          : 'split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3'),
+        'split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3',
         '-loop',
         '0',
         gifPath
@@ -516,14 +617,48 @@ function createRadarGifRenderer(options) {
    * Read the latest GIF from disk. No rendering.
    * Returns {contentType, body, isFallback} or null.
    */
-  function getLatestGif() {
+  function getLatestGif(params) {
     const filePath = path.join(gifCacheDir, GIF_FILENAME);
+    const requestedWidth = toInteger(params && params.width, 0, 0, 1920);
+    const requestedHeight = toInteger(params && params.height, 0, 0, 1920);
+    if (requestedWidth > 0 && requestedHeight > 0) {
+      const metaPath = path.join(gifCacheDir, GIF_META_FILENAME);
+      try {
+        const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+        const metaWidth = Number(meta.width || 0);
+        const metaHeight = Number(meta.height || 0);
+        if (metaWidth > 0 && metaHeight > 0 &&
+          (metaWidth !== requestedWidth || metaHeight !== requestedHeight)) {
+          return null;
+        }
+      } catch (_err) {
+        // Legacy cache entries may not have metadata sidecar; allow serving.
+      }
+    }
     try {
       const body = fs.readFileSync(filePath);
       return {
         contentType: 'image/gif',
         body: body,
         isFallback: false
+      };
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  /**
+   * Read latest GIF metadata sidecar, if available.
+   * Returns {width,height,renderedAt} or null.
+   */
+  function getLatestMeta() {
+    const metaPath = path.join(gifCacheDir, GIF_META_FILENAME);
+    try {
+      const parsed = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      return {
+        width: Number(parsed.width || 0),
+        height: Number(parsed.height || 0),
+        renderedAt: parsed.renderedAt || null
       };
     } catch (_err) {
       return null;
@@ -551,8 +686,16 @@ function createRadarGifRenderer(options) {
     ensureCacheDir();
     const tmpPath = path.join(gifCacheDir, GIF_TMP_FILENAME);
     const finalPath = path.join(gifCacheDir, GIF_FILENAME);
+    const metaTmpPath = path.join(gifCacheDir, GIF_META_TMP_FILENAME);
+    const metaPath = path.join(gifCacheDir, GIF_META_FILENAME);
     fs.writeFileSync(tmpPath, gifBuffer);
     fs.renameSync(tmpPath, finalPath);
+    fs.writeFileSync(metaTmpPath, JSON.stringify({
+      width: plan.outputWidth,
+      height: plan.outputHeight,
+      renderedAt: new Date().toISOString()
+    }));
+    fs.renameSync(metaTmpPath, metaPath);
 
     return {
       contentType: 'image/gif',
@@ -631,6 +774,7 @@ function createRadarGifRenderer(options) {
   return {
     canRender,
     getLatestGif,
+    getLatestMeta,
     renderOnce,
     startSchedule,
     warmGif

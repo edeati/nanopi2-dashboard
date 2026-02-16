@@ -170,6 +170,7 @@ module.exports = async function run() {
     assert.strictEqual(realtimeState.statusCode, 200);
     const realtimePayload = JSON.parse(realtimeState.body);
     assert.ok(realtimePayload.fronius && realtimePayload.fronius.realtime, 'realtime endpoint should expose realtime fronius payload');
+    assert.ok(realtimePayload.radar && Object.prototype.hasOwnProperty.call(realtimePayload.radar, 'gifUpdatedAt'), 'realtime endpoint should expose radar gif update signal');
     assert.ok(typeof realtimePayload.generatedAt === 'string' && realtimePayload.generatedAt.length > 0);
 
     const radarMeta = await request(server, { path: '/api/radar/meta' });
@@ -279,6 +280,20 @@ module.exports = async function run() {
     assert.strictEqual(fallbackGifResponse.statusCode, 200);
     assert.strictEqual(fallbackGifResponse.headers['content-type'], 'image/gif');
     assert.strictEqual(fallbackGifResponse.bodyBuffer.toString('utf8'), fallbackGif.toString('utf8'));
+
+    // Even when a metadata sidecar exists with different dimensions, server should still return latest gif
+    fs.writeFileSync(path.join(gifCacheDir, 'radar-latest.meta.json'), JSON.stringify({
+      width: 320,
+      height: 180,
+      renderedAt: '2026-02-16T00:00:00.000Z'
+    }));
+    const mismatchMetaGifResponse = await request(cachedGifFallbackServer, { path: '/api/radar/animation.gif?width=800&height=480' });
+    assert.strictEqual(mismatchMetaGifResponse.statusCode, 200);
+    assert.strictEqual(mismatchMetaGifResponse.headers['content-type'], 'image/gif');
+    assert.strictEqual(mismatchMetaGifResponse.bodyBuffer.toString('utf8'), fallbackGif.toString('utf8'));
+
+    const mismatchMetaStrictGifResponse = await request(cachedGifFallbackServer, { path: '/api/radar/animation.gif?width=800&height=480&strict=1' });
+    assert.strictEqual(mismatchMetaStrictGifResponse.statusCode, 503);
 
     // When no static file and no frames, should get 503
     const emptyGifDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanopi2-gif-empty-'));

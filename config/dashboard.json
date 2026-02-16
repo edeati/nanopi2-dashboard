@@ -64,7 +64,8 @@
     "color": 3,
     "options": "1_1",
     "frameHoldMs": 650,
-    "transitionMs": 350
+    "transitionMs": 350,
+    "gifRightTrimPx": 80
   },
   "insecureTLS": true,
   "map": {

@@ -232,7 +232,7 @@
       height: 100%;
       object-fit: cover;
       object-position: 47% center;
-      transform: scale(1.08);
+      transform: none;
       transform-origin: center;
       display: none;
       background: #131922;
@@ -1218,6 +1218,11 @@
       var radarGifReady = false;
       var radarGifLoading = false;
       var radarGifUrl = '';
+      var radarGifViewportSig = '';
+      var radarGifLastUpdatedAt = '';
+      var radarGifReloadQueued = false;
+      var radarGifReloadForceQueued = false;
+      var radarGifRefreshTimer = null;
       var radarGifRefreshMs = 120000;
       var radarRainLikely = false;
       var radarHeavyRain = false;
@@ -1337,6 +1342,12 @@
         radarGifReady = true;
         radarGifImage.style.display = 'block';
         radarCanvas.style.display = 'none';
+        if (radarGifReloadQueued) {
+          var queuedForce = radarGifReloadForceQueued;
+          radarGifReloadQueued = false;
+          radarGifReloadForceQueued = false;
+          loadRadarGif(queuedForce);
+        }
       };
 
       radarGifImage.onerror = function () {
@@ -1344,6 +1355,12 @@
         radarGifReady = false;
         radarGifImage.style.display = 'none';
         radarCanvas.style.display = 'block';
+        if (radarGifReloadQueued) {
+          var queuedForce = radarGifReloadForceQueued;
+          radarGifReloadQueued = false;
+          radarGifReloadForceQueued = false;
+          loadRadarGif(queuedForce);
+        }
       };
 
       function applyTheme(preset) {
@@ -1461,6 +1478,7 @@
         lastSolarFlowSig = '';
         lastSolarGaugeSig = '';
         drawInitialPlaceholders();
+        refreshRadarGifMode(false);
       }
 
       function maybeStartRadarLoop() {
@@ -1468,7 +1486,6 @@
           return;
         }
         radarLoopStarted = true;
-        requestAnimationFrame(animateRadar);
         initRadarGifMode();
       }
 
@@ -1851,26 +1868,46 @@
         }
       }
 
-      function loadRadarGif() {
-        if (radarGifLoading || !radarGifUrl) return;
+      function loadRadarGif(force) {
+        if (!radarGifUrl) return;
+        if (radarGifLoading) {
+          radarGifReloadQueued = true;
+          radarGifReloadForceQueued = radarGifReloadForceQueued || !!force;
+          return;
+        }
         radarGifLoading = true;
-        radarGifImage.src = radarGifUrl + (radarGifUrl.indexOf('?') > -1 ? '&' : '?') + '_=' + Date.now();
+        var src = radarGifUrl;
+        if (force) {
+          src += (src.indexOf('?') > -1 ? '&' : '?') + 'strict=1';
+        }
+        radarGifImage.src = src + (src.indexOf('?') > -1 ? '&' : '?') + '_=' + Date.now();
       }
 
-      function initRadarGifMode() {
+      function refreshRadarGifMode(force) {
         var rect = radarViewport.getBoundingClientRect();
         var width = Math.max(240, Math.floor(rect.width || 800));
         var height = Math.max(240, Math.floor(rect.height || 480));
+        var sig = width + 'x' + height;
+        if (!force && sig === radarGifViewportSig) {
+          return;
+        }
+        radarGifViewportSig = sig;
         fetch('/api/radar/animation?width=' + width + '&height=' + height)
           .then(function (res) { return res.json(); })
           .then(function (payload) {
-            if (payload.mode === 'gif' && payload.gifPath) {
+            if (payload.gifPath) {
               radarGifUrl = payload.gifPath;
-              loadRadarGif();
-              setInterval(loadRadarGif, radarGifRefreshMs);
+              loadRadarGif(true);
+              if (!radarGifRefreshTimer) {
+                radarGifRefreshTimer = setInterval(loadRadarGif, radarGifRefreshMs);
+              }
             }
           })
           .catch(function () {});
+      }
+
+      function initRadarGifMode() {
+        refreshRadarGifMode(true);
       }
 
       function drawDonut(ctx, canvas, ratio, colorA, colorB) {
@@ -1954,8 +1991,8 @@
           });
         }
         ctx.save();
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = '#f2bb3c';
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#ff6a1a';
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
         ctx.beginPath();
@@ -2535,8 +2572,17 @@
             if (!latestState || !patch || !patch.fronius || !patch.fronius.realtime) {
               return;
             }
+            var gifUpdatedAt = patch.radar && patch.radar.gifUpdatedAt ? String(patch.radar.gifUpdatedAt) : '';
+            if (gifUpdatedAt && gifUpdatedAt !== radarGifLastUpdatedAt) {
+              radarGifLastUpdatedAt = gifUpdatedAt;
+              if (radarGifUrl) {
+                radarGifReady = false;
+                loadRadarGif(true);
+              }
+            }
             latestState = Object.assign({}, latestState, {
               generatedAt: patch.generatedAt || latestState.generatedAt,
+              radar: Object.assign({}, latestState.radar || {}, patch.radar || {}),
               fronius: Object.assign({}, latestState.fronius || {}, {
                 realtime: patch.fronius.realtime
               })
@@ -2607,3 +2653,6 @@
   </script>
 </body>
 </html>
+        if (state && state.radar && state.radar.gifUpdatedAt) {
+          radarGifLastUpdatedAt = String(state.radar.gifUpdatedAt);
+        }

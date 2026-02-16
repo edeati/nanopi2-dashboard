@@ -215,6 +215,9 @@ module.exports = async function run() {
       assert.ok(Buffer.isBuffer(latest.body), 'body should be a Buffer');
       assert.strictEqual(latest.body.slice(0, 3).toString('ascii'), 'GIF');
       assert.strictEqual(latest.isFallback, false);
+
+      const mismatch = renderer.getLatestGif({ width: 120, height: 90 });
+      assert.strictEqual(mismatch, null, 'getLatestGif should not return cached gif for mismatched dimensions');
     }
 
     // -------------------------------------------------------------------
@@ -424,7 +427,7 @@ module.exports = async function run() {
             color: 3,
             options: '1_1',
             gifCropOverscanPx: 24,
-            gifRightTrimPx: 6
+            gifRightTrimPx: 18
           }
         },
         gifCacheDir: path.join(tempDir, 'overscan-test')
@@ -446,7 +449,23 @@ module.exports = async function run() {
       const filterIndex = encodeCall.indexOf('-filter_complex');
       assert.ok(filterIndex > -1, 'encode command should include filter_complex');
       const filter = String(encodeCall[filterIndex + 1] || '');
-      assert.ok(filter.indexOf('crop=120:90:18:24') > -1, 'encode filter should trim right edge via left-shifted crop');
+      const composeWithTimestamp = ffmpegCalls.find(function (args) {
+        var idx = args.indexOf('-filter_complex');
+        if (idx < 0) return false;
+        var f = String(args[idx + 1] || '');
+        return f.indexOf('crop=120:90:6:24') > -1 &&
+          f.indexOf('drawtext=') > -1 &&
+          f.indexOf('Generated\\:') > -1 &&
+          f.indexOf('drawbox=x=(w/2)-1') > -1 &&
+          f.indexOf('drawbox=x=(w/2)-8') > -1 &&
+          f.indexOf('fontcolor=white') > -1 &&
+          f.indexOf('bordercolor=black') > -1 &&
+          f.indexOf('x=w-text_w-8') > -1 &&
+          f.indexOf('y=h-th-28') > -1;
+      });
+      assert.ok(composeWithTimestamp, 'frame compose should crop and then draw bottom timestamp');
+      assert.strictEqual(filter.indexOf('crop=') > -1, false, 'encode stage should not crop again');
+      assert.strictEqual(filter.indexOf('drawtext=') > -1, false, 'encode stage should not redraw timestamp');
     }
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });

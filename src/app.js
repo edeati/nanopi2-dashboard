@@ -134,6 +134,7 @@ function createApp(options) {
   const fetchRadarAnimation = options.fetchRadarAnimation;
   const warmRadarAnimation = options.warmRadarAnimation || function warmRadarAnimationDefault() { return false; };
   const canRenderRadarGif = options.canRenderRadarGif || function canRenderRadarGifDefault() { return false; };
+  const getRadarGifMeta = options.getRadarGifMeta || function getRadarGifMetaDefault() { return null; };
   const fetchMapTile = options.fetchMapTile;
   const getDebugEvents = options.getDebugEvents || function getDebugEventsDefault() { return []; };
   const clearDebugEvents = options.clearDebugEvents || function clearDebugEventsDefault() { return 0; };
@@ -168,9 +169,13 @@ function createApp(options) {
 
     if (req.method === 'GET' && urlPath === '/api/state/realtime') {
       const now = Date.now();
+      const gifMeta = getRadarGifMeta();
       return sendJson(res, 200, {
         fronius: {
           realtime: froniusState.getState(now).realtime
+        },
+        radar: {
+          gifUpdatedAt: gifMeta && gifMeta.renderedAt ? gifMeta.renderedAt : null
         },
         generatedAt: new Date(now).toISOString()
       });
@@ -180,6 +185,7 @@ function createApp(options) {
       const now = Date.now();
       const externalState = getExternalState();
       const radarState = getRadarState();
+      const gifMeta = getRadarGifMeta();
       return sendJson(res, 200, {
         server: {
           host: dashboardConfig.host,
@@ -214,6 +220,7 @@ function createApp(options) {
         radar: {
           available: Array.isArray(radarState.frames) && radarState.frames.length > 0,
           updatedAt: radarState.updatedAt,
+          gifUpdatedAt: gifMeta && gifMeta.renderedAt ? gifMeta.renderedAt : null,
           refreshSeconds: dashboardConfig.radar.refreshSeconds,
           metaPath: '/api/radar/meta'
         },

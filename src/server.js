@@ -732,6 +732,7 @@ function createServer(options) {
     ? {
       canRender: function canRender() { return true; },
       getLatestGif: function getLatestGif() { return null; },
+      getLatestMeta: function getLatestMeta() { return null; },
       renderOnce: options.radarAnimationProvider,
       startSchedule: function startSchedule() { return function stop() {}; },
       warmGif: function warmGifNoop() { return false; }
@@ -748,10 +749,20 @@ function createServer(options) {
     if (!radarAnimationRenderer) {
       throw new Error('radar_animation_unavailable');
     }
-    // Try serving the static file first
-    const cached = radarAnimationRenderer.getLatestGif();
+    const strict = !!(params && params.strict);
+    // Try serving exact static file first
+    const cached = radarAnimationRenderer.getLatestGif(params);
     if (cached) {
       return cached;
+    }
+    // Fallback: serve latest cached gif even if dimensions differ.
+    // This avoids stampeding renders and gives the client a usable image immediately.
+    const latestAnySize = strict ? null : radarAnimationRenderer.getLatestGif();
+    if (latestAnySize) {
+      // Kick off a background render for the requested viewport so the client
+      // can switch to a fresh, correctly-sized GIF on the next refresh signal.
+      warmRadarAnimation(params);
+      return latestAnySize;
     }
     // No static file yet — render on demand as fallback
     if (typeof radarAnimationRenderer.renderOnce === 'function') {
@@ -771,6 +782,13 @@ function createServer(options) {
     return !!(radarAnimationRenderer &&
       typeof radarAnimationRenderer.canRender === 'function' &&
       radarAnimationRenderer.canRender());
+  }
+
+  function getRadarGifMeta() {
+    if (!radarAnimationRenderer || typeof radarAnimationRenderer.getLatestMeta !== 'function') {
+      return null;
+    }
+    return radarAnimationRenderer.getLatestMeta();
   }
 
   const app = createApp({
@@ -802,6 +820,7 @@ function createServer(options) {
     fetchRadarAnimation,
     warmRadarAnimation,
     canRenderRadarGif,
+    getRadarGifMeta,
     fetchMapTile,
     getDebugEvents: function getDebugEvents(limit) { return debugEventStore.list(limit); },
     clearDebugEvents: function clearDebugEvents() {
