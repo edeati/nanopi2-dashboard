@@ -24,6 +24,7 @@ module.exports = async function run() {
       'RADAR_SOURCE_URL=http://example/radar.png\n' +
       'RADAR_LAT=-27.5\n' +
       'RADAR_LON=153.1\n' +
+      'HOME_ASSISTANT_TOKEN=from-dotenv-ha-token\n' +
       'DASHBOARD_TIMEZONE=Australia/Brisbane\n'
     );
 
@@ -33,6 +34,7 @@ module.exports = async function run() {
     assert.strictEqual(cfg.radar.sourceUrl, 'http://example/radar.png');
     assert.strictEqual(cfg.radar.lat, -27.5);
     assert.strictEqual(cfg.radar.lon, 153.1);
+    assert.strictEqual(cfg.homeAssistant.token, 'from-dotenv-ha-token');
     assert.strictEqual(cfg.timeZone, 'Australia/Brisbane');
 
     fs.writeFileSync(

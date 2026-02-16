@@ -414,7 +414,22 @@ function parseBinsPayload(json, nowDate) {
   return null;
 }
 
+function batteryBand(percent) {
+  const value = Number(percent || 0);
+  if (value >= 80) {
+    return { icon: '🔋', tone: 'good' };
+  }
+  if (value >= 50) {
+    return { icon: '🪫', tone: 'medium' };
+  }
+  if (value >= 20) {
+    return { icon: '⚠', tone: 'low' };
+  }
+  return { icon: '❗', tone: 'critical' };
+}
+
 function createExternalSources(config, overrides) {
+  const hasFetchTextOverride = !!(overrides && typeof overrides.fetchText === 'function');
   const fetchText = (overrides && overrides.fetchText) || createFetcher({
     insecureTLS: !!config.insecureTLS,
     logger: (overrides && overrides.traceLogger) || config.logger
@@ -422,6 +437,7 @@ function createExternalSources(config, overrides) {
   const nowProvider = (overrides && overrides.now) || function defaultNow() { return new Date(); };
   const logger = (overrides && overrides.logger) || console;
   const binsConfig = config.bins || {};
+  const homeAssistantConfig = config.homeAssistant || {};
   const binsDebugEnabled = !!binsConfig.debug ||
     String(process.env.BINS_DEBUG || '').toLowerCase() === '1' ||
     String(process.env.BINS_DEBUG || '').toLowerCase() === 'true';
@@ -443,6 +459,43 @@ function createExternalSources(config, overrides) {
       return new Date();
     }
     return parsed;
+  }
+
+  async function fetchHaState(entityId) {
+    if (!entityId) {
+      return null;
+    }
+    if (overrides && typeof overrides.fetchHaState === 'function') {
+      return overrides.fetchHaState(entityId);
+    }
+
+    const baseUrl = String(homeAssistantConfig.baseUrl || '').replace(/\/+$/, '');
+    if (!baseUrl) {
+      throw new Error('ha_base_url_missing');
+    }
+    if (hasFetchTextOverride) {
+      const raw = await fetchText(baseUrl + '/api/states/' + encodeURIComponent(entityId), 'external.ha.state');
+      return JSON.parse(raw);
+    }
+    const token = String(homeAssistantConfig.token || '');
+    const response = await requestWithDebug({
+      urlString: baseUrl + '/api/states/' + encodeURIComponent(entityId),
+      method: 'GET',
+      insecureTLS: !!config.insecureTLS,
+      logger: (overrides && overrides.traceLogger) || config.logger,
+      service: 'external.ha.state',
+      headers: token ? { Authorization: 'Bearer ' + token } : {}
+    });
+    return JSON.parse(response.body.toString('utf8'));
+  }
+
+  function stateValueNumber(payload) {
+    return Number(payload && payload.state ? payload.state : 0);
+  }
+
+  function stateUnit(payload, fallback) {
+    const unit = payload && payload.attributes && payload.attributes.unit_of_measurement;
+    return unit ? String(unit) : String(fallback || '');
   }
 
   return {
@@ -572,6 +625,59 @@ function createExternalSources(config, overrides) {
         nextType: json.nextType || 'No schedule',
         nextDate: json.nextDate || null
       };
+    },
+
+    async fetchHomeAssistantCards() {
+      if (!homeAssistantConfig.enabled) {
+        return [];
+      }
+      const cards = Array.isArray(homeAssistantConfig.cards) ? homeAssistantConfig.cards : [];
+      const out = [];
+      for (let i = 0; i < cards.length; i += 1) {
+        const card = cards[i] || {};
+        const type = String(card.type || '');
+        if (type === 'climate') {
+          const tempState = await fetchHaState(card.entityId);
+          const humidityState = card.humidityEntityId ? await fetchHaState(card.humidityEntityId) : null;
+          out.push({
+            type: 'climate',
+            label: String(card.label || 'Climate'),
+            icon: String(card.icon || '🌡'),
+            temperature: {
+              value: stateValueNumber(tempState),
+              unit: stateUnit(tempState, '°C')
+            },
+            humidity: humidityState
+              ? {
+                value: stateValueNumber(humidityState),
+                unit: stateUnit(humidityState, '%')
+              }
+              : null
+          });
+        } else if (type === 'battery_summary') {
+          const entities = Array.isArray(card.entities) ? card.entities : [];
+          const items = [];
+          for (let j = 0; j < entities.length; j += 1) {
+            const entity = entities[j] || {};
+            const payload = await fetchHaState(entity.entityId);
+            const pct = stateValueNumber(payload);
+            const band = batteryBand(pct);
+            items.push({
+              label: String(entity.label || entity.entityId || 'Battery'),
+              value: pct,
+              unit: stateUnit(payload, '%'),
+              icon: band.icon,
+              tone: band.tone
+            });
+          }
+          out.push({
+            type: 'battery_summary',
+            label: String(card.label || 'Batteries'),
+            items
+          });
+        }
+      }
+      return out;
     }
   };
 }

@@ -60,6 +60,66 @@ module.exports = async function run() {
   assert.strictEqual(weather.tempC, 24.6);
   assert.strictEqual(Array.isArray(weather.forecast), true);
   assert.strictEqual(weather.forecast.length, 5);
+  const haSources = createExternalSources({
+    weather: { provider: 'none' },
+    news: { feedUrl: '', maxItems: 5 },
+    bins: { sourceUrl: '' },
+    homeAssistant: {
+      enabled: true,
+      baseUrl: 'http://ha.local:8123',
+      token: 'ha-token',
+      cards: [
+        {
+          type: 'climate',
+          label: 'Living Room',
+          icon: '🌡',
+          entityId: 'sensor.living_temperature',
+          humidityEntityId: 'sensor.living_humidity'
+        },
+        {
+          type: 'battery_summary',
+          label: 'Batteries',
+          entities: [
+            { entityId: 'sensor.front_door_battery', label: 'Front Door' },
+            { entityId: 'sensor.garage_door_battery', label: 'Garage' },
+            { entityId: 'sensor.motion_sensor_battery', label: 'Motion' }
+          ]
+        }
+      ]
+    }
+  }, {
+    fetchText: async (url) => {
+      if (url.indexOf('/api/states/sensor.living_temperature') > -1) {
+        return JSON.stringify({ state: '25.1', attributes: { unit_of_measurement: '°C' } });
+      }
+      if (url.indexOf('/api/states/sensor.living_humidity') > -1) {
+        return JSON.stringify({ state: '52', attributes: { unit_of_measurement: '%' } });
+      }
+      if (url.indexOf('/api/states/sensor.front_door_battery') > -1) {
+        return JSON.stringify({ state: '90', attributes: { unit_of_measurement: '%' } });
+      }
+      if (url.indexOf('/api/states/sensor.garage_door_battery') > -1) {
+        return JSON.stringify({ state: '62', attributes: { unit_of_measurement: '%' } });
+      }
+      if (url.indexOf('/api/states/sensor.motion_sensor_battery') > -1) {
+        return JSON.stringify({ state: '12', attributes: { unit_of_measurement: '%' } });
+      }
+      throw new Error('unexpected_url:' + url);
+    }
+  });
+  const haCards = await haSources.fetchHomeAssistantCards();
+  assert.strictEqual(Array.isArray(haCards), true);
+  assert.strictEqual(haCards.length, 2);
+  assert.strictEqual(haCards[0].type, 'climate');
+  assert.strictEqual(haCards[0].label, 'Living Room');
+  assert.strictEqual(haCards[0].temperature.value, 25.1);
+  assert.strictEqual(haCards[0].humidity.value, 52);
+  assert.strictEqual(haCards[1].type, 'battery_summary');
+  assert.strictEqual(haCards[1].items.length, 3);
+  assert.strictEqual(haCards[1].items[0].icon, '🔋');
+  assert.strictEqual(haCards[1].items[1].icon, '🪫');
+  assert.strictEqual(haCards[1].items[2].icon, '❗');
+  assert.strictEqual(haCards[1].items[2].tone, 'critical');
   const bins = await sources.fetchBins();
   assert.strictEqual(bins.nextType, 'Recycle');
   assert.strictEqual(bins.nextDate, '2026-02-21');

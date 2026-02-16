@@ -52,6 +52,67 @@
     "sourceUrl": "",
     "propertyId": "638788"
   },
+  "homeAssistant": {
+    "enabled": true,
+    "baseUrl": "http://homeserver.local:8123",
+    "token": "",
+    "refreshSeconds": 30,
+    "cards": [
+      {
+        "type": "climate",
+        "label": "Study",
+        "icon": "📚",
+        "entityId": "sensor.study_temperature",
+        "humidityEntityId": "sensor.study_humidity"
+      },
+      {
+        "type": "climate",
+        "label": "Back Garden",
+        "icon": "🌿",
+        "entityId": "sensor.living_room_temperature",
+        "humidityEntityId": "sensor.living_room_humidity"
+      },
+      {
+        "type": "climate",
+        "label": "Bedroom",
+        "icon": "🛏",
+        "entityId": "sensor.bedroom_temperature",
+        "humidityEntityId": "sensor.bedroom_humidity"
+      },
+      {
+        "type": "battery_summary",
+        "label": "Sensor Batteries",
+        "entities": [
+          {
+            "entityId": "sensor.study_battery",
+            "label": "Study"
+          },
+          {
+            "entityId": "sensor.living_room_battery",
+            "label": "Back Garden"
+          },
+          {
+            "entityId": "sensor.bedroom_battery",
+            "label": "Bedroom"
+          }
+        ]
+      }
+    ]
+  },
+  "internet": {
+    "enabled": true,
+    "provider": "myspeed",
+    "mySpeedUrl": "http://192.168.0.24:5216/api/speedtests",
+    "probeUrls": [
+      "https://speed.cloudflare.com/__down?bytes=5000000",
+      "https://speed.cloudflare.com/cdn-cgi/trace"
+    ],
+    "sampleIntervalSeconds": 15,
+    "speedTestIntervalSeconds": 600,
+    "timeoutMs": 8000,
+    "offlineFailureThreshold": 3,
+    "historySize": 60
+  },
   "radar": {
     "provider": "rainviewer",
     "apiUrl": "https://api.rainviewer.com/public/weather-maps.json",
