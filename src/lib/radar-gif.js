@@ -351,8 +351,8 @@ function createRadarGifRenderer(options) {
   }
 
   function resolveRenderPlan(params) {
-    const width = toInteger(params && params.width, 400, 64, 1920);
-    const height = toInteger(params && params.height, 300, 64, 1920);
+    const outputWidth = toInteger(params && params.width, 400, 64, 1920);
+    const outputHeight = toInteger(params && params.height, 300, 64, 1920);
     const z = Math.min(
       toInteger(radarConfig.zoom, 6, 1, 12),
       toInteger(radarConfig.providerMaxZoom, 6, 1, 12)
@@ -362,6 +362,10 @@ function createRadarGifRenderer(options) {
     const extraTiles = toInteger(radarConfig.gifExtraTiles, 1, 0, 6);
     const gifMaxFrames = toInteger(radarConfig.gifMaxFrames, 8, 1, 30);
     const gifFrameDelayMs = toInteger(radarConfig.gifFrameDelayMs, 500, 50, 5000);
+    const overscanPx = toInteger(radarConfig.gifCropOverscanPx, 24, 0, 256);
+    const rightTrimPx = toInteger(radarConfig.gifRightTrimPx, 6, 0, overscanPx);
+    const renderWidth = Math.min(1920, outputWidth + (overscanPx * 2));
+    const renderHeight = Math.min(1920, outputHeight + (overscanPx * 2));
     const colorSetting = toInteger(radarConfig.color, 3, 0, 10);
     const optionsSetting = radarConfig.options || '1_1';
 
@@ -375,15 +379,19 @@ function createRadarGifRenderer(options) {
     const framesSubset = frames.slice(-gifMaxFrames);
 
     return {
-      width,
-      height,
+      outputWidth,
+      outputHeight,
+      renderWidth,
+      renderHeight,
+      overscanPx,
+      rightTrimPx,
       z,
       colorSetting,
       optionsSetting,
       gifFrameDelayMs,
       frameStartIndex: frames.length - framesSubset.length,
       framesSubset,
-      tiles: computeVisibleTiles({ lat, lon, z, width, height, extraTiles })
+      tiles: computeVisibleTiles({ lat, lon, z, width: renderWidth, height: renderHeight, extraTiles })
     };
   }
 
@@ -435,12 +443,15 @@ function createRadarGifRenderer(options) {
           '-f',
           'lavfi',
           '-i',
-          'color=c=0x121820:s=' + plan.width + 'x' + plan.height + ':d=1'
+          'color=c=0x121820:s=' + plan.renderWidth + 'x' + plan.renderHeight + ':d=1'
         ];
         overlays.forEach((item) => {
           composeArgs.push('-i', item.filePath);
         });
-        const overlayFilter = buildOverlayFilter(overlays.map((item) => ({ x: item.x, y: item.y })));
+        const overlayFilter = buildOverlayFilter(overlays.map((item) => ({
+          x: item.x + plan.overscanPx,
+          y: item.y + plan.overscanPx
+        })));
         if (overlayFilter) {
           composeArgs.push('-filter_complex', overlayFilter, '-map', '[vout]');
         } else {
@@ -468,7 +479,9 @@ function createRadarGifRenderer(options) {
         '-i',
         path.join(tempDir, 'frame-%03d.png'),
         '-filter_complex',
-        'split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3',
+        (plan.overscanPx > 0
+          ? 'split[s0][s1];[s0]crop=' + plan.outputWidth + ':' + plan.outputHeight + ':' + Math.max(0, plan.overscanPx - plan.rightTrimPx) + ':' + plan.overscanPx + ',palettegen=stats_mode=diff[p];[s1]crop=' + plan.outputWidth + ':' + plan.outputHeight + ':' + Math.max(0, plan.overscanPx - plan.rightTrimPx) + ':' + plan.overscanPx + '[c];[c][p]paletteuse=dither=bayer:bayer_scale=3'
+          : 'split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3'),
         '-loop',
         '0',
         gifPath

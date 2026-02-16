@@ -117,6 +117,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('function maybeStartRadarLoop(') > -1, 'radar startup loop gate missing');
   assert.ok(html.indexOf('radarGifImage.onload') > -1, 'gif readiness promotion missing');
   assert.ok(html.indexOf('function classifyRadarRain(') > -1, 'radar rain classification helper missing');
+  assert.ok(html.indexOf('var isYellow = (r > 150 && g > 130 && b < 160);') > -1, 'radar classifier should detect yellow precipitation echoes');
   assert.ok(html.indexOf('Heavy rain nearby') > -1, 'heavy rain indicator message missing');
   assert.ok(html.indexOf('importReady') > -1, 'solar import readiness gating missing');
   assert.ok(html.indexOf('function isSolarBackendPending(') > -1, 'solar backend pending helper missing');

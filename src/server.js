@@ -552,7 +552,7 @@ function scheduleExternalPolling(sources, externalState, dashboardConfig, timers
   };
 }
 
-function scheduleRadarPolling(radarClient, radarState, radarConfig, timers) {
+function scheduleRadarPolling(radarClient, radarState, radarConfig, timers, onFramesAvailable) {
   const refreshMs = Math.max(30, Number(radarConfig.refreshSeconds || 120)) * 1000;
   const startupRetryMs = Math.max(2, Number(radarConfig.startupRetrySeconds || 5)) * 1000;
   const startupRetryMaxAttempts = Math.max(0, Number(radarConfig.startupRetryMaxAttempts || 12));
@@ -578,6 +578,7 @@ function scheduleRadarPolling(radarClient, radarState, radarConfig, timers) {
     }
     inFlight = true;
     try {
+      const hadFramesBefore = hasFrames();
       await radarClient.refresh();
       const updated = radarClient.getState();
       radarState.host = updated.host;
@@ -585,6 +586,11 @@ function scheduleRadarPolling(radarClient, radarState, radarConfig, timers) {
       radarState.updatedAt = updated.updatedAt;
       radarState.error = updated.error;
       if (hasFrames()) {
+        if (!hadFramesBefore && typeof onFramesAvailable === 'function') {
+          try {
+            onFramesAvailable();
+          } catch (_hookError) {}
+        }
         clearStartupRetryTimer();
       }
     } catch (error) {
@@ -864,7 +870,17 @@ function createServer(options) {
     const sources = (options && options.externalSources) || createExternalSources(Object.assign({}, dashboardConfig, { logger }));
     stoppers.push(scheduleExternalPolling(sources, externalState, dashboardConfig, timers));
 
-    stoppers.push(scheduleRadarPolling(radarClient, radarState, dashboardConfig.radar, timers));
+    stoppers.push(scheduleRadarPolling(
+      radarClient,
+      radarState,
+      dashboardConfig.radar,
+      timers,
+      (options && typeof options.onRadarFramesAvailable === 'function')
+        ? options.onRadarFramesAvailable
+        : function onRadarFramesAvailableDefault() {
+          warmRadarAnimation({ width: 800, height: 480 });
+        }
+    ));
 
     // Start periodic GIF rendering (fires first render immediately)
     if (canRenderRadarGif()) {

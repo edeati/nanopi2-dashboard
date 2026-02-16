@@ -85,6 +85,7 @@ module.exports = async function run() {
     };
 
     let refreshCount = 0;
+    let framesAvailableCount = 0;
     const radarState = {
       host: 'https://tilecache.rainviewer.com',
       frames: [],
@@ -126,6 +127,9 @@ module.exports = async function run() {
       froniusClient,
       externalSources,
       radarClient,
+      onRadarFramesAvailable: () => {
+        framesAvailableCount += 1;
+      },
       gitRunner: async () => ({ ok: true })
     });
 
@@ -138,6 +142,7 @@ module.exports = async function run() {
     await startupRetry.fn();
     assert.ok(refreshCount >= 2, 'startup retry should trigger another radar refresh');
     assert.ok(clearedIds.indexOf(startupRetry.id) > -1, 'startup retry timer should clear after frames become available');
+    assert.strictEqual(framesAvailableCount, 1, 'frames available hook should fire once when startup retry gets first frames');
   } finally {
     if (server) {
       await new Promise((resolve) => server.close(resolve));

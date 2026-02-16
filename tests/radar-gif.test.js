@@ -4,6 +4,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { execFile } = require('child_process');
 let sharp = null;
 try {
   sharp = require('sharp');
@@ -389,6 +390,63 @@ module.exports = async function run() {
       await new Promise(function (resolve) { setTimeout(resolve, 3000); });
       stop();
       assert.ok(renderCount > 0, 'at least one render should have occurred');
+    }
+
+    // -------------------------------------------------------------------
+    // Test 12: ffmpeg rendering uses overscan crop when configured
+    // -------------------------------------------------------------------
+    {
+      const ffmpegCalls = [];
+      const overscanRenderer = createRadarGifRenderer({
+        execFileImpl: function wrappedExecFile(binary, args, opts, cb) {
+          ffmpegCalls.push(args.slice());
+          return execFile(binary, args, opts, cb);
+        },
+        fetchMapTile: async function () { return { contentType: 'image/png', body: fakeTilePng }; },
+        fetchRadarTile: async function () { return { contentType: 'image/png', body: fakeRadarTilePng }; },
+        getRadarState: function () {
+          return {
+            frames: [
+              { time: 1000, path: '/path/0' },
+              { time: 2000, path: '/path/1' }
+            ]
+          };
+        },
+        config: {
+          radar: {
+            zoom: 6,
+            providerMaxZoom: 6,
+            lat: -27.47,
+            lon: 153.02,
+            gifMaxFrames: 2,
+            gifExtraTiles: 0,
+            gifFrameDelayMs: 100,
+            color: 3,
+            options: '1_1',
+            gifCropOverscanPx: 24,
+            gifRightTrimPx: 6
+          }
+        },
+        gifCacheDir: path.join(tempDir, 'overscan-test')
+      });
+      const out = await overscanRenderer.renderOnce({ width: 120, height: 90 });
+      assert.ok(out && Buffer.isBuffer(out.body) && out.body.length > 0, 'overscan render should produce a GIF');
+
+      const composeCall = ffmpegCalls.find(function (args) {
+        return args.indexOf('color=c=0x121820:s=168x138:d=1') > -1;
+      });
+      assert.ok(composeCall, 'compose command should render larger frame with overscan dimensions');
+
+      const encodeCall = ffmpegCalls.find(function (args) {
+        return args.indexOf(path.join(path.dirname(args[args.length - 1]), 'frame-%03d.png')) > -1 ||
+          args.indexOf('frame-%03d.png') > -1 ||
+          args.indexOf('-loop') > -1;
+      });
+      assert.ok(encodeCall, 'encode command should be executed');
+      const filterIndex = encodeCall.indexOf('-filter_complex');
+      assert.ok(filterIndex > -1, 'encode command should include filter_complex');
+      const filter = String(encodeCall[filterIndex + 1] || '');
+      assert.ok(filter.indexOf('crop=120:90:18:24') > -1, 'encode filter should trim right edge via left-shifted crop');
     }
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
