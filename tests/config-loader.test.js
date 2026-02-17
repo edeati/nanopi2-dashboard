@@ -66,6 +66,19 @@ module.exports = async function run() {
     assert.strictEqual(config.internet.offlineFailureThreshold, 3);
     assert.strictEqual(config.radar.renderMode, 'server_gif');
     assert.strictEqual(config.radar.iframeUrl, 'https://www.rainviewer.com/map.html');
+    assert.strictEqual(config.radar.sourceUrl, '');
+  });
+
+  withTempDir((dir) => {
+    fs.writeFileSync(path.join(dir, 'dashboard.json'), JSON.stringify({
+      radar: {
+        renderMode: 'bom_static',
+        sourceUrl: 'https://example.invalid/bom.png'
+      }
+    }));
+    const config = loadDashboardConfig(dir);
+    assert.strictEqual(config.radar.renderMode, 'bom_static');
+    assert.strictEqual(config.radar.sourceUrl, 'https://example.invalid/bom.png');
   });
 
   withTempDir((dir) => {

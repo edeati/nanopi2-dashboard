@@ -106,6 +106,7 @@ function normalizeDashboardConfig(input) {
     options: '1_1',
     renderMode: 'server_gif',
     iframeUrl: 'https://www.rainviewer.com/map.html',
+    sourceUrl: '',
     gifFontFile: '/usr/share/fonts/TTF/DejaVuSans.ttf',
     frameHoldMs: 650,
     transitionMs: 350
@@ -182,8 +183,9 @@ function validateDashboardConfig(config) {
     typeof config.radar.zoom === 'number' &&
     typeof config.radar.providerMaxZoom === 'number' &&
     typeof config.radar.renderMode === 'string' &&
-    ['server_gif', 'rainviewer_iframe', 'local_tiles'].indexOf(config.radar.renderMode) > -1 &&
+    ['server_gif', 'rainviewer_iframe', 'local_tiles', 'bom_static'].indexOf(config.radar.renderMode) > -1 &&
     typeof config.radar.iframeUrl === 'string' &&
+    typeof config.radar.sourceUrl === 'string' &&
     typeof config.radar.gifFontFile === 'string';
 
   if (!valid) {

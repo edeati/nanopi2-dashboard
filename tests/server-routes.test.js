@@ -51,7 +51,12 @@ module.exports = async function run() {
   let invalidGifServer;
   let failingTileServer;
   let cachedGifFallbackServer;
+  let iframeProxyServer;
+  let bomServer;
   let gifCacheDir;
+  let iframeDir;
+  let bomDir;
+  let iframeTargets;
   try {
     const salt = 'test-salt';
     const iterations = 1000;
@@ -243,6 +248,238 @@ module.exports = async function run() {
     assert.ok(dashboardPage.body.indexOf('/api/radar/meta') > -1);
     assert.ok(dashboardPage.body.indexOf('/api/map/tile/') > -1);
 
+    bomDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanopi2-server-bom-'));
+    fs.writeFileSync(path.join(bomDir, 'dashboard.json'), JSON.stringify({
+      host: '0.0.0.0',
+      port: 8090,
+      fronius: { baseUrl: 'http://192.168.0.18' },
+      rotation: { focusViews: ['radar'] },
+      pricing: { inverterCapacityKw: 6 },
+      ui: { themePreset: 'neon' },
+      git: { autoSyncEnabled: false, branch: 'dev', intervalSeconds: 300 },
+      weather: { location: 'Brisbane' },
+      news: { feedUrl: '', maxItems: 5 },
+      bins: { sourceUrl: '' },
+      radar: {
+        provider: 'bom',
+        sourceUrl: 'https://example.invalid/bom-radar.png',
+        refreshSeconds: 300,
+        lat: -27.47,
+        lon: 153.02,
+        zoom: 8,
+        providerMaxZoom: 7,
+        color: 3,
+        options: '1_1',
+        renderMode: 'bom_static'
+      }
+    }));
+    fs.writeFileSync(path.join(bomDir, 'auth.json'), JSON.stringify({
+      adminUser: 'admin',
+      passwordSalt: salt,
+      passwordIterations: iterations,
+      passwordHash: createHash('changeme', salt, iterations)
+    }));
+    bomServer = createServer({
+      configDir: bomDir,
+      gitRunner: async () => ({ ok: true }),
+      disablePolling: true,
+      bomRadarProvider: async () => ({
+        contentType: 'image/png',
+        body: Buffer.from('bom-png')
+      })
+    });
+    await new Promise((resolve) => bomServer.listen(0, '127.0.0.1', resolve));
+    const bomAnimation = await request(bomServer, { path: '/api/radar/animation' });
+    assert.strictEqual(bomAnimation.statusCode, 200);
+    const bomAnimationPayload = JSON.parse(bomAnimation.body);
+    assert.strictEqual(bomAnimationPayload.mode, 'bom_static');
+    assert.strictEqual(bomAnimationPayload.bomImagePath, '/api/radar/bom-image');
+    const bomImage = await request(bomServer, { path: '/api/radar/bom-image' });
+    assert.strictEqual(bomImage.statusCode, 200);
+    assert.strictEqual(bomImage.headers['content-type'], 'image/png');
+    assert.strictEqual(bomImage.bodyBuffer.toString('utf8'), 'bom-png');
+    const bomRealtime = await request(bomServer, { path: '/api/state/realtime' });
+    assert.strictEqual(bomRealtime.statusCode, 200);
+    const bomRealtimePayload = JSON.parse(bomRealtime.body);
+    assert.strictEqual(bomRealtimePayload.radar.renderMode, 'bom_static');
+    assert.strictEqual(bomRealtimePayload.radar.bomImagePath, '/api/radar/bom-image');
+
+    iframeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanopi2-server-iframe-'));
+    fs.writeFileSync(path.join(iframeDir, 'dashboard.json'), JSON.stringify({
+      host: '0.0.0.0',
+      port: 8090,
+      fronius: { baseUrl: 'http://192.168.0.18' },
+      rotation: { focusViews: ['radar'] },
+      pricing: { inverterCapacityKw: 6 },
+      ui: { themePreset: 'neon' },
+      git: { autoSyncEnabled: false, branch: 'dev', intervalSeconds: 300 },
+      weather: { location: 'Brisbane' },
+      news: { feedUrl: '', maxItems: 5 },
+      bins: { sourceUrl: '' },
+      radar: {
+        provider: 'rainviewer',
+        refreshSeconds: 300,
+        lat: -27.47,
+        lon: 153.02,
+        zoom: 8,
+        providerMaxZoom: 7,
+        color: 3,
+        options: '1_1',
+        renderMode: 'rainviewer_iframe',
+        iframeUrl: 'https://www.rainviewer.com/map.html'
+      }
+    }));
+    fs.writeFileSync(path.join(iframeDir, 'auth.json'), JSON.stringify({
+      adminUser: 'admin',
+      passwordSalt: salt,
+      passwordIterations: iterations,
+      passwordHash: createHash('changeme', salt, iterations)
+    }));
+    iframeTargets = [];
+    iframeProxyServer = createServer({
+      configDir: iframeDir,
+      gitRunner: async () => ({ ok: true }),
+      disablePolling: true,
+      radarEmbedProvider: async (params) => {
+        const target = String(params && params.url ? params.url : '');
+        iframeTargets.push(target);
+        if (target.indexOf('/map.js') > -1) {
+          return {
+            contentType: 'application/javascript',
+            body: Buffer.from(
+              'const a="https://maps.rainviewer.com/data/places/7/118/74.pbf";' +
+              'const b="https:\\/\\/maps.rainviewer.com\\/data\\/places\\/7\\/118\\/73.pbf";',
+              'utf8'
+            )
+          };
+        }
+        if (/\/data\/places\/\d+\/\d+\/\d+\.pbf/.test(target) || target.indexOf('/73.pbf') > -1) {
+          return {
+            contentType: 'application/x-protobuf',
+            body: Buffer.from([10, 20, 30, 40])
+          };
+        }
+        if (target.indexOf('/reload-map') > -1) {
+          return {
+            contentType: 'application/json',
+            body: Buffer.from('{"ok":true}', 'utf8')
+          };
+        }
+        if (target.indexOf('/vue/interactions/js/277.js') > -1) {
+          return {
+            contentType: 'application/javascript',
+            body: Buffer.from('console.log("chunk-277");', 'utf8')
+          };
+        }
+        if (target.indexOf('/app.js') > -1) {
+          return {
+            contentType: 'application/javascript',
+            body: Buffer.from('console.log("ok");', 'utf8')
+          };
+        }
+        return {
+          contentType: 'text/html; charset=utf-8',
+          body: Buffer.from(
+            '<!doctype html><html><head><script src="/chunk-vendors.js"></script><script src="/app.js"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)};var s=document.createElement(\"script\");s.src=\"https://www.googletagmanager.com/gtm.js?id=GTM-X\";</script><script>const ns=\"http://www.w3.org/2000/svg\";const probe=new URL(document.location.href);</script></head><body>Rain</body></html>',
+            'utf8'
+          )
+        };
+      },
+      initialRadarState: {
+        host: 'https://tilecache.rainviewer.com',
+        frames: [{ time: 100, path: '/v2/radar/100' }],
+        updatedAt: '2026-02-14T12:30:00.000Z'
+      }
+    });
+    await new Promise((resolve) => iframeProxyServer.listen(0, '127.0.0.1', resolve));
+
+    const iframeRealtime = await request(iframeProxyServer, { path: '/api/state/realtime' });
+    assert.strictEqual(iframeRealtime.statusCode, 200);
+    const iframeRealtimePayload = JSON.parse(iframeRealtime.body);
+    assert.strictEqual(iframeRealtimePayload.radar.renderMode, 'rainviewer_iframe');
+    assert.ok(
+      String(iframeRealtimePayload.radar.iframeUrl).indexOf('/api/radar/embed?loc=') === 0,
+      'iframe mode should expose local embed url with loc forwarding'
+    );
+
+    const iframeAnimation = await request(iframeProxyServer, { path: '/api/radar/animation' });
+    assert.strictEqual(iframeAnimation.statusCode, 200);
+    const iframeAnimationPayload = JSON.parse(iframeAnimation.body);
+    assert.strictEqual(iframeAnimationPayload.mode, 'iframe');
+    assert.ok(
+      String(iframeAnimationPayload.iframeUrl).indexOf('/api/radar/embed?loc=') === 0,
+      'animation payload should expose local embed url with loc forwarding'
+    );
+
+    const embedResponse = await request(iframeProxyServer, { path: '/api/radar/embed' });
+    assert.strictEqual(embedResponse.statusCode, 200);
+    assert.ok(
+      embedResponse.body.indexOf('/api/radar/embed/proxy?url=https%3A%2F%2Fwww.rainviewer.com%2Fapp.js') > -1,
+      'embed html should rewrite scripts to local proxy path'
+    );
+    assert.ok(
+      embedResponse.body.indexOf('/api/radar/embed/proxy?url=https%3A%2F%2Fwww.rainviewer.com%2Fchunk-vendors.js') > -1,
+      'embed html should keep and rewrite core vendor script'
+    );
+    assert.strictEqual(
+      embedResponse.body.indexOf('googletagmanager.com'),
+      -1,
+      'embed html should strip GTM snippets to prevent service-worker iframe loops'
+    );
+    assert.ok(
+      embedResponse.body.indexOf('http://www.w3.org/2000/svg') > -1,
+      'embed html should not mutate inline literal URLs'
+    );
+    assert.ok(
+      embedResponse.body.indexOf('new URL(document.location.href)') > -1,
+      'embed html should not mutate inline URL constructor calls'
+    );
+    assert.ok(
+      embedResponse.body.indexOf('__RADAR_PROXY_SHIM__') > -1,
+      'embed html should inject runtime proxy shim for JS fetch/image requests'
+    );
+
+    const embedProxyResponse = await request(
+      iframeProxyServer,
+      { path: '/api/radar/embed/proxy?url=' + encodeURIComponent('https://www.rainviewer.com/app.js') }
+    );
+    assert.strictEqual(embedProxyResponse.statusCode, 200);
+    assert.strictEqual(embedProxyResponse.headers['content-type'], 'application/javascript');
+    assert.ok(embedProxyResponse.body.indexOf('console.log("ok");') > -1);
+
+    const mapScriptResponse = await request(
+      iframeProxyServer,
+      { path: '/api/radar/embed/proxy?url=' + encodeURIComponent('https://www.rainviewer.com/map.js') }
+    );
+    assert.strictEqual(mapScriptResponse.statusCode, 200);
+    assert.ok(
+      mapScriptResponse.body.indexOf('/api/radar/embed/proxy?url=https%3A%2F%2Fmaps.rainviewer.com') > -1,
+      'known rainviewer host literals should be rewritten to local proxy'
+    );
+
+    const runtimeChunkResponse = await request(iframeProxyServer, { path: '/vue/interactions/js/277.js' });
+    assert.strictEqual(runtimeChunkResponse.statusCode, 200);
+    assert.strictEqual(runtimeChunkResponse.headers['content-type'], 'application/javascript');
+    assert.ok(runtimeChunkResponse.body.indexOf('chunk-277') > -1);
+
+    const reloadActionResponse = await request(iframeProxyServer, { path: '/reload-map' });
+    assert.strictEqual(reloadActionResponse.statusCode, 200);
+    assert.strictEqual(reloadActionResponse.headers['content-type'], 'application/json');
+    assert.ok(reloadActionResponse.body.indexOf('"ok":true') > -1);
+
+    const pbfAssetResponse = await request(iframeProxyServer, { path: '/73.pbf' });
+    assert.strictEqual(pbfAssetResponse.statusCode, 200);
+    assert.strictEqual(pbfAssetResponse.headers['content-type'], 'application/x-protobuf');
+    assert.strictEqual(pbfAssetResponse.bodyBuffer.length, 4);
+
+    const mapDataResponse = await request(iframeProxyServer, { path: '/data/places/7/118/74.pbf' });
+    assert.strictEqual(mapDataResponse.statusCode, 200);
+    assert.strictEqual(mapDataResponse.headers['content-type'], 'application/x-protobuf');
+    assert.ok(
+      iframeTargets.some((item) => item.indexOf('https://maps.rainviewer.com/data/places/7/118/74.pbf') === 0),
+      'data/* map assets should be proxied to maps.rainviewer.com'
+    );
+
     invalidGifServer = createServer({
       configDir: dir,
       gitRunner: async () => ({ ok: true }),
@@ -366,8 +603,20 @@ module.exports = async function run() {
     await new Promise((resolve) => noGifServer.close(resolve));
     fs.rmSync(emptyGifDir, { recursive: true, force: true });
   } finally {
+    if (bomServer) {
+      await new Promise((resolve) => bomServer.close(resolve));
+    }
+    if (iframeProxyServer) {
+      await new Promise((resolve) => iframeProxyServer.close(resolve));
+    }
     if (gifCacheDir) {
       fs.rmSync(gifCacheDir, { recursive: true, force: true });
+    }
+    if (iframeDir) {
+      fs.rmSync(iframeDir, { recursive: true, force: true });
+    }
+    if (bomDir) {
+      fs.rmSync(bomDir, { recursive: true, force: true });
     }
     if (cachedGifFallbackServer) {
       await new Promise((resolve) => cachedGifFallbackServer.close(resolve));

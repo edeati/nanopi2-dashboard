@@ -358,7 +358,7 @@
     #usageGaugeText.is-importing,
     #usageGaugeText.is-importing .g-overlay-main,
     #usageGaugeText.is-importing .g-overlay-sub {
-      color: #ff3f00 !important;
+      color: #e8e4e4 !important;
     }
 
     .g-overlay {
@@ -1442,6 +1442,7 @@
       var radarGifReloadForceQueued = false;
       var radarGifRefreshTimer = null;
       var radarGifRefreshMs = 120000;
+      var radarBomLastUpdatedAt = '';
       var radarRainLikely = false;
       var radarHeavyRain = false;
       var rainLikelyConfidence = 0;
@@ -2092,14 +2093,14 @@
         if (!radarGifStatusNode) {
           return;
         }
-        var shouldShow = radarRenderMode === 'server_gif' && (!radarGifReady || radarGifLoading);
+        var shouldShow = (radarRenderMode === 'server_gif' || radarRenderMode === 'bom_static') && (!radarGifReady || radarGifLoading);
         radarGifStatusNode.style.display = shouldShow ? 'block' : 'none';
         if (!shouldShow) {
           return;
         }
         radarGifStatusNode.textContent = radarGifLoading
-          ? 'Loading latest radar animation...'
-          : 'Generating radar animation...';
+          ? (radarRenderMode === 'bom_static' ? 'Loading latest BOM radar image...' : 'Loading latest radar animation...')
+          : (radarRenderMode === 'bom_static' ? 'Fetching BOM radar image...' : 'Generating radar animation...');
       }
 
       function loadRadarGif(force) {
@@ -2126,9 +2127,19 @@
         fetch('/api/radar/animation')
           .then(function (res) { return res.json(); })
           .then(function (payload) {
-            setRadarMode(payload && payload.mode === 'iframe' ? 'rainviewer_iframe' : 'server_gif');
-            if (payload.gifPath) {
+            if (payload && payload.mode === 'iframe') {
+              setRadarMode('rainviewer_iframe');
+            } else if (payload && payload.mode === 'bom_static') {
+              setRadarMode('bom_static');
+            } else {
+              setRadarMode('server_gif');
+            }
+            if (payload && payload.mode === 'bom_static' && payload.bomImagePath) {
+              radarGifUrl = payload.bomImagePath;
+            } else if (payload && payload.gifPath) {
               radarGifUrl = payload.gifPath;
+            }
+            if (radarGifUrl) {
               loadRadarGif(false);
               if (!radarGifRefreshTimer) {
                 radarGifRefreshTimer = setInterval(loadRadarGif, radarGifRefreshMs);
@@ -3080,6 +3091,12 @@
           if (state.radar.gifPath) {
             radarGifUrl = String(state.radar.gifPath);
           }
+          if (state.radar.bomImagePath) {
+            radarGifUrl = String(state.radar.bomImagePath);
+          }
+          if (state.radar.bomUpdatedAt) {
+            radarBomLastUpdatedAt = String(state.radar.bomUpdatedAt);
+          }
         }
 
         updateRainIndicator();
@@ -3115,11 +3132,21 @@
               return;
             }
             var gifUpdatedAt = patch.radar && patch.radar.gifUpdatedAt ? String(patch.radar.gifUpdatedAt) : '';
+            var bomUpdatedAt = patch.radar && patch.radar.bomUpdatedAt ? String(patch.radar.bomUpdatedAt) : '';
             if (patch.radar && patch.radar.gifPath) {
               radarGifUrl = String(patch.radar.gifPath);
             }
+            if (patch.radar && patch.radar.bomImagePath) {
+              radarGifUrl = String(patch.radar.bomImagePath);
+            }
             if (gifUpdatedAt && gifUpdatedAt !== radarGifLastUpdatedAt) {
               radarGifLastUpdatedAt = gifUpdatedAt;
+              if (radarGifUrl) {
+                loadRadarGif(false);
+              }
+            }
+            if (bomUpdatedAt && bomUpdatedAt !== radarBomLastUpdatedAt) {
+              radarBomLastUpdatedAt = bomUpdatedAt;
               if (radarGifUrl) {
                 loadRadarGif(false);
               }

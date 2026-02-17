@@ -7,6 +7,13 @@ const { requestWithDebug } = require('../src/lib/http-debug');
 
 module.exports = async function run() {
   const server = http.createServer((req, res) => {
+    if (req.url === '/redirect') {
+      res.statusCode = 302;
+      res.setHeader('Location', '/json');
+      res.end('');
+      return;
+    }
+
     if (req.url === '/json') {
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -45,6 +52,17 @@ module.exports = async function run() {
       responseType: 'buffer'
     });
     assert.strictEqual(metadataResult.statusCode, 200);
+
+    const redirectedResult = await requestWithDebug({
+      urlString: 'http://127.0.0.1:' + port + '/redirect',
+      logger: metadataLogger,
+      service: 'redirect-service',
+      followRedirects: true,
+      maxRedirects: 3,
+      responseType: 'buffer'
+    });
+    assert.strictEqual(redirectedResult.statusCode, 200);
+    assert.ok(String(redirectedResult.body.toString('utf8')).indexOf('"ok":true') > -1);
 
     const metadataResponse = metadataEntries.find((entry) => entry.event === 'external_http_response');
     assert.ok(metadataResponse);

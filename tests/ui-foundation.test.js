@@ -229,7 +229,9 @@ module.exports = async function run() {
   assert.ok(html.indexOf('var radarLoopStarted = false;') > -1, 'deferred radar startup flag missing');
   assert.ok(html.indexOf('if (radarLoopStarted || !firstDataApplied) {') > -1, 'deferred radar startup guard missing');
   assert.ok(html.indexOf('requestAnimationFrame(animateRadar);\n        initRadarGifMode();') === -1, 'startup should not kick off png tile animation loop');
-  assert.ok(html.indexOf('if (payload.gifPath) {') > -1, 'radar gif init should always use gifPath regardless of mode');
+  assert.ok(html.indexOf("} else if (payload && payload.mode === 'bom_static') {") > -1, 'radar mode mapper should include bom_static mode');
+  assert.ok(html.indexOf('if (payload && payload.mode === \'bom_static\' && payload.bomImagePath) {') > -1, 'radar init should use bomImagePath in bom_static mode');
+  assert.ok(html.indexOf('} else if (payload && payload.gifPath) {') > -1, 'radar init should keep gifPath path for gif mode');
   assert.ok(html.indexOf('window.location.replace(buildViewUrl(viewMode, untilMs, nextAtMs));') > -1, 'fullscreen switch should force a page reload');
   assert.ok(html.indexOf("document.body.classList.add('blackout');") > -1, 'fullscreen switch should enable blackout overlay');
   assert.ok(html.indexOf('setTimeout(function () {\n          reloadToView(viewMode, untilMs, nextAtMs);\n        }, TAKEOVER_BLACKOUT_MS);') > -1, 'fullscreen transition should delay reload to show blackout');

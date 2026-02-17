@@ -15,6 +15,7 @@ const { createRadarGifRenderer } = require('./lib/radar-gif');
 const { createInternetProbeService } = require('./lib/internet-probe');
 const { createLogger, readDebugConfig } = require('./lib/logger');
 const { createDebugEventStore } = require('./lib/debug-events');
+const { requestWithDebug } = require('./lib/http-debug');
 
 const formatterCache = new Map();
 
@@ -726,6 +727,13 @@ function createServer(options) {
     updatedAt: null,
     error: null
   }, (options && options.initialRadarState) || {});
+  const bomRadarState = Object.assign({
+    body: null,
+    contentType: null,
+    updatedAt: null,
+    sourceUrl: '',
+    error: null
+  }, (options && options.initialBomRadarState) || {});
   const solarHistory = ((options && options.initialSolarHistory) || []).slice();
   const internetProbe = (options && options.internetProbe) || createInternetProbeService({
     config: dashboardConfig.internet || {},
@@ -787,6 +795,100 @@ function createServer(options) {
     const value = await mapClient.fetchTile(params.z, params.x, params.y);
     mapTileCache.set(key, { at: Date.now(), value });
     return value;
+  }
+
+  async function fetchRadarEmbed(params) {
+    if (options && typeof options.radarEmbedProvider === 'function') {
+      return options.radarEmbedProvider(params);
+    }
+    const targetUrl = String(params && params.url ? params.url : '').trim();
+    if (!targetUrl) {
+      throw new Error('radar_embed_url_missing');
+    }
+    const response = await requestWithDebug({
+      urlString: targetUrl,
+      method: 'GET',
+      followRedirects: true,
+      maxRedirects: 6,
+      insecureTLS: !!dashboardConfig.insecureTLS,
+      logger,
+      service: 'external.radar.embed',
+      headers: {
+        Accept: '*/*',
+        'User-Agent': (dashboardConfig.map && dashboardConfig.map.userAgent) || 'NanoPi2-Dashboard/1.0 (+https://local.nanopi2)'
+      }
+    });
+    return {
+      contentType: response.contentType || 'application/octet-stream',
+      body: response.body
+    };
+  }
+
+  async function refreshBomRadarImage() {
+    const sourceUrl = String((dashboardConfig.radar && dashboardConfig.radar.sourceUrl) || '').trim();
+    if (!sourceUrl) {
+      bomRadarState.error = 'bom_source_url_missing';
+      return null;
+    }
+    if (options && typeof options.bomRadarProvider === 'function') {
+      const result = await options.bomRadarProvider({ url: sourceUrl });
+      if (!result || !Buffer.isBuffer(result.body)) {
+        throw new Error('bom_radar_invalid_payload');
+      }
+      bomRadarState.body = result.body;
+      bomRadarState.contentType = result.contentType || 'image/png';
+      bomRadarState.updatedAt = new Date().toISOString();
+      bomRadarState.sourceUrl = sourceUrl;
+      bomRadarState.error = null;
+      return bomRadarState;
+    }
+    const response = await requestWithDebug({
+      urlString: sourceUrl,
+      method: 'GET',
+      followRedirects: true,
+      maxRedirects: 6,
+      insecureTLS: !!dashboardConfig.insecureTLS,
+      logger,
+      service: 'external.radar.bom',
+      headers: {
+        Accept: 'image/*,*/*;q=0.8',
+        'User-Agent': (dashboardConfig.map && dashboardConfig.map.userAgent) || 'NanoPi2-Dashboard/1.0 (+https://local.nanopi2)'
+      }
+    });
+    bomRadarState.body = response.body;
+    bomRadarState.contentType = response.contentType || 'image/png';
+    bomRadarState.updatedAt = new Date().toISOString();
+    bomRadarState.sourceUrl = sourceUrl;
+    bomRadarState.error = null;
+    return bomRadarState;
+  }
+
+  async function fetchBomRadarImage() {
+    if (bomRadarState.body && Buffer.isBuffer(bomRadarState.body)) {
+      return {
+        body: bomRadarState.body,
+        contentType: bomRadarState.contentType || 'image/png',
+        updatedAt: bomRadarState.updatedAt || null
+      };
+    }
+    await refreshBomRadarImage();
+    if (bomRadarState.body && Buffer.isBuffer(bomRadarState.body)) {
+      return {
+        body: bomRadarState.body,
+        contentType: bomRadarState.contentType || 'image/png',
+        updatedAt: bomRadarState.updatedAt || null
+      };
+    }
+    throw new Error(bomRadarState.error || 'bom_radar_unavailable');
+  }
+
+  function getBomRadarMeta() {
+    return {
+      available: !!(bomRadarState.body && Buffer.isBuffer(bomRadarState.body)),
+      updatedAt: bomRadarState.updatedAt || null,
+      sourceUrl: bomRadarState.sourceUrl || String((dashboardConfig.radar && dashboardConfig.radar.sourceUrl) || ''),
+      error: bomRadarState.error || null
+    };
   }
 
   const radarAnimationRenderer = (options && options.radarAnimationProvider)
@@ -871,11 +973,14 @@ function createServer(options) {
     getInternetState: function getInternetState() {
       return internetProbe.getState();
     },
+    fetchRadarEmbed,
+    fetchBomRadarImage,
     fetchRadarTile,
     fetchRadarAnimation,
     warmRadarAnimation,
     canRenderRadarGif,
     getRadarGifMeta,
+    getBomRadarMeta,
     fetchMapTile,
     getDebugEvents: function getDebugEvents(limit) { return debugEventStore.list(limit); },
     clearDebugEvents: function clearDebugEvents() {
@@ -964,6 +1069,22 @@ function createServer(options) {
         intervalMs: Math.max(30, Number(dashboardConfig.radar.refreshSeconds || 120)) * 1000
       });
       stoppers.push(gifStop);
+    }
+
+    if (String((dashboardConfig.radar && dashboardConfig.radar.renderMode) || '').toLowerCase() === 'bom_static') {
+      const bomRefreshMs = Math.max(30, Number(dashboardConfig.radar.refreshSeconds || 120)) * 1000;
+      const bomTick = async function bomTick() {
+        try {
+          await refreshBomRadarImage();
+        } catch (error) {
+          bomRadarState.error = error && error.message ? error.message : 'bom_radar_unavailable';
+        }
+      };
+      bomTick();
+      const bomTimer = timers.setInterval(bomTick, bomRefreshMs);
+      stoppers.push(function stopBom() {
+        timers.clearInterval(bomTimer);
+      });
     }
   }
 
