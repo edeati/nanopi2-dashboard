@@ -64,6 +64,8 @@ module.exports = async function run() {
     assert.strictEqual(config.internet.mySpeedUrl, '');
     assert.strictEqual(config.internet.speedTestIntervalSeconds, 600);
     assert.strictEqual(config.internet.offlineFailureThreshold, 3);
+    assert.strictEqual(config.radar.renderMode, 'server_gif');
+    assert.strictEqual(config.radar.iframeUrl, 'https://www.rainviewer.com/map.html');
   });
 
   withTempDir((dir) => {

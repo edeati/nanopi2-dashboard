@@ -243,6 +243,32 @@ module.exports = async function run() {
     }
 
     // -------------------------------------------------------------------
+    // Test 6aa: getLatestGif should not serve stale cached gif
+    // -------------------------------------------------------------------
+    {
+      const staleDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanopi2-radar-gif-stale-'));
+      try {
+        const staleRenderer = createRadarGifRenderer({
+          fetchMapTile: async function () { return { contentType: 'image/png', body: fakeTilePng }; },
+          fetchRadarTile: async function () { return { contentType: 'image/png', body: fakeRadarTilePng }; },
+          getRadarState: function () { return { frames: [{ time: 1000, path: '/path/0' }] }; },
+          config: { radar: { refreshSeconds: 120 } },
+          gifCacheDir: staleDir
+        });
+        fs.writeFileSync(path.join(staleDir, 'radar-latest.gif'), Buffer.from('GIF89a-stale'));
+        fs.writeFileSync(path.join(staleDir, 'radar-latest.meta.json'), JSON.stringify({
+          width: 800,
+          height: 480,
+          renderedAt: new Date(Date.now() - (20 * 60 * 1000)).toISOString()
+        }));
+        const stale = staleRenderer.getLatestGif();
+        assert.strictEqual(stale, null, 'stale cached gif should not be served');
+      } finally {
+        fs.rmSync(staleDir, { recursive: true, force: true });
+      }
+    }
+
+    // -------------------------------------------------------------------
     // Test 6b: opaque map frame stays visible (not fully transparent)
     // -------------------------------------------------------------------
     {

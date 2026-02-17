@@ -114,6 +114,37 @@ function parsePositiveInt(raw, fallback, min, max) {
   return out;
 }
 
+function buildRainViewerIframeUrl(radarConfig) {
+  const cfg = radarConfig || {};
+  const rawUrl = String(cfg.iframeUrl || '').trim() || 'https://www.rainviewer.com/map.html';
+  const lat = Number.isFinite(Number(cfg.lat)) ? Number(cfg.lat) : -27.47;
+  const lon = Number.isFinite(Number(cfg.lon)) ? Number(cfg.lon) : 153.02;
+  const zoom = Math.max(1, Math.min(12, Math.floor(Number(cfg.zoom) || 8)));
+  const color = Math.max(0, Math.min(10, Math.floor(Number(cfg.color) || 3)));
+
+  // Preserve custom urls that already provide explicit query params.
+  if (rawUrl.indexOf('?') > -1) {
+    return rawUrl;
+  }
+
+  const mapUrl = new URL(rawUrl);
+  mapUrl.searchParams.set('loc', [lat, lon, zoom].join(','));
+  mapUrl.searchParams.set('oFa', '1');
+  mapUrl.searchParams.set('oC', '1');
+  mapUrl.searchParams.set('oU', '0');
+  mapUrl.searchParams.set('oCS', '0');
+  mapUrl.searchParams.set('oF', '0');
+  mapUrl.searchParams.set('oAP', '1');
+  mapUrl.searchParams.set('c', String(color));
+  mapUrl.searchParams.set('o', '90');
+  mapUrl.searchParams.set('lm', '1');
+  mapUrl.searchParams.set('layer', 'radar');
+  mapUrl.searchParams.set('sm', '1');
+  mapUrl.searchParams.set('sn', '1');
+  mapUrl.searchParams.set('hu', '1');
+  return mapUrl.toString();
+}
+
 function createApp(options) {
   let dashboardConfig = options.dashboardConfig;
   const authConfig = options.authConfig;
@@ -164,6 +195,8 @@ function createApp(options) {
   return async function app(req, res) {
     const requestUrl = new URL(req.url || '/', 'http://127.0.0.1');
     const urlPath = requestUrl.pathname;
+    const radarRenderMode = String((dashboardConfig.radar && dashboardConfig.radar.renderMode) || 'server_gif').toLowerCase();
+    const radarIframeUrl = buildRainViewerIframeUrl(dashboardConfig.radar || {});
     const effectiveRadarZoom = Math.min(
       Number(dashboardConfig.radar.zoom || 7),
       Number(dashboardConfig.radar.providerMaxZoom || 7)
@@ -190,6 +223,8 @@ function createApp(options) {
           realtime: froniusState.getState(now).realtime
         },
         radar: {
+          renderMode: radarRenderMode,
+          iframeUrl: radarIframeUrl || null,
           gifUpdatedAt: gifMeta && gifMeta.renderedAt ? gifMeta.renderedAt : null,
           gifWidth: gifWidth > 0 ? gifWidth : null,
           gifHeight: gifHeight > 0 ? gifHeight : null,
@@ -245,6 +280,8 @@ function createApp(options) {
         radar: {
           available: Array.isArray(radarState.frames) && radarState.frames.length > 0,
           updatedAt: radarState.updatedAt,
+          renderMode: radarRenderMode,
+          iframeUrl: radarIframeUrl || null,
           gifUpdatedAt: gifMeta && gifMeta.renderedAt ? gifMeta.renderedAt : null,
           gifWidth: gifWidth > 0 ? gifWidth : null,
           gifHeight: gifHeight > 0 ? gifHeight : null,
@@ -286,13 +323,16 @@ function createApp(options) {
       const width = parseDimension(requestUrl.searchParams.get('width'), 800);
       const height = parseDimension(requestUrl.searchParams.get('height'), 480);
       const hasFrames = Array.isArray(radarState.frames) && radarState.frames.length > 0;
-      const mode = hasFrames && canRenderRadarGif() ? 'gif' : 'png';
+      const mode = radarRenderMode === 'rainviewer_iframe'
+        ? 'iframe'
+        : (hasFrames && canRenderRadarGif() ? 'gif' : 'png');
       const warmStarted = mode === 'gif' ? !!warmRadarAnimation() : false;
       return sendJson(res, 200, {
         mode,
         width,
         height,
         warmStarted,
+        iframeUrl: radarIframeUrl || null,
         gifPath: '/api/radar/animation.gif',
         pngFallbackMetaPath: '/api/radar/meta',
         updatedAt: radarState.updatedAt || null

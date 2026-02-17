@@ -191,6 +191,11 @@ module.exports = async function run() {
     const realtimePayload = JSON.parse(realtimeState.body);
     assert.ok(realtimePayload.fronius && realtimePayload.fronius.realtime, 'realtime endpoint should expose realtime fronius payload');
     assert.ok(realtimePayload.radar && Object.prototype.hasOwnProperty.call(realtimePayload.radar, 'gifUpdatedAt'), 'realtime endpoint should expose radar gif update signal');
+    assert.strictEqual(realtimePayload.radar.renderMode, 'server_gif');
+    assert.strictEqual(
+      realtimePayload.radar.iframeUrl,
+      'https://www.rainviewer.com/map.html?loc=-27.47%2C153.02%2C8&oFa=1&oC=1&oU=0&oCS=0&oF=0&oAP=1&c=3&o=90&lm=1&layer=radar&sm=1&sn=1&hu=1'
+    );
     assert.ok(typeof realtimePayload.generatedAt === 'string' && realtimePayload.generatedAt.length > 0);
 
     const radarMeta = await request(server, { path: '/api/radar/meta' });
@@ -214,6 +219,10 @@ module.exports = async function run() {
     const animationInfo = JSON.parse(radarAnimationInfo.body);
     assert.strictEqual(animationInfo.mode, 'gif');
     assert.strictEqual(animationInfo.gifPath, '/api/radar/animation.gif');
+    assert.strictEqual(
+      animationInfo.iframeUrl,
+      'https://www.rainviewer.com/map.html?loc=-27.47%2C153.02%2C8&oFa=1&oC=1&oU=0&oCS=0&oF=0&oAP=1&c=3&o=90&lm=1&layer=radar&sm=1&sn=1&hu=1'
+    );
     assert.strictEqual(animationInfo.pngFallbackMetaPath, '/api/radar/meta');
 
     const radarAnimationGif = await request(server, { path: '/api/radar/animation.gif' });
@@ -310,7 +319,7 @@ module.exports = async function run() {
     fs.writeFileSync(path.join(gifCacheDir, 'radar-latest.meta.json'), JSON.stringify({
       width: 320,
       height: 180,
-      renderedAt: '2026-02-16T00:00:00.000Z'
+      renderedAt: new Date().toISOString()
     }));
     const mismatchMetaGifResponse = await request(cachedGifFallbackServer, { path: '/api/radar/animation.gif' });
     assert.strictEqual(mismatchMetaGifResponse.statusCode, 200);

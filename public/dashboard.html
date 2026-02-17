@@ -237,6 +237,15 @@
       display: none;
       background: #131922;
     }
+    #radarEmbedFrame {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: none;
+      background: #131922;
+    }
 
     #radarGifStatus {
       position: absolute;
@@ -1279,6 +1288,7 @@
       <span class="panel-corner-icon"><svg><use href="#i-radar"></use></svg></span>
       <span class="panel-title">Radar</span>
       <div id="radarViewport">
+        <iframe id="radarEmbedFrame" title="RainViewer Radar" loading="lazy" referrerpolicy="no-referrer"></iframe>
         <img id="radarGifImage" alt="Radar animation">
         <canvas id="radarCanvas"></canvas>
         <div id="radarGifStatus">Generating radar animation...</div>
@@ -1388,6 +1398,7 @@
     (function () {
       var radarCanvas = document.getElementById('radarCanvas');
       var radarViewport = document.getElementById('radarViewport');
+      var radarEmbedFrame = document.getElementById('radarEmbedFrame');
       var radarGifImage = document.getElementById('radarGifImage');
       var radarGifStatusNode = document.getElementById('radarGifStatus');
       var radarCtx = radarCanvas.getContext('2d');
@@ -1421,7 +1432,8 @@
       var radarTileCache = {};
       var radarAnimStart = Date.now();
       var radarLastFrameKey = '';
-      var radarRenderMode = 'gif';
+      var radarRenderMode = 'server_gif';
+      var radarIframeUrl = '';
       var radarGifReady = false;
       var radarGifLoading = false;
       var radarGifUrl = '';
@@ -2020,6 +2032,16 @@
       }
 
       async function animateRadar() {
+        if (radarRenderMode === 'rainviewer_iframe') {
+          applyRainClassification(
+            isWeatherRainLikely(latestWeatherSummary),
+            isWeatherHeavyRainLikely(latestWeatherSummary),
+            0.08
+          );
+          updateRainIndicator();
+          requestAnimationFrame(animateRadar);
+          return;
+        }
         if (!radarGifReady) {
           radarCtx.fillStyle = '#101418';
           radarCtx.fillRect(0, 0, radarCanvas.width, radarCanvas.height);
@@ -2043,7 +2065,19 @@
       }
 
       function setRadarMode(mode) {
-        radarRenderMode = 'gif';
+        radarRenderMode = String(mode || 'server_gif').toLowerCase();
+        if (radarRenderMode === 'rainviewer_iframe') {
+          if (radarEmbedFrame) {
+            radarEmbedFrame.style.display = 'block';
+          }
+          radarGifImage.style.display = 'none';
+          radarCanvas.style.display = 'none';
+          updateRadarGifStatus();
+          return;
+        }
+        if (radarEmbedFrame) {
+          radarEmbedFrame.style.display = 'none';
+        }
         if (radarGifReady) {
           radarGifImage.style.display = 'block';
           radarCanvas.style.display = 'none';
@@ -2058,7 +2092,7 @@
         if (!radarGifStatusNode) {
           return;
         }
-        var shouldShow = radarRenderMode === 'gif' && (!radarGifReady || radarGifLoading);
+        var shouldShow = radarRenderMode === 'server_gif' && (!radarGifReady || radarGifLoading);
         radarGifStatusNode.style.display = shouldShow ? 'block' : 'none';
         if (!shouldShow) {
           return;
@@ -2082,13 +2116,17 @@
       }
 
       function refreshRadarGifMode(force) {
+        if (radarRenderMode === 'rainviewer_iframe') {
+          setRadarMode('rainviewer_iframe');
+          return;
+        }
         if (!force && radarGifUrl) {
           return;
         }
         fetch('/api/radar/animation')
           .then(function (res) { return res.json(); })
           .then(function (payload) {
-            setRadarMode('gif');
+            setRadarMode(payload && payload.mode === 'iframe' ? 'rainviewer_iframe' : 'server_gif');
             if (payload.gifPath) {
               radarGifUrl = payload.gifPath;
               loadRadarGif(false);
@@ -3024,6 +3062,18 @@
         }
 
         if (state && state.radar) {
+          if (state.radar.renderMode) {
+            radarRenderMode = String(state.radar.renderMode).toLowerCase();
+          }
+          if (state.radar.iframeUrl) {
+            radarIframeUrl = String(state.radar.iframeUrl);
+          }
+          if (radarRenderMode === 'rainviewer_iframe' && radarEmbedFrame && radarIframeUrl) {
+            if (radarEmbedFrame.src !== radarIframeUrl) {
+              radarEmbedFrame.src = radarIframeUrl;
+            }
+          }
+          setRadarMode(radarRenderMode);
           if (state.radar.gifUpdatedAt) {
             radarGifLastUpdatedAt = String(state.radar.gifUpdatedAt);
           }

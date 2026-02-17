@@ -139,7 +139,10 @@ module.exports = async function run() {
   assert.ok(html.indexOf("binCardNode.classList.toggle('bin-card-today',") > -1, 'today bins class toggle missing');
   assert.ok(html.indexOf('#f2d44b') > -1, 'recycle bin icon should use yellow tone');
   assert.ok(html.indexOf('id="radarGifImage"') > -1, 'radar gif layer missing');
-  assert.ok(html.indexOf("var radarRenderMode = 'gif';") > -1, 'frontend radar mode should default to gif-only');
+  assert.ok(html.indexOf('id="radarEmbedFrame"') > -1, 'radar iframe layer missing');
+  assert.ok(html.indexOf('radarEmbedFrame.src = radarIframeUrl;') > -1, 'radar iframe should use state-provided url');
+  assert.ok(html.indexOf("var radarRenderMode = 'server_gif';") > -1, 'frontend radar mode should default to server_gif');
+  assert.ok(html.indexOf("var radarIframeUrl = '';") > -1, 'frontend should track radar iframe url');
   assert.ok(html.indexOf('object-fit: cover;') > -1, 'radar gif should fill the viewport to remove side banding');
   assert.ok(html.indexOf('#radarGifImage {\n      position: absolute;') > -1 && html.indexOf('transform: none;') > -1, 'radar gif should not zoom so bottom timestamp stays visible');
   assert.ok(html.indexOf('function initRadarGifMode(') > -1, 'radar GIF init function should exist');
@@ -156,7 +159,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('radarGifReloadQueued = true;') > -1, 'gif update should queue reload when image is already loading');
   assert.ok(html.indexOf('if (radarGifReloadQueued) {') > -1, 'gif onload/onerror should flush queued reload');
   assert.ok(html.indexOf('function loadRadarGif(force) {') > -1, 'gif loader should support forced reloads');
-  assert.strictEqual(html.indexOf('setRadarMode(payload.mode);'), -1, 'frontend should not switch to png mode from server payload');
+  assert.strictEqual(html.indexOf('setRadarMode(payload.mode);'), -1, 'frontend should map server mode explicitly');
   assert.strictEqual(html.indexOf("src += (src.indexOf('?') > -1 ? '&' : '?') + 'strict=1';"), -1, 'gif loader should not force strict rendering reloads');
   assert.ok(html.indexOf('if (radarGifLoading) {') > -1, 'gif loader should guard against concurrent in-flight requests');
   assert.ok(html.indexOf('radarGifReloadForceQueued = radarGifReloadForceQueued || !!force;') > -1, 'queued reload should preserve force intent');
@@ -167,7 +170,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('requestAnimationFrame(animateRadar);') > -1, 'radar startup should launch canvas animation loop immediately');
   assert.ok(html.indexOf('id="radarGifStatus"') > -1, 'radar GIF status indicator missing');
   assert.ok(html.indexOf('function updateRadarGifStatus(') > -1, 'radar GIF status updater missing');
-  assert.strictEqual(html.indexOf("if (radarRenderMode === 'gif') {"), -1, 'frontend should not branch to png radar mode');
+  assert.ok(html.indexOf("if (radarRenderMode === 'rainviewer_iframe') {") > -1, 'frontend should support iframe radar mode');
   assert.strictEqual(html.indexOf('await drawLayer(tiles, 1, function (tx, ty) { return loadMapTileWithFallback(z, tx, ty); }, MAP_TILE_OVERDRAW);'), -1, 'frontend should not draw map png tiles for radar');
   assert.ok(html.indexOf('Radar animation generating...') > -1, 'gif mode should render loading message without png tile fetches');
   assert.ok(html.indexOf('radarGifImage.onload') > -1, 'gif readiness promotion missing');

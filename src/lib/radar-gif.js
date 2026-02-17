@@ -397,6 +397,13 @@ function createRadarGifRenderer(options) {
   const gifCacheDir = opts.gifCacheDir || path.join(os.tmpdir(), 'nanopi2-dashboard-radar-gifs');
   const radarConfig = config.radar || {};
   const backendHint = String(radarConfig.gifBackend || 'auto').toLowerCase();
+  const refreshSeconds = toInteger(radarConfig.refreshSeconds, 120, 30, 3600);
+  const gifMaxAgeSeconds = toInteger(
+    radarConfig.gifMaxAgeSeconds,
+    Math.max(180, refreshSeconds * 3),
+    60,
+    86400
+  );
 
   const GIF_FILENAME = 'radar-latest.gif';
   const GIF_TMP_FILENAME = 'radar-latest.gif.tmp';
@@ -743,10 +750,12 @@ function createRadarGifRenderer(options) {
     const metaPath = path.join(gifCacheDir, GIF_META_FILENAME);
     let metaWidth = 0;
     let metaHeight = 0;
+    let metaRenderedAt = '';
     try {
       const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
       metaWidth = Number(meta.width || 0);
       metaHeight = Number(meta.height || 0);
+      metaRenderedAt = String(meta.renderedAt || '');
     } catch (_err) {
       // Do not serve legacy cache entries without metadata sidecar.
       logGif('debug', 'radar_gif_cache_miss_metadata', { cacheDir: gifCacheDir });
@@ -759,12 +768,29 @@ function createRadarGifRenderer(options) {
       });
       return null;
     }
+    const renderedMs = Date.parse(metaRenderedAt);
+    if (!Number.isFinite(renderedMs)) {
+      logGif('debug', 'radar_gif_cache_invalid_rendered_at', {
+        renderedAt: metaRenderedAt || null
+      });
+      return null;
+    }
+    const ageMs = Date.now() - renderedMs;
+    if (ageMs > (gifMaxAgeSeconds * 1000)) {
+      logGif('info', 'radar_gif_cache_stale', {
+        renderedAt: metaRenderedAt,
+        ageMs,
+        maxAgeMs: gifMaxAgeSeconds * 1000
+      });
+      return null;
+    }
     try {
       const body = fs.readFileSync(filePath);
       logGif('debug', 'radar_gif_cache_hit', {
         bytes: body.length,
         width: metaWidth,
-        height: metaHeight
+        height: metaHeight,
+        ageMs
       });
       return {
         contentType: 'image/gif',

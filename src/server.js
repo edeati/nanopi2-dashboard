@@ -958,7 +958,8 @@ function createServer(options) {
     ));
 
     // Start periodic GIF rendering (fires first render immediately)
-    if (canRenderRadarGif()) {
+    if (String((dashboardConfig.radar && dashboardConfig.radar.renderMode) || 'server_gif').toLowerCase() === 'server_gif' &&
+      canRenderRadarGif()) {
       const gifStop = radarAnimationRenderer.startSchedule({
         intervalMs: Math.max(30, Number(dashboardConfig.radar.refreshSeconds || 120)) * 1000
       });
