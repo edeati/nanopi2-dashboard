@@ -128,6 +128,9 @@ function buildRainViewerIframeUrl(radarConfig) {
   }
 
   const mapUrl = new URL(rawUrl);
+  if (!/rainviewer\.com$/i.test(mapUrl.hostname || '')) {
+    return mapUrl.toString();
+  }
   mapUrl.searchParams.set('loc', [lat, lon, zoom].join(','));
   mapUrl.searchParams.set('oFa', '1');
   mapUrl.searchParams.set('oC', '1');

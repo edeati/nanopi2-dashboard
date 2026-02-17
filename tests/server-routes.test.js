@@ -53,6 +53,7 @@ module.exports = async function run() {
   let cachedGifFallbackServer;
   let iframeProxyServer;
   let bomServer;
+  let bomFallbackServer;
   let gifCacheDir;
   let iframeDir;
   let bomDir;
@@ -283,10 +284,15 @@ module.exports = async function run() {
       configDir: bomDir,
       gitRunner: async () => ({ ok: true }),
       disablePolling: true,
-      bomRadarProvider: async () => ({
-        contentType: 'image/png',
-        body: Buffer.from('bom-png')
-      })
+      bomRadarProvider: async (params) => {
+        assert.strictEqual(params && params.url, 'https://example.invalid/bom-radar.png');
+        assert.strictEqual(params && params.headers && params.headers.Referer, 'https://example.invalid/');
+        assert.strictEqual(params && params.headers && params.headers.Origin, 'https://example.invalid');
+        return {
+          contentType: 'image/png',
+          body: Buffer.from('bom-png')
+        };
+      }
     });
     await new Promise((resolve) => bomServer.listen(0, '127.0.0.1', resolve));
     const bomAnimation = await request(bomServer, { path: '/api/radar/animation' });
@@ -303,6 +309,129 @@ module.exports = async function run() {
     const bomRealtimePayload = JSON.parse(bomRealtime.body);
     assert.strictEqual(bomRealtimePayload.radar.renderMode, 'bom_static');
     assert.strictEqual(bomRealtimePayload.radar.bomImagePath, '/api/radar/bom-image');
+
+    const bomInvalidDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanopi2-server-bom-invalid-'));
+    fs.writeFileSync(path.join(bomInvalidDir, 'dashboard.json'), JSON.stringify({
+      host: '0.0.0.0',
+      port: 8090,
+      fronius: { baseUrl: 'http://192.168.0.18' },
+      rotation: { focusViews: ['radar'] },
+      pricing: { inverterCapacityKw: 6 },
+      ui: { themePreset: 'neon' },
+      git: { autoSyncEnabled: false, branch: 'dev', intervalSeconds: 300 },
+      weather: { location: 'Brisbane' },
+      news: { feedUrl: '', maxItems: 5 },
+      bins: { sourceUrl: '' },
+      radar: {
+        provider: 'bom',
+        sourceUrl: 'https://...direct-bom-radar-image.png',
+        refreshSeconds: 300,
+        lat: -27.47,
+        lon: 153.02,
+        zoom: 8,
+        providerMaxZoom: 7,
+        color: 3,
+        options: '1_1',
+        renderMode: 'bom_static'
+      }
+    }));
+    fs.writeFileSync(path.join(bomInvalidDir, 'auth.json'), JSON.stringify({
+      adminUser: 'admin',
+      passwordSalt: salt,
+      passwordIterations: iterations,
+      passwordHash: createHash('changeme', salt, iterations)
+    }));
+    const bomInvalidServer = createServer({
+      configDir: bomInvalidDir,
+      gitRunner: async () => ({ ok: true }),
+      disablePolling: true,
+      bomRadarProvider: async () => {
+        throw new Error('bom_provider_should_not_be_called');
+      }
+    });
+    await new Promise((resolve) => bomInvalidServer.listen(0, '127.0.0.1', resolve));
+    try {
+      const bomInvalidImage = await request(bomInvalidServer, { path: '/api/radar/bom-image' });
+      assert.strictEqual(bomInvalidImage.statusCode, 503);
+      const bomInvalidPayload = JSON.parse(bomInvalidImage.body);
+      assert.strictEqual(bomInvalidPayload.error, 'bom_radar_unavailable');
+      assert.strictEqual(bomInvalidPayload.detail, 'bom_source_url_invalid');
+    } finally {
+      await new Promise((resolve) => bomInvalidServer.close(resolve));
+      fs.rmSync(bomInvalidDir, { recursive: true, force: true });
+    }
+
+    const bomFallbackDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanopi2-server-bom-fallback-'));
+    let bomFallbackHits = 0;
+    bomFallbackServer = http.createServer((req, res) => {
+      if (req.url === '/products/IDR663.T.png') {
+        res.writeHead(403, { 'content-type': 'text/plain' });
+        res.end('forbidden');
+        return;
+      }
+      if (req.url === '/products/IDR663.loop.shtml') {
+        bomFallbackHits += 1;
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        res.end('<html><body><img src="/products/IDR663/IDR663.202602170600.png"></body></html>');
+        return;
+      }
+      if (req.url === '/products/IDR663/IDR663.202602170600.png') {
+        bomFallbackHits += 1;
+        res.writeHead(200, { 'content-type': 'image/png' });
+        res.end(Buffer.from('bom-fallback-png'));
+        return;
+      }
+      res.writeHead(404, { 'content-type': 'text/plain' });
+      res.end('missing');
+    });
+    await new Promise((resolve) => bomFallbackServer.listen(0, '127.0.0.1', resolve));
+    const bomFallbackPort = bomFallbackServer.address().port;
+    fs.writeFileSync(path.join(bomFallbackDir, 'dashboard.json'), JSON.stringify({
+      host: '0.0.0.0',
+      port: 8090,
+      fronius: { baseUrl: 'http://192.168.0.18' },
+      rotation: { focusViews: ['radar'] },
+      pricing: { inverterCapacityKw: 6 },
+      ui: { themePreset: 'neon' },
+      git: { autoSyncEnabled: false, branch: 'dev', intervalSeconds: 300 },
+      weather: { location: 'Brisbane' },
+      news: { feedUrl: '', maxItems: 5 },
+      bins: { sourceUrl: '' },
+      radar: {
+        provider: 'bom',
+        sourceUrl: 'http://127.0.0.1:' + bomFallbackPort + '/products/IDR663.T.png',
+        refreshSeconds: 300,
+        lat: -27.47,
+        lon: 153.02,
+        zoom: 8,
+        providerMaxZoom: 7,
+        color: 3,
+        options: '1_1',
+        renderMode: 'bom_static'
+      }
+    }));
+    fs.writeFileSync(path.join(bomFallbackDir, 'auth.json'), JSON.stringify({
+      adminUser: 'admin',
+      passwordSalt: salt,
+      passwordIterations: iterations,
+      passwordHash: createHash('changeme', salt, iterations)
+    }));
+    const bomFallbackAppServer = createServer({
+      configDir: bomFallbackDir,
+      gitRunner: async () => ({ ok: true }),
+      disablePolling: true
+    });
+    await new Promise((resolve) => bomFallbackAppServer.listen(0, '127.0.0.1', resolve));
+    try {
+      const bomImageFallback = await request(bomFallbackAppServer, { path: '/api/radar/bom-image' });
+      assert.strictEqual(bomImageFallback.statusCode, 200);
+      assert.strictEqual(bomImageFallback.headers['content-type'], 'image/png');
+      assert.strictEqual(bomImageFallback.bodyBuffer.toString('utf8'), 'bom-fallback-png');
+      assert.ok(bomFallbackHits >= 2, 'fallback should fetch loop page and resolved image');
+    } finally {
+      await new Promise((resolve) => bomFallbackAppServer.close(resolve));
+      fs.rmSync(bomFallbackDir, { recursive: true, force: true });
+    }
 
     iframeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanopi2-server-iframe-'));
     fs.writeFileSync(path.join(iframeDir, 'dashboard.json'), JSON.stringify({
@@ -605,6 +734,9 @@ module.exports = async function run() {
   } finally {
     if (bomServer) {
       await new Promise((resolve) => bomServer.close(resolve));
+    }
+    if (bomFallbackServer) {
+      await new Promise((resolve) => bomFallbackServer.close(resolve));
     }
     if (iframeProxyServer) {
       await new Promise((resolve) => iframeProxyServer.close(resolve));

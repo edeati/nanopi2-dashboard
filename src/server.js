@@ -112,6 +112,150 @@ function createEmptyDailyBins(dayKey) {
   return bins;
 }
 
+function isInvalidBomSourceUrl(sourceUrl) {
+  const value = String(sourceUrl || '').trim();
+  if (!value) {
+    return true;
+  }
+  if (value.indexOf('...') > -1) {
+    return true;
+  }
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol !== 'http:' && parsed.protocol !== 'https:';
+  } catch (_error) {
+    return true;
+  }
+}
+
+function buildBomRadarHeaders(sourceUrl, userAgent, refererUrl) {
+  const headers = {
+    Accept: 'image/*,*/*;q=0.8',
+    'User-Agent': userAgent
+  };
+  try {
+    const parsed = new URL(String(sourceUrl || '').trim());
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      headers.Referer = String(refererUrl || '').trim() || (parsed.origin + '/');
+      headers.Origin = parsed.origin;
+    }
+  } catch (_error) {
+    // Keep base headers only.
+  }
+  return headers;
+}
+
+function buildRadarEmbedHeaders(targetUrl, userAgent) {
+  const headers = {
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-AU,en;q=0.9,en-US;q=0.8',
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+    'Upgrade-Insecure-Requests': '1',
+    'User-Agent': userAgent
+  };
+  try {
+    const parsed = new URL(String(targetUrl || '').trim());
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      headers.Referer = parsed.origin + '/';
+      headers.Origin = parsed.origin;
+    }
+  } catch (_error) {
+    // Keep base headers only.
+  }
+  return headers;
+}
+
+function deriveBomLoopUrl(sourceUrl) {
+  try {
+    const parsed = new URL(String(sourceUrl || '').trim());
+    const path = parsed.pathname || '';
+    let radarId = null;
+    let loopPath = null;
+    let match = /^\/products\/([A-Za-z0-9]+)\.T\.png$/i.exec(path);
+    if (match) {
+      radarId = match[1].toUpperCase();
+      loopPath = '/products/' + radarId + '.loop.shtml';
+    }
+    if (!loopPath) {
+      match = /^\/products\/([A-Za-z0-9]+)\/.+\.png$/i.exec(path);
+      if (match) {
+        radarId = match[1].toUpperCase();
+        loopPath = '/products/' + radarId + '.loop.shtml';
+      }
+    }
+    if (!loopPath) {
+      match = /^\/radar\/([A-Za-z0-9]+)\.gif$/i.exec(path);
+      if (match) {
+        radarId = match[1].toUpperCase();
+        loopPath = '/products/' + radarId + '.loop.shtml';
+      }
+    }
+    if (!loopPath) {
+      return null;
+    }
+    return {
+      radarId,
+      loopUrl: new URL(loopPath, parsed.origin).toString()
+    };
+  } catch (_error) {
+    return null;
+  }
+}
+
+function extractBomLoopImageUrl(loopHtml, loopUrl, radarId) {
+  const html = String(loopHtml || '');
+  const id = String(radarId || '').toUpperCase();
+  const tokens = [];
+  const attrRegex = /(?:src|href)\s*=\s*["']([^"']+)["']/gi;
+  let match = attrRegex.exec(html);
+  while (match) {
+    tokens.push(match[1]);
+    match = attrRegex.exec(html);
+  }
+  const freeRegex = /(https?:\/\/[^\s"'<>]+\.png|\/[^\s"'<>]+\.png)/gi;
+  match = freeRegex.exec(html);
+  while (match) {
+    tokens.push(match[1]);
+    match = freeRegex.exec(html);
+  }
+  const seen = new Set();
+  const resolved = [];
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = String(tokens[i] || '').trim();
+    if (!token) {
+      continue;
+    }
+    let absolute;
+    try {
+      absolute = new URL(token, loopUrl).toString();
+    } catch (_error) {
+      continue;
+    }
+    if (seen.has(absolute)) {
+      continue;
+    }
+    seen.add(absolute);
+    try {
+      const parsed = new URL(absolute);
+      if (!/\.png$/i.test(parsed.pathname || '')) {
+        continue;
+      }
+      if (id && parsed.pathname.toUpperCase().indexOf('/' + id + '/') === -1 && parsed.pathname.toUpperCase().indexOf('/' + id + '.') === -1) {
+        continue;
+      }
+      resolved.push(absolute);
+    } catch (_error) {
+      continue;
+    }
+  }
+  if (!resolved.length) {
+    return null;
+  }
+  resolved.sort();
+  return resolved[resolved.length - 1];
+}
+
 function aggregateDailyToHourlyBins(dailyBins) {
   const source = Array.isArray(dailyBins) ? dailyBins : [];
   if (!source.length) {
@@ -805,6 +949,8 @@ function createServer(options) {
     if (!targetUrl) {
       throw new Error('radar_embed_url_missing');
     }
+    const userAgent = (dashboardConfig.map && dashboardConfig.map.userAgent)
+      || 'Mozilla/5.0 (Linux; Android 13; SM-X200) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
     const response = await requestWithDebug({
       urlString: targetUrl,
       method: 'GET',
@@ -813,10 +959,7 @@ function createServer(options) {
       insecureTLS: !!dashboardConfig.insecureTLS,
       logger,
       service: 'external.radar.embed',
-      headers: {
-        Accept: '*/*',
-        'User-Agent': (dashboardConfig.map && dashboardConfig.map.userAgent) || 'NanoPi2-Dashboard/1.0 (+https://local.nanopi2)'
-      }
+      headers: buildRadarEmbedHeaders(targetUrl, userAgent)
     });
     return {
       contentType: response.contentType || 'application/octet-stream',
@@ -826,12 +969,20 @@ function createServer(options) {
 
   async function refreshBomRadarImage() {
     const sourceUrl = String((dashboardConfig.radar && dashboardConfig.radar.sourceUrl) || '').trim();
+    const userAgent = (dashboardConfig.map && dashboardConfig.map.userAgent) || 'NanoPi2-Dashboard/1.0 (+https://local.nanopi2)';
     if (!sourceUrl) {
       bomRadarState.error = 'bom_source_url_missing';
       return null;
     }
+    if (isInvalidBomSourceUrl(sourceUrl)) {
+      bomRadarState.error = 'bom_source_url_invalid';
+      throw new Error('bom_source_url_invalid');
+    }
     if (options && typeof options.bomRadarProvider === 'function') {
-      const result = await options.bomRadarProvider({ url: sourceUrl });
+      const result = await options.bomRadarProvider({
+        url: sourceUrl,
+        headers: buildBomRadarHeaders(sourceUrl, userAgent)
+      });
       if (!result || !Buffer.isBuffer(result.body)) {
         throw new Error('bom_radar_invalid_payload');
       }
@@ -842,19 +993,55 @@ function createServer(options) {
       bomRadarState.error = null;
       return bomRadarState;
     }
-    const response = await requestWithDebug({
-      urlString: sourceUrl,
-      method: 'GET',
-      followRedirects: true,
-      maxRedirects: 6,
-      insecureTLS: !!dashboardConfig.insecureTLS,
-      logger,
-      service: 'external.radar.bom',
-      headers: {
-        Accept: 'image/*,*/*;q=0.8',
-        'User-Agent': (dashboardConfig.map && dashboardConfig.map.userAgent) || 'NanoPi2-Dashboard/1.0 (+https://local.nanopi2)'
+    let response;
+    try {
+      response = await requestWithDebug({
+        urlString: sourceUrl,
+        method: 'GET',
+        followRedirects: true,
+        maxRedirects: 6,
+        insecureTLS: !!dashboardConfig.insecureTLS,
+        logger,
+        service: 'external.radar.bom',
+        headers: buildBomRadarHeaders(sourceUrl, userAgent)
+      });
+    } catch (error) {
+      const statusCode = Number(error && error.statusCode ? error.statusCode : 0);
+      if (statusCode !== 403) {
+        throw error;
       }
-    });
+      const loopMeta = deriveBomLoopUrl(sourceUrl);
+      if (!loopMeta || !loopMeta.loopUrl) {
+        throw error;
+      }
+      const loopResponse = await requestWithDebug({
+        urlString: loopMeta.loopUrl,
+        method: 'GET',
+        followRedirects: true,
+        maxRedirects: 6,
+        insecureTLS: !!dashboardConfig.insecureTLS,
+        logger,
+        service: 'external.radar.bom.loop',
+        headers: {
+          Accept: 'text/html,*/*;q=0.8',
+          'User-Agent': userAgent
+        }
+      });
+      const imageUrl = extractBomLoopImageUrl(loopResponse.body.toString('utf8'), loopMeta.loopUrl, loopMeta.radarId);
+      if (!imageUrl) {
+        throw error;
+      }
+      response = await requestWithDebug({
+        urlString: imageUrl,
+        method: 'GET',
+        followRedirects: true,
+        maxRedirects: 6,
+        insecureTLS: !!dashboardConfig.insecureTLS,
+        logger,
+        service: 'external.radar.bom.image',
+        headers: buildBomRadarHeaders(imageUrl, userAgent, loopMeta.loopUrl)
+      });
+    }
     bomRadarState.body = response.body;
     bomRadarState.contentType = response.contentType || 'image/png';
     bomRadarState.updatedAt = new Date().toISOString();

@@ -3089,10 +3089,14 @@
             radarGifLastUpdatedAt = String(state.radar.gifUpdatedAt);
           }
           if (state.radar.gifPath) {
-            radarGifUrl = String(state.radar.gifPath);
+            if (radarRenderMode === 'server_gif') {
+              radarGifUrl = String(state.radar.gifPath);
+            }
           }
           if (state.radar.bomImagePath) {
-            radarGifUrl = String(state.radar.bomImagePath);
+            if (radarRenderMode === 'bom_static') {
+              radarGifUrl = String(state.radar.bomImagePath);
+            }
           }
           if (state.radar.bomUpdatedAt) {
             radarBomLastUpdatedAt = String(state.radar.bomUpdatedAt);
@@ -3134,10 +3138,14 @@
             var gifUpdatedAt = patch.radar && patch.radar.gifUpdatedAt ? String(patch.radar.gifUpdatedAt) : '';
             var bomUpdatedAt = patch.radar && patch.radar.bomUpdatedAt ? String(patch.radar.bomUpdatedAt) : '';
             if (patch.radar && patch.radar.gifPath) {
-              radarGifUrl = String(patch.radar.gifPath);
+              if (radarRenderMode === 'server_gif') {
+                radarGifUrl = String(patch.radar.gifPath);
+              }
             }
             if (patch.radar && patch.radar.bomImagePath) {
-              radarGifUrl = String(patch.radar.bomImagePath);
+              if (radarRenderMode === 'bom_static') {
+                radarGifUrl = String(patch.radar.bomImagePath);
+              }
             }
             if (gifUpdatedAt && gifUpdatedAt !== radarGifLastUpdatedAt) {
               radarGifLastUpdatedAt = gifUpdatedAt;
