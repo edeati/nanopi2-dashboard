@@ -9,6 +9,7 @@ const {
   buildUsageHourlyFromDailyBins,
   buildDawnQuarterlyFromHistory,
   buildFlowSummaryFromBins,
+  normalizeGeneratedBinsToTodayTotals,
   buildSolarMeta,
   hasUsableArchiveDetail,
   shouldRefreshFromRealtimeHistory
@@ -191,6 +192,31 @@ module.exports = async function run() {
   assert.ok(Math.abs(flowSummary.selfUsedKwh - 0.4) < 0.001, 'flow self-use should equal produced-feed-in');
   assert.ok(Math.abs(flowSummary.importKwh - 0.05) < 0.001, 'flow import should sum from bins');
   assert.ok(Math.abs(flowSummary.selfConsumptionPct - (0.4 / 0.445 * 100)) < 0.01, 'flow self-consumption should be derived');
+
+  const skewedDaily = createZeroBins('2026-02-16');
+  skewedDaily[14].generatedWh = 140;
+  skewedDaily[14].exportWh = 120;
+  skewedDaily[14].importWh = 30;
+  skewedDaily[14].selfWh = 20;
+  skewedDaily[14].loadWh = 50;
+  skewedDaily[15].generatedWh = 80;
+  skewedDaily[15].exportWh = 40;
+  skewedDaily[15].importWh = 10;
+  skewedDaily[15].selfWh = 40;
+  skewedDaily[15].loadWh = 50;
+  const normalizedDaily = normalizeGeneratedBinsToTodayTotals(skewedDaily, {
+    generatedKwh: 2.2,
+    importKwh: 0.04,
+    exportKwh: 0.16
+  });
+  const normalizedGeneratedKwh = normalizedDaily.reduce((sum, bin) => sum + Number(bin.generatedWh || 0), 0) / 1000;
+  const normalizedExportKwh = normalizedDaily.reduce((sum, bin) => sum + Number(bin.exportWh || 0), 0) / 1000;
+  const normalizedImportKwh = normalizedDaily.reduce((sum, bin) => sum + Number(bin.importWh || 0), 0) / 1000;
+  const normalizedSelfKwh = normalizedDaily.reduce((sum, bin) => sum + Number(bin.selfWh || 0), 0) / 1000;
+  assert.ok(Math.abs(normalizedGeneratedKwh - 2.2) < 0.001, 'normalized bins should align generated total to today generated');
+  assert.ok(Math.abs(normalizedExportKwh - 0.16) < 0.001, 'normalized bins should preserve export total');
+  assert.ok(Math.abs(normalizedImportKwh - 0.04) < 0.001, 'normalized bins should preserve import total');
+  assert.ok(Math.abs(normalizedSelfKwh - (2.2 - 0.16)) < 0.001, 'normalized bins should derive self-use from generated-export');
 
   const beforeMidnightUtc = Date.parse('2026-02-15T13:59:30.000Z'); // 23:59:30 local
   const afterMidnightUtc = Date.parse('2026-02-15T14:00:30.000Z'); // 00:00:30 local

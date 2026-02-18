@@ -68,11 +68,10 @@ function escapeFfmpegDrawtext(text) {
 }
 
 function formatFrameTimestamp(rawTime, timeZone) {
-  const n = Number(rawTime || 0);
-  if (!Number.isFinite(n) || n <= 0) {
+  const tsMs = normalizeEpochMs(rawTime);
+  if (tsMs <= 0) {
     return '';
   }
-  const tsMs = n > 1e12 ? n : (n * 1000);
   const dt = new Date(tsMs);
   const tz = String(timeZone || '').trim();
   try {
@@ -89,6 +88,30 @@ function formatFrameTimestamp(rawTime, timeZone) {
       hour12: false
     }).format(dt);
   }
+}
+
+function normalizeEpochMs(rawTime) {
+  const n = Number(rawTime || 0);
+  if (!Number.isFinite(n) || n <= 0) {
+    return 0;
+  }
+  return n > 1e12 ? n : (n * 1000);
+}
+
+function buildFrameLabels(framesSubset, timeZone, nowMs, staleAfterMs) {
+  const labels = framesSubset.map((frame) => formatFrameTimestamp(frame && frame.time, timeZone));
+  const latestFrameMs = framesSubset.reduce((maxMs, frame) => {
+    const tsMs = normalizeEpochMs(frame && frame.time);
+    return tsMs > maxMs ? tsMs : maxMs;
+  }, 0);
+  if (!latestFrameMs) {
+    return labels;
+  }
+  if (Number.isFinite(staleAfterMs) && staleAfterMs > 0 && (nowMs - latestFrameMs) > staleAfterMs) {
+    const fallbackLabel = formatFrameTimestamp(nowMs, timeZone);
+    return framesSubset.map(() => fallbackLabel);
+  }
+  return labels;
 }
 
 function formatGeneratedTimestamp(rawMs, timeZone) {
@@ -495,7 +518,9 @@ function createRadarGifRenderer(options) {
     const renderHeight = Math.min(1920, outputHeight + (overscanPx * 2));
     const colorSetting = toInteger(radarConfig.color, 3, 0, 10);
     const optionsSetting = radarConfig.options || '1_1';
+    const nowMs = Date.now();
     const dashboardTimeZone = config.timeZone || (config.ui && config.ui.timeZone) || process.env.TZ || '';
+    const frameTimestampMaxAgeMinutes = toInteger(radarConfig.frameTimestampMaxAgeMinutes, 180, 5, 24 * 60);
     const configuredFontFile = String(radarConfig.gifFontFile || '').trim();
     const defaultFontFile = '/usr/share/fonts/TTF/DejaVuSans.ttf';
     const fontFilePath = configuredFontFile || defaultFontFile;
@@ -528,8 +553,13 @@ function createRadarGifRenderer(options) {
       optionsSetting,
       gifFrameDelayMs,
       framesSubset,
-      generatedLabel: 'Generated: ' + formatGeneratedTimestamp(Date.now(), dashboardTimeZone),
-      frameLabels: framesSubset.map((frame) => formatFrameTimestamp(frame && frame.time, dashboardTimeZone)),
+      generatedLabel: 'Generated: ' + formatGeneratedTimestamp(nowMs, dashboardTimeZone),
+      frameLabels: buildFrameLabels(
+        framesSubset,
+        dashboardTimeZone,
+        nowMs,
+        frameTimestampMaxAgeMinutes * 60 * 1000
+      ),
       drawTextFontFile,
       tiles: computeVisibleTiles({
         lat,

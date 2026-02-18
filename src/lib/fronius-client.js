@@ -251,10 +251,11 @@ function createFroniusClient(baseUrl, options) {
           Number(phase3[secondKey] || 0);
       });
       const importSeries = Object.keys(importAbsolute).length > 0 ? importAbsolute : phaseConsumed;
+      const producedSeries = Object.keys(producedFromBest).length > 0
+        ? producedFromBest
+        : producedFromInverter;
       return {
-        producedWhBySecond: Object.keys(producedFromInverter).length >= Object.keys(producedFromBest).length
-          ? producedFromInverter
-          : producedFromBest,
+        producedWhBySecond: producedSeries,
         importWhBySecond: importSeries,
         exportWhBySecond: extractSeriesMap(meterNode, 'EnergyReal_WAC_Minus_Absolute')
       };

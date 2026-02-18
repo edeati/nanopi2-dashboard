@@ -777,6 +777,76 @@ module.exports = async function run() {
     }
 
     // -------------------------------------------------------------------
+    // Test 12i: stale frame timestamps should clamp to render time labels
+    // -------------------------------------------------------------------
+    {
+      const originalNow = Date.now;
+      const fixedNowMs = Date.parse('2026-02-18T01:39:00.000Z');
+      Date.now = function () { return fixedNowMs; };
+      try {
+        const ffmpegCalls = [];
+        const staleFrameRenderer = createRadarGifRenderer({
+          execFileImpl: function wrappedExecFile(binary, args, opts, cb) {
+            ffmpegCalls.push(args.slice());
+            return execFile(binary, args, opts, cb);
+          },
+          fetchMapTile: async function () { return { contentType: 'image/png', body: fakeTilePng }; },
+          fetchRadarTile: async function () { return { contentType: 'image/png', body: fakeRadarTilePng }; },
+          getRadarState: function () {
+            return {
+              frames: [
+                { time: 1771346400, path: '/path/0' }, // 02:40 local
+                { time: 1771347000, path: '/path/1' } // 02:50 local
+              ]
+            };
+          },
+          config: {
+            timeZone: 'Australia/Brisbane',
+            radar: {
+              zoom: 6,
+              providerMaxZoom: 6,
+              lat: -27.47,
+              lon: 153.02,
+              gifMaxFrames: 2,
+              gifExtraTiles: 0,
+              gifFrameDelayMs: 100,
+              color: 3,
+              options: '1_1',
+              frameTimestampMaxAgeMinutes: 30
+            }
+          },
+          gifCacheDir: path.join(tempDir, 'stale-frame-label-test')
+        });
+        const out = await staleFrameRenderer.renderOnce({ width: 120, height: 90 });
+        assert.ok(out && Buffer.isBuffer(out.body) && out.body.length > 0, 'stale frame label render should produce a GIF');
+
+        const expectedNowLabel = new Intl.DateTimeFormat('en-AU', {
+          timeZone: 'Australia/Brisbane',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }).format(new Date(fixedNowMs)).replace(/:/g, '\\:');
+        const staleFrameLabel = new Intl.DateTimeFormat('en-AU', {
+          timeZone: 'Australia/Brisbane',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }).format(new Date(1771347000 * 1000)).replace(/:/g, '\\:');
+
+        const composeFilter = ffmpegCalls.map(function (args) {
+          const idx = args.indexOf('-filter_complex');
+          return idx > -1 ? String(args[idx + 1] || '') : '';
+        }).find(function (value) {
+          return value.indexOf('fontsize=24') > -1 && value.indexOf('drawtext=text=') > -1;
+        }) || '';
+        assert.ok(composeFilter.indexOf('drawtext=text=\'' + expectedNowLabel + '\'') > -1, 'frame timestamp should clamp to current local time when source frames are stale');
+        assert.strictEqual(composeFilter.indexOf('drawtext=text=\'' + staleFrameLabel + '\'') > -1, false, 'stale source frame label should not be rendered');
+      } finally {
+        Date.now = originalNow;
+      }
+    }
+
+    // -------------------------------------------------------------------
     // Test 12h: warm/scheduled render failures should be logged (not silent)
     // -------------------------------------------------------------------
     {

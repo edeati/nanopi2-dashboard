@@ -381,6 +381,47 @@ function buildFlowSummaryFromBins(bins) {
   };
 }
 
+function normalizeGeneratedBinsToTodayTotals(dailyBins, todayRaw) {
+  const source = Array.isArray(dailyBins) ? dailyBins : [];
+  if (!source.length) {
+    return source.slice();
+  }
+  const today = todayRaw || {};
+  const todayGeneratedWh = Math.max(0, Number(today.generatedKwh || 0) * 1000);
+  if (!(todayGeneratedWh > 0)) {
+    return source.slice();
+  }
+  let binsGeneratedWh = 0;
+  for (let i = 0; i < source.length; i += 1) {
+    binsGeneratedWh += Math.max(0, Number((source[i] && source[i].generatedWh) || 0));
+  }
+  if (!(binsGeneratedWh > 0)) {
+    return source.slice();
+  }
+  const ratio = todayGeneratedWh / binsGeneratedWh;
+  if (ratio <= 0 || (ratio >= 0.67 && ratio <= 1.5)) {
+    return source.slice();
+  }
+  const out = [];
+  for (let i = 0; i < source.length; i += 1) {
+    const bin = source[i] || {};
+    const generatedWh = Math.max(0, Number(bin.generatedWh || 0) * ratio);
+    const exportWh = Math.max(0, Number(bin.exportWh || 0));
+    const importWh = Math.max(0, Number(bin.importWh || 0));
+    const selfWh = Math.max(0, generatedWh - exportWh);
+    out.push({
+      dayKey: bin.dayKey || null,
+      binIndex: Number.isFinite(Number(bin.binIndex)) ? Number(bin.binIndex) : i,
+      generatedWh,
+      importWh,
+      exportWh,
+      selfWh,
+      loadWh: selfWh + importWh
+    });
+  }
+  return out;
+}
+
 function hasAnySolarBinsEnergy(bins) {
   const source = Array.isArray(bins) ? bins : [];
   for (let i = 0; i < source.length; i += 1) {
@@ -1145,21 +1186,37 @@ function createServer(options) {
     getExternalState: function getExternalState() { return externalState; },
     getRadarState: function getRadarState() { return radarState; },
     getSolarHistory: function getSolarHistory() { return solarHistory.slice(-720); },
-    getSolarDailyBins: function getSolarDailyBins() { return solarDailyBins.slice(); },
-    getSolarHourlyBins: function getSolarHourlyBins() { return solarHourlyBins.slice(); },
+    getSolarDailyBins: function getSolarDailyBins() {
+      const now = Date.now();
+      const froniusSnapshot = froniusState.getState(now);
+      return normalizeGeneratedBinsToTodayTotals(solarDailyBins, froniusSnapshot.today);
+    },
+    getSolarHourlyBins: function getSolarHourlyBins() {
+      const now = Date.now();
+      const froniusSnapshot = froniusState.getState(now);
+      const corrected = normalizeGeneratedBinsToTodayTotals(solarDailyBins, froniusSnapshot.today);
+      return aggregateDailyToHourlyBins(corrected);
+    },
     getSolarUsageHourly: function getSolarUsageHourly() {
-      return buildUsageHourlyFromDailyBins(solarDailyBins);
+      const now = Date.now();
+      const froniusSnapshot = froniusState.getState(now);
+      const corrected = normalizeGeneratedBinsToTodayTotals(solarDailyBins, froniusSnapshot.today);
+      return buildUsageHourlyFromDailyBins(corrected);
     },
     getSolarDawnQuarterly: function getSolarDawnQuarterly() {
       return buildDawnQuarterlyFromHistory(solarHistory, Date.now(), dashboardTimeZone);
     },
     getSolarFlowSummary: function getSolarFlowSummary() {
-      return buildFlowSummaryFromBins(solarDailyBins);
+      const now = Date.now();
+      const froniusSnapshot = froniusState.getState(now);
+      const corrected = normalizeGeneratedBinsToTodayTotals(solarDailyBins, froniusSnapshot.today);
+      return buildFlowSummaryFromBins(corrected);
     },
     getSolarMeta: function getSolarMeta() {
       const now = Date.now();
       const froniusSnapshot = froniusState.getState(now);
-      return buildSolarMeta(now, dashboardTimeZone, froniusSnapshot, solarDailyBins, solarHistory);
+      const corrected = normalizeGeneratedBinsToTodayTotals(solarDailyBins, froniusSnapshot.today);
+      return buildSolarMeta(now, dashboardTimeZone, froniusSnapshot, corrected, solarHistory);
     },
     getInternetState: function getInternetState() {
       return internetProbe.getState();
@@ -1313,6 +1370,7 @@ module.exports = {
   buildUsageHourlyFromDailyBins,
   buildDawnQuarterlyFromHistory,
   buildFlowSummaryFromBins,
+  normalizeGeneratedBinsToTodayTotals,
   buildSolarMeta,
   hasUsableArchiveDetail,
   shouldRefreshFromRealtimeHistory
