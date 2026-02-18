@@ -134,6 +134,86 @@ module.exports = async function run() {
   assert.ok(cumulativeBins[15].generatedWh > 0, 'cumulative produced should populate 07:30-08:00 bin');
   assert.strictEqual(cumulativeBins[16].generatedWh, 0, 'cumulative produced should not collapse into 08:00-08:30 bin');
 
+  const hourlyCumulative = {
+    producedWhBySecond: {
+      '25200': 1000, // 07:00
+      '28800': 1600, // 08:00 (+600 over the hour)
+      '32400': 2200 // 09:00 (+600 over the hour)
+    },
+    importWhBySecond: {
+      '25200': 400,
+      '28800': 460,
+      '32400': 520
+    },
+    exportWhBySecond: {
+      '25200': 100,
+      '28800': 180,
+      '32400': 260
+    }
+  };
+  const hourlyCumulativeBins = aggregateDetailToDailyBins(hourlyCumulative, '2026-02-16', 'Australia/Brisbane');
+  assert.ok(hourlyCumulativeBins[14].generatedWh > 0, '07:00-08:00 cumulative delta should distribute into 07:00-07:30 bin');
+  assert.ok(hourlyCumulativeBins[15].generatedWh > 0, '07:00-08:00 cumulative delta should distribute into 07:30-08:00 bin');
+  assert.ok(hourlyCumulativeBins[16].generatedWh > 0, '08:00-09:00 cumulative delta should distribute into 08:00-08:30 bin');
+  assert.ok(hourlyCumulativeBins[17].generatedWh > 0, '08:00-09:00 cumulative delta should distribute into 08:30-09:00 bin');
+  assert.ok(hourlyCumulativeBins[15].importWh > 0 && hourlyCumulativeBins[16].importWh > 0, 'import deltas should also distribute across the hour');
+  assert.ok(hourlyCumulativeBins[15].exportWh > 0 && hourlyCumulativeBins[16].exportWh > 0, 'export deltas should also distribute across the hour');
+
+  const rampThenDipProduced = {
+    producedWhBySecond: {
+      '0': 0,
+      '300': 1,
+      '600': 2,
+      '900': 3,
+      '1200': 4,
+      '1500': 5,
+      '1800': 6,
+      '2100': 7,
+      '2400': 8,
+      '2700': 7,
+      '3000': 6
+    },
+    importWhBySecond: {},
+    exportWhBySecond: {}
+  };
+  const rampThenDipBins = aggregateDetailToDailyBins(rampThenDipProduced, '2026-02-16', 'Australia/Brisbane');
+  const rampThenDipGeneratedWh = rampThenDipBins.reduce((sum, bin) => sum + Number(bin.generatedWh || 0), 0);
+  assert.ok(rampThenDipGeneratedWh > 40, 'interval-like produced series with minor dips should not be treated as cumulative deltas');
+
+  const detailWithExplicitSelfLoad = {
+    producedWhBySecond: {
+      '25200': 500,
+      '27000': 900,
+      '28800': 1300
+    },
+    selfWhBySecond: {
+      '25200': 200,
+      '27000': 500,
+      '28800': 800
+    },
+    loadWhBySecond: {
+      '25200': 260,
+      '27000': 650,
+      '28800': 1040
+    },
+    importWhBySecond: {
+      '25200': 40,
+      '27000': 150,
+      '28800': 240
+    },
+    exportWhBySecond: {
+      '25200': 50,
+      '27000': 90,
+      '28800': 130
+    }
+  };
+  const explicitBins = aggregateDetailToDailyBins(detailWithExplicitSelfLoad, '2026-02-16', 'Australia/Brisbane');
+  const explicitSelfWh = explicitBins.reduce((sum, bin) => sum + Number(bin.selfWh || 0), 0);
+  const explicitLoadWh = explicitBins.reduce((sum, bin) => sum + Number(bin.loadWh || 0), 0);
+  const explicitImportWh = explicitBins.reduce((sum, bin) => sum + Number(bin.importWh || 0), 0);
+  assert.ok(explicitSelfWh > 0, 'explicit self series should populate selfWh');
+  assert.ok(explicitLoadWh > explicitImportWh, 'explicit load should be retained, not replaced by generated-export fallback');
+
   const usageDaily = createZeroBins('2026-02-16');
   usageDaily[14].selfWh = 120;
   usageDaily[14].importWh = 20;

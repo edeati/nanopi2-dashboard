@@ -455,6 +455,8 @@ function buildSolarMeta(nowMs, timeZone, froniusSnapshot, solarDailyBins, solarH
 function hasUsableArchiveDetail(detail) {
   const payload = detail || {};
   return Object.keys(payload.producedWhBySecond || {}).length > 0 ||
+    Object.keys(payload.selfWhBySecond || {}).length > 0 ||
+    Object.keys(payload.loadWhBySecond || {}).length > 0 ||
     Object.keys(payload.importWhBySecond || {}).length > 0 ||
     Object.keys(payload.exportWhBySecond || {}).length > 0;
 }
@@ -516,6 +518,30 @@ function mergeArchiveWithHistoryGaps(archiveBins, historyBins) {
 
 function aggregateDetailToDailyBins(detail, dayKey, timeZone) {
   const bins = createEmptyDailyBins(dayKey);
+  const daySeconds = 24 * 60 * 60;
+
+  function distributeDeltaAcrossBins(startSecRaw, endSecRaw, deltaRaw, field) {
+    const delta = Number(deltaRaw || 0);
+    if (!(delta > 0)) {
+      return;
+    }
+    const startSec = Math.max(0, Math.min(daySeconds, Number(startSecRaw || 0)));
+    const endSec = Math.max(0, Math.min(daySeconds, Number(endSecRaw || 0)));
+    if (!(endSec > startSec)) {
+      return;
+    }
+    const span = endSec - startSec;
+    let cursor = startSec;
+    while (cursor < endSec) {
+      const idx = Math.min(47, Math.max(0, Math.floor(cursor / 1800)));
+      const bucketEnd = Math.min(endSec, (idx + 1) * 1800);
+      const dt = bucketEnd - cursor;
+      if (dt > 0) {
+        bins[idx][field] += delta * (dt / span);
+      }
+      cursor = bucketEnd;
+    }
+  }
 
   function normalizeSeriesPoints(series) {
     return Object.keys(series || {})
@@ -567,7 +593,8 @@ function aggregateDetailToDailyBins(detail, dayKey, timeZone) {
       }
     }
     const monotonicRatio = up / Math.max(1, up + down);
-    if (monotonicRatio < 0.85) {
+    const maxDownSteps = Math.max(1, Math.floor(points.length * 0.01));
+    if (monotonicRatio < 0.98 || down > maxDownSteps) {
       return false;
     }
     const first = Number(points[0].value || 0);
@@ -596,8 +623,7 @@ function aggregateDetailToDailyBins(detail, dayKey, timeZone) {
         if (delta <= 0) {
           continue;
         }
-        const idx = Math.min(47, Math.max(0, Math.floor(prev.sec / 1800)));
-        bins[idx][field] += delta;
+        distributeDeltaAcrossBins(prev.sec, curr.sec, delta, field);
       }
       return;
     }
@@ -624,18 +650,32 @@ function aggregateDetailToDailyBins(detail, dayKey, timeZone) {
       if (delta < 0) {
         continue;
       }
-      const idx = Math.min(47, Math.max(0, Math.floor(prev.sec / 1800)));
-      bins[idx][field] += delta;
+      distributeDeltaAcrossBins(prev.sec, curr.sec, delta, field);
     }
   }
 
   // Inverter production series is interval energy; meter import/export are cumulative counters.
   addSeriesAsValue(detail.producedWhBySecond, 'generatedWh');
+  addSeriesAsValue(detail.selfWhBySecond, 'selfWh');
+  addSeriesAsValue(detail.loadWhBySecond, 'loadWh');
   addSeriesAsDelta(detail.importWhBySecond, 'importWh');
   addSeriesAsDelta(detail.exportWhBySecond, 'exportWh');
   bins.forEach((bin) => {
-    bin.selfWh = Math.max(0, bin.generatedWh - bin.exportWh);
-    bin.loadWh = bin.selfWh + bin.importWh;
+    const explicitSelfWh = Math.max(0, Number(bin.selfWh || 0));
+    const explicitLoadWh = Math.max(0, Number(bin.loadWh || 0));
+    if (explicitSelfWh > 0 && explicitLoadWh > 0) {
+      return;
+    }
+    if (explicitLoadWh > 0) {
+      bin.selfWh = Math.max(0, explicitLoadWh - Number(bin.importWh || 0));
+      return;
+    }
+    if (explicitSelfWh > 0) {
+      bin.loadWh = explicitSelfWh + Number(bin.importWh || 0);
+      return;
+    }
+    bin.selfWh = Math.max(0, Number(bin.generatedWh || 0) - Number(bin.exportWh || 0));
+    bin.loadWh = Number(bin.selfWh || 0) + Number(bin.importWh || 0);
   });
   return bins;
 }

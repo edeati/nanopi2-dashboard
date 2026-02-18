@@ -131,44 +131,50 @@ function createFroniusClient(baseUrl, options) {
     return {};
   }
 
-  function pickBestSeriesMap(data, channel) {
-    const nodes = data && typeof data === 'object' ? Object.values(data) : [];
-    let best = extractSeriesMap(data && data[channel], channel, true);
-    let bestLen = 0;
-    let bestLast = -Infinity;
-    const bestKeys = Object.keys(best);
-    if (bestKeys.length) {
-      bestLen = bestKeys.length;
-      for (let i = 0; i < bestKeys.length; i += 1) {
-        const value = Number(best[bestKeys[i]] || 0);
-        if (value > bestLast) {
-          bestLast = value;
-        }
+  function seriesScore(map) {
+    const keys = Object.keys(map || {});
+    let last = -Infinity;
+    for (let i = 0; i < keys.length; i += 1) {
+      const value = Number(map[keys[i]] || 0);
+      if (value > last) {
+        last = value;
       }
     }
+    return { len: keys.length, last };
+  }
+
+  function pickBestSeriesMap(data, channels) {
+    const list = Array.isArray(channels) ? channels : [channels];
+    let bestOverall = {};
+    let bestOverallScore = { len: 0, last: -Infinity };
+    for (let c = 0; c < list.length; c += 1) {
+      const channel = list[c];
+      if (!channel) {
+        continue;
+      }
+    const nodes = data && typeof data === 'object' ? Object.values(data) : [];
+    let best = extractSeriesMap(data && data[channel], channel, true);
+      let bestScore = seriesScore(best);
 
     for (let i = 0; i < nodes.length; i += 1) {
       const map = extractSeriesMap(nodes[i], channel);
-      const keys = Object.keys(map);
-      if (!keys.length) {
+        const score = seriesScore(map);
+      if (!score.len) {
         continue;
       }
-      let last = -Infinity;
-      for (let j = 0; j < keys.length; j += 1) {
-        const key = keys[j];
-        const value = Number(map[key] || 0);
-        if (value > last) {
-          last = value;
-        }
-      }
-      if (keys.length > bestLen || (keys.length === bestLen && last > bestLast)) {
+        if (score.len > bestScore.len || (score.len === bestScore.len && score.last > bestScore.last)) {
         best = map;
-        bestLen = keys.length;
-        bestLast = last;
+          bestScore = score;
       }
     }
 
-    return best;
+      if (bestScore.len > bestOverallScore.len ||
+        (bestScore.len === bestOverallScore.len && bestScore.last > bestOverallScore.last)) {
+        bestOverall = best;
+        bestOverallScore = bestScore;
+      }
+    }
+    return bestOverall;
   }
 
   return {
@@ -238,6 +244,15 @@ function createFroniusClient(baseUrl, options) {
       const meterNode = meterKey ? data[meterKey] : null;
       const producedFromInverter = extractSeriesMap(inverterNode, 'EnergyReal_WAC_Sum_Produced');
       const producedFromBest = pickBestSeriesMap(data, 'EnergyReal_WAC_Sum_Produced');
+      const selfFromBest = pickBestSeriesMap(data, [
+        'EnergyReal_WAC_SelfConsumption',
+        'EnergyReal_WAC_Sum_SelfConsumption',
+        'EnergyReal_WAC_Self_Consumption'
+      ]);
+      const loadFromBest = pickBestSeriesMap(data, [
+        'EnergyReal_WAC_Sum_Consumed',
+        'EnergyReal_WAC_Consumed'
+      ]);
       const importAbsolute = extractSeriesMap(meterNode, 'EnergyReal_WAC_Plus_Absolute');
       const phase1 = extractSeriesMap(meterNode, 'EnergyReal_WAC_Phase_1_Consumed');
       const phase2 = extractSeriesMap(meterNode, 'EnergyReal_WAC_Phase_2_Consumed');
@@ -257,7 +272,9 @@ function createFroniusClient(baseUrl, options) {
       return {
         producedWhBySecond: producedSeries,
         importWhBySecond: importSeries,
-        exportWhBySecond: extractSeriesMap(meterNode, 'EnergyReal_WAC_Minus_Absolute')
+        exportWhBySecond: extractSeriesMap(meterNode, 'EnergyReal_WAC_Minus_Absolute'),
+        selfWhBySecond: selfFromBest,
+        loadWhBySecond: loadFromBest
       };
     }
   };

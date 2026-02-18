@@ -777,7 +777,7 @@ module.exports = async function run() {
     }
 
     // -------------------------------------------------------------------
-    // Test 12i: stale frame timestamps should clamp to render time labels
+    // Test 12i: stale frame timestamps should shift to now while preserving frame spacing
     // -------------------------------------------------------------------
     {
       const originalNow = Date.now;
@@ -820,12 +820,18 @@ module.exports = async function run() {
         const out = await staleFrameRenderer.renderOnce({ width: 120, height: 90 });
         assert.ok(out && Buffer.isBuffer(out.body) && out.body.length > 0, 'stale frame label render should produce a GIF');
 
-        const expectedNowLabel = new Intl.DateTimeFormat('en-AU', {
+        const expectedLatestLabel = new Intl.DateTimeFormat('en-AU', {
           timeZone: 'Australia/Brisbane',
           hour: '2-digit',
           minute: '2-digit',
           hour12: false
         }).format(new Date(fixedNowMs)).replace(/:/g, '\\:');
+        const expectedEarlierLabel = new Intl.DateTimeFormat('en-AU', {
+          timeZone: 'Australia/Brisbane',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }).format(new Date(fixedNowMs - (10 * 60 * 1000))).replace(/:/g, '\\:');
         const staleFrameLabel = new Intl.DateTimeFormat('en-AU', {
           timeZone: 'Australia/Brisbane',
           hour: '2-digit',
@@ -833,14 +839,16 @@ module.exports = async function run() {
           hour12: false
         }).format(new Date(1771347000 * 1000)).replace(/:/g, '\\:');
 
-        const composeFilter = ffmpegCalls.map(function (args) {
+        const composeFilters = ffmpegCalls.map(function (args) {
           const idx = args.indexOf('-filter_complex');
           return idx > -1 ? String(args[idx + 1] || '') : '';
-        }).find(function (value) {
+        }).filter(function (value) {
           return value.indexOf('fontsize=24') > -1 && value.indexOf('drawtext=text=') > -1;
-        }) || '';
-        assert.ok(composeFilter.indexOf('drawtext=text=\'' + expectedNowLabel + '\'') > -1, 'frame timestamp should clamp to current local time when source frames are stale');
-        assert.strictEqual(composeFilter.indexOf('drawtext=text=\'' + staleFrameLabel + '\'') > -1, false, 'stale source frame label should not be rendered');
+        });
+        const allComposeText = composeFilters.join('\n');
+        assert.ok(allComposeText.indexOf('drawtext=text=\'' + expectedLatestLabel + '\'') > -1, 'latest stale frame should shift to current local time');
+        assert.ok(allComposeText.indexOf('drawtext=text=\'' + expectedEarlierLabel + '\'') > -1, 'older stale frame should preserve spacing when shifted');
+        assert.strictEqual(allComposeText.indexOf('drawtext=text=\'' + staleFrameLabel + '\'') > -1, false, 'stale source frame label should not be rendered');
       } finally {
         Date.now = originalNow;
       }

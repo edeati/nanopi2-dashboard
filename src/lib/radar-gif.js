@@ -99,19 +99,16 @@ function normalizeEpochMs(rawTime) {
 }
 
 function buildFrameLabels(framesSubset, timeZone, nowMs, staleAfterMs) {
-  const labels = framesSubset.map((frame) => formatFrameTimestamp(frame && frame.time, timeZone));
-  const latestFrameMs = framesSubset.reduce((maxMs, frame) => {
-    const tsMs = normalizeEpochMs(frame && frame.time);
-    return tsMs > maxMs ? tsMs : maxMs;
-  }, 0);
+  const frameTimes = framesSubset.map((frame) => normalizeEpochMs(frame && frame.time));
+  const latestFrameMs = frameTimes.reduce((maxMs, tsMs) => (tsMs > maxMs ? tsMs : maxMs), 0);
   if (!latestFrameMs) {
-    return labels;
+    return framesSubset.map(() => '');
   }
   if (Number.isFinite(staleAfterMs) && staleAfterMs > 0 && (nowMs - latestFrameMs) > staleAfterMs) {
-    const fallbackLabel = formatFrameTimestamp(nowMs, timeZone);
-    return framesSubset.map(() => fallbackLabel);
+    const shiftMs = nowMs - latestFrameMs;
+    return frameTimes.map((tsMs) => formatFrameTimestamp(tsMs > 0 ? (tsMs + shiftMs) : 0, timeZone));
   }
-  return labels;
+  return frameTimes.map((tsMs) => formatFrameTimestamp(tsMs, timeZone));
 }
 
 function formatGeneratedTimestamp(rawMs, timeZone) {
