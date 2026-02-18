@@ -159,6 +159,19 @@ module.exports = async function run() {
   assert.ok(usageHourly[8].selfWh > 0, '8am hourly bucket should retain current-hour energy');
   assert.ok(usageHourly[7].generatedWh > 0, 'usage hourly should include generated line series values');
 
+  const missingSelfDaily = createZeroBins('2026-02-16');
+  missingSelfDaily[14].generatedWh = 140;
+  missingSelfDaily[14].exportWh = 35;
+  missingSelfDaily[14].importWh = 12;
+  missingSelfDaily[14].loadWh = 117;
+  missingSelfDaily[15].generatedWh = 80;
+  missingSelfDaily[15].exportWh = 10;
+  missingSelfDaily[15].importWh = 6;
+  missingSelfDaily[15].loadWh = 76;
+  const missingSelfHourly = buildUsageHourlyFromDailyBins(missingSelfDaily);
+  assert.ok(Math.abs(missingSelfHourly[7].selfWh - 175) < 0.001, 'usage hourly should derive selfWh from generated-export when selfWh is missing');
+  assert.ok(Math.abs(missingSelfHourly[7].loadWh - 193) < 0.001, 'usage hourly load should remain stable when deriving selfWh');
+
   const dawnNowUtc = Date.parse('2026-02-15T23:45:00.000Z'); // 09:45 local
   const dawnHistory = [
     { ts: Date.parse('2026-02-15T20:50:00.000Z'), generatedW: 500, gridW: 60, loadW: 560 }, // 06:50

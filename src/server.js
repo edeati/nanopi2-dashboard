@@ -284,9 +284,13 @@ function buildUsageHourlyFromDailyBins(dailyBins) {
     const first = source[hour * 2] || {};
     const second = source[(hour * 2) + 1] || {};
     const generatedWh = Number(first.generatedWh || 0) + Number(second.generatedWh || 0);
-    const selfWh = Number(first.selfWh || 0) + Number(second.selfWh || 0);
+    const exportWh = Number(first.exportWh || 0) + Number(second.exportWh || 0);
     const importWh = Number(first.importWh || 0) + Number(second.importWh || 0);
     const loadWhFromBins = Number(first.loadWh || 0) + Number(second.loadWh || 0);
+    const selfWhFromBins = Number(first.selfWh || 0) + Number(second.selfWh || 0);
+    const selfWhFromGeneration = Math.max(0, generatedWh - exportWh);
+    const selfWhFromLoad = loadWhFromBins > 0 ? Math.max(0, loadWhFromBins - importWh) : 0;
+    const selfWh = selfWhFromBins > 0 ? selfWhFromBins : Math.max(selfWhFromGeneration, selfWhFromLoad);
     out.push({
       hour,
       generatedWh,
