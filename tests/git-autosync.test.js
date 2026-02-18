@@ -58,7 +58,7 @@ module.exports = async function run() {
     assert.ok(typeof scheduled === 'function');
     await scheduled();
     assert.ok(calls.some((c) => c.indexOf('pull --rebase origin dev') > -1));
-    assert.ok(calls.some((c) => c.indexOf('push origin dev') > -1));
+    assert.ok(!calls.some((c) => c.indexOf('push origin dev') > -1));
   } finally {
     if (server) {
       await new Promise((resolve) => server.close(resolve));

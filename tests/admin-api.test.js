@@ -120,7 +120,17 @@ module.exports = async function run() {
     }, JSON.stringify({ action: 'sync' }));
     assert.strictEqual(syncRes.statusCode, 200);
     assert.ok(calls.some((c) => c.indexOf('pull --rebase origin dev') > -1));
-    assert.ok(calls.some((c) => c.indexOf('push origin dev') > -1));
+    assert.ok(!calls.some((c) => c.indexOf('push origin dev') > -1));
+
+    const pushRes = await request(server, {
+      path: '/api/admin/sync',
+      method: 'POST',
+      headers: {
+        cookie,
+        'content-type': 'application/json'
+      }
+    }, JSON.stringify({ action: 'push' }));
+    assert.strictEqual(pushRes.statusCode, 500);
 
     const updateRes = await request(server, {
       path: '/api/admin/config',

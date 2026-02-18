@@ -32,8 +32,7 @@ function createGitSyncService(options) {
   async function sync() {
     const branch = config.branch || 'dev';
     const steps = [
-      ['pull', '--rebase', 'origin', branch],
-      ['push', 'origin', branch]
+      ['pull', '--rebase', 'origin', branch]
     ];
 
     for (const step of steps) {
@@ -60,8 +59,6 @@ function createGitSyncService(options) {
     let args;
     if (name === 'pull') {
       args = ['pull', '--rebase', 'origin', branch];
-    } else if (name === 'push') {
-      args = ['push', 'origin', branch];
     } else {
       return { ok: false, detail: 'unsupported action' };
     }
