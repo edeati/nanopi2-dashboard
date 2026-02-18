@@ -9,6 +9,50 @@ module.exports = async function run() {
   const server = http.createServer((req, res) => {
     if (req.url.indexOf('/GetArchiveData.cgi') > -1) {
       if (req.url.indexOf('SeriesType=Detail') > -1) {
+        if (req.url.indexOf('StartDate=2026-02-17') > -1) {
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({
+            Body: {
+              Data: {
+                EnergyReal_WAC_Sum_Produced: {
+                  Values: {
+                    '25200': 1000,
+                    '27000': 5000,
+                    '28800': 9000
+                  }
+                },
+                'inverter/1': {
+                  Data: {
+                    EnergyReal_WAC_Sum_Produced: {
+                      Values: {
+                        '28800': 50
+                      }
+                    }
+                  }
+                },
+                'meter:123': {
+                  Data: {
+                    EnergyReal_WAC_Plus_Absolute: {
+                      Values: {
+                        '25200': 1000,
+                        '27000': 1020,
+                        '28800': 1030
+                      }
+                    },
+                    EnergyReal_WAC_Minus_Absolute: {
+                      Values: {
+                        '25200': 200,
+                        '27000': 260,
+                        '28800': 300
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }));
+          return;
+        }
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({
           Body: {
@@ -146,6 +190,10 @@ module.exports = async function run() {
     assert.strictEqual(Object.keys(detail.producedWhBySecond).length, 3, 'daily detail should choose fuller produced series (meter fallback)');
     assert.strictEqual(detail.producedWhBySecond['25200'], 12);
     assert.strictEqual(detail.producedWhBySecond['28800'], 161);
+    const detailTopLevel = await client.fetchDailyDetail('2026-02-17');
+    assert.strictEqual(Object.keys(detailTopLevel.producedWhBySecond).length, 3, 'daily detail should include top-level produced series when present');
+    assert.strictEqual(detailTopLevel.producedWhBySecond['25200'], 1000);
+    assert.strictEqual(detailTopLevel.producedWhBySecond['28800'], 9000);
 
     const RealDate = Date;
     class FakeDate extends RealDate {

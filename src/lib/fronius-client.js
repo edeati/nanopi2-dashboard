@@ -104,11 +104,7 @@ function createFroniusClient(baseUrl, options) {
     return best;
   }
 
-  function extractSeriesMap(node, channel) {
-    if (!node || !node.Data || !node.Data[channel] || !node.Data[channel].Values) {
-      return {};
-    }
-    const values = node.Data[channel].Values;
+  function toSeriesMap(values) {
     if (Array.isArray(values)) {
       const out = {};
       for (let i = 0; i < values.length; i += 1) {
@@ -116,14 +112,40 @@ function createFroniusClient(baseUrl, options) {
       }
       return out;
     }
-    return values;
+    return values || {};
+  }
+
+  function extractSeriesMap(node, channel, allowChannelNode) {
+    if (!node || typeof node !== 'object') {
+      return {};
+    }
+    if (node.Data && node.Data[channel] && node.Data[channel].Values) {
+      return toSeriesMap(node.Data[channel].Values);
+    }
+    if (node[channel] && node[channel].Values) {
+      return toSeriesMap(node[channel].Values);
+    }
+    if (allowChannelNode && node.Values) {
+      return toSeriesMap(node.Values);
+    }
+    return {};
   }
 
   function pickBestSeriesMap(data, channel) {
     const nodes = data && typeof data === 'object' ? Object.values(data) : [];
-    let best = {};
+    let best = extractSeriesMap(data && data[channel], channel, true);
     let bestLen = 0;
     let bestLast = -Infinity;
+    const bestKeys = Object.keys(best);
+    if (bestKeys.length) {
+      bestLen = bestKeys.length;
+      for (let i = 0; i < bestKeys.length; i += 1) {
+        const value = Number(best[bestKeys[i]] || 0);
+        if (value > bestLast) {
+          bestLast = value;
+        }
+      }
+    }
 
     for (let i = 0; i < nodes.length; i += 1) {
       const map = extractSeriesMap(nodes[i], channel);
