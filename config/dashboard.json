@@ -120,7 +120,7 @@
     "gifMaxFrames": 4,
     "gifWidth": 640,
     "gifHeight": 360,
-    "refreshSeconds": 180
+    "refreshSeconds": 180,
     "provider": "rainviewer",
     "apiUrl": "https://api.rainviewer.com/public/weather-maps.json",
     "lat": 0,
