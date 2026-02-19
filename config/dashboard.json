@@ -114,6 +114,13 @@
     "historySize": 60
   },
   "radar": {
+    "renderMode": "server_gif",
+    "gifBackend": "ffmpeg",
+    "gifExtraTiles": 0,
+    "gifMaxFrames": 4,
+    "gifWidth": 640,
+    "gifHeight": 360,
+    "refreshSeconds": 180
     "provider": "rainviewer",
     "apiUrl": "https://api.rainviewer.com/public/weather-maps.json",
     "lat": 0,
@@ -122,14 +129,11 @@
     "providerMaxZoom": 7,
     "color": 3,
     "options": "1_1",
-    "renderMode": "server_gif",
     "iframeUrl": "https://www.rainviewer.com/map.html",
     "sourceUrl": "",
-    "refreshSeconds": 120,
     "frameHoldMs": 650,
     "transitionMs": 350,
-    "gifRightTrimPx": 80,
-    "gifBackend": "ffmpeg"
+    "gifRightTrimPx": 80
   },
   "insecureTLS": true,
   "map": {
