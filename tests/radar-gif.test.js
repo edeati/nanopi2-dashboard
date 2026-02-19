@@ -777,6 +777,50 @@ module.exports = async function run() {
     }
 
     // -------------------------------------------------------------------
+    // Test 12j: render should tolerate 404 radar tiles (treat as empty tile)
+    // -------------------------------------------------------------------
+    {
+      let radarCalls404 = 0;
+      const tolerantRadarRenderer = createRadarGifRenderer({
+        fetchMapTile: async function () { return { contentType: 'image/png', body: fakeTilePng }; },
+        fetchRadarTile: async function () {
+          radarCalls404 += 1;
+          if (radarCalls404 === 1) {
+            const notFound = new Error('HTTP 404');
+            notFound.statusCode = 404;
+            notFound.code = 'http_status_error';
+            throw notFound;
+          }
+          return { contentType: 'image/png', body: fakeRadarTilePng };
+        },
+        getRadarState: function () {
+          return {
+            frames: [
+              { time: 1000, path: '/path/0' },
+              { time: 2000, path: '/path/1' }
+            ]
+          };
+        },
+        config: {
+          radar: {
+            zoom: 6,
+            providerMaxZoom: 6,
+            lat: -27.47,
+            lon: 153.02,
+            gifMaxFrames: 2,
+            gifExtraTiles: 0,
+            gifFrameDelayMs: 100,
+            color: 3,
+            options: '1_1'
+          }
+        },
+        gifCacheDir: path.join(tempDir, 'radar-404-tolerant-test')
+      });
+      const out = await tolerantRadarRenderer.renderOnce({ width: 120, height: 90 });
+      assert.ok(out && Buffer.isBuffer(out.body) && out.body.length > 0, 'render should succeed when a radar tile returns 404');
+    }
+
+    // -------------------------------------------------------------------
     // Test 12i: stale frame timestamps should shift to now while preserving frame spacing
     // -------------------------------------------------------------------
     {

@@ -631,7 +631,11 @@ function createRadarGifRenderer(options) {
               'radar-' + String(i).padStart(3, '0') + '-' + String(t).padStart(3, '0') + '.png'
             );
             fs.writeFileSync(filePath, result.body);
-          } catch (_error) {
+          } catch (error) {
+            if (Number(error && error.statusCode) === 404) {
+              // RainViewer may return 404 for "no radar data" tiles; treat as transparent.
+              continue;
+            }
             const radarError = new Error('radar_tiles_incomplete');
             radarError.code = 'radar_tiles_incomplete';
             throw radarError;
@@ -640,12 +644,6 @@ function createRadarGifRenderer(options) {
           if (filePath) {
             radarAssets.push({ filePath, x: tile.drawX, y: tile.drawY });
           }
-        }
-
-        if (radarAssets.length !== plan.tiles.length) {
-          const noTilesError = new Error('radar_tiles_incomplete');
-          noTilesError.code = 'radar_tiles_incomplete';
-          throw noTilesError;
         }
 
         const overlays = mapAssets.concat(radarAssets);
