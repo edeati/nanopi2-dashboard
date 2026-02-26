@@ -682,7 +682,7 @@ function createRadarGifRenderer(options) {
           (plan.drawTextFontFile ? (':fontfile=' + escapeFfmpegDrawtext(plan.drawTextFontFile)) : '') +
           ':fontcolor=white' +
           ':fontsize=24' +
-          ':borderw=3' +
+          ':borderw=1' +
           ':bordercolor=black' +
           ':x=(w-text_w)/2:y=h-th-34' +
           '[vtxt]';
@@ -692,7 +692,7 @@ function createRadarGifRenderer(options) {
           (plan.drawTextFontFile ? (':fontfile=' + escapeFfmpegDrawtext(plan.drawTextFontFile)) : '') +
           ':fontcolor=white' +
           ':fontsize=14' +
-          ':borderw=2' +
+          ':borderw=1' +
           ':bordercolor=black' +
           ':x=(w-text_w)/2:y=h-th-8' +
           '[vouttxt]';

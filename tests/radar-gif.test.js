@@ -513,6 +513,11 @@ module.exports = async function run() {
           f.indexOf('y=h-th-8') > -1;
       });
       assert.ok(composeWithTimestamp, 'frame compose should crop and then draw bottom timestamp');
+      const composeFilterIndex = composeWithTimestamp.indexOf('-filter_complex');
+      const composeFilter = String(composeWithTimestamp[composeFilterIndex + 1] || '');
+      const thinBorderMatches = composeFilter.match(/:borderw=1\b/g) || [];
+      assert.strictEqual(thinBorderMatches.length, 2, 'timestamp and generated labels should use thin text outlines');
+      assert.strictEqual(composeFilter.indexOf(':borderw=3') > -1, false, 'thick timestamp outline should not be used');
       assert.strictEqual(filter.indexOf('crop=') > -1, false, 'encode stage should not crop again');
       assert.strictEqual(filter.indexOf('drawtext=') > -1, false, 'encode stage should not redraw timestamp');
     }
