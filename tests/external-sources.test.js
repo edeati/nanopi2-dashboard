@@ -42,6 +42,7 @@ module.exports = async function run() {
     news: { feedUrl: '', maxItems: 5 },
     bins: { sourceUrl: '', propertyId: '123456' }
   }, {
+    now: () => new Date('2026-02-20T08:00:00+10:00'),
     fetchText: async (url) => {
       calls.push(url);
       if (url.indexOf('/api/v1/properties/123456.json') > -1) {
@@ -215,27 +216,26 @@ module.exports = async function run() {
   assert.strictEqual(unavailable.nextType, 'Bins unavailable');
   assert.strictEqual(unavailable.nextDate, 'Check source');
 
-  const monthCalls = [];
-  const monthBins = createExternalSources({
+  const rollingCalls = [];
+  const rollingNow = new Date('2026-02-26T11:00:00+10:00');
+  const rollingBins = createExternalSources({
     weather: { provider: 'none' },
     news: { feedUrl: '', maxItems: 5 },
     bins: { sourceUrl: '', propertyId: '638788' }
   }, {
+    now: () => new Date(rollingNow.getTime()),
     fetchText: async (url) => {
-      monthCalls.push(url);
+      rollingCalls.push(url);
       return JSON.stringify({
-        upcoming: [{ date: '2026-02-25', type: 'Recycle' }]
+        upcoming: [{ date: '2026-03-03', type: 'Recycle' }]
       });
     }
   });
-  await monthBins.fetchBins();
-  const binsUrl = monthCalls[0] || '';
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  await rollingBins.fetchBins();
+  const binsUrl = rollingCalls[0] || '';
   assert.ok(binsUrl.indexOf('/api/v1/properties/638788.json') > -1);
-  assert.ok(binsUrl.indexOf('start=' + formatDateLocal(startOfMonth)) > -1);
-  assert.ok(binsUrl.indexOf('end=' + formatDateLocal(endOfMonth)) > -1);
+  assert.ok(binsUrl.indexOf('start=' + formatDateLocal(rollingNow)) > -1);
+  assert.ok(binsUrl.indexOf('end=' + addDaysLocal(rollingNow, 14)) > -1);
 
   const brisbaneStartFieldBins = createExternalSources({
     weather: { provider: 'none' },

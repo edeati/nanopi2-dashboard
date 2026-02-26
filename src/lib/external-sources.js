@@ -210,8 +210,9 @@ function rankBinEventType(eventType) {
 
 function buildBinsUrl(configBins, nowDate) {
   const now = nowDate || new Date();
-  const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const startDate = new Date(now.getTime());
+  const endDate = new Date(now.getTime());
+  endDate.setDate(endDate.getDate() + 14);
   const start = formatDateLocal(startDate);
   const end = formatDateLocal(endDate);
 
