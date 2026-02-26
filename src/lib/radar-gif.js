@@ -680,20 +680,20 @@ function createRadarGifRenderer(options) {
         const timestampFilter = '[vmark]' +
           'drawtext=text=\'' + tsLabel + '\'' +
           (plan.drawTextFontFile ? (':fontfile=' + escapeFfmpegDrawtext(plan.drawTextFontFile)) : '') +
-          ':fontcolor=white' +
+          ':fontcolor=black' +
           ':fontsize=24' +
           ':borderw=1' +
-          ':bordercolor=black' +
+          ':bordercolor=white' +
           ':x=(w-text_w)/2:y=h-th-34' +
           '[vtxt]';
         const generatedLabel = escapeFfmpegDrawtext(plan.generatedLabel || '');
         const generatedFilter = '[vtxt]' +
           'drawtext=text=\'' + generatedLabel + '\'' +
           (plan.drawTextFontFile ? (':fontfile=' + escapeFfmpegDrawtext(plan.drawTextFontFile)) : '') +
-          ':fontcolor=white' +
+          ':fontcolor=black' +
           ':fontsize=14' +
           ':borderw=1' +
-          ':bordercolor=black' +
+          ':bordercolor=white' +
           ':x=(w-text_w)/2:y=h-th-8' +
           '[vouttxt]';
         composeArgs.push(

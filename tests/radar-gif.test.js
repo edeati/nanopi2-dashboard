@@ -506,8 +506,8 @@ module.exports = async function run() {
           f.indexOf('Generated\\:') > -1 &&
           f.indexOf('drawbox=x=(w/2)-1') > -1 &&
           f.indexOf('drawbox=x=(w/2)-8') > -1 &&
-          f.indexOf('fontcolor=white') > -1 &&
-          f.indexOf('bordercolor=black') > -1 &&
+          f.indexOf('fontcolor=black') > -1 &&
+          f.indexOf('bordercolor=white') > -1 &&
           f.indexOf('x=(w-text_w)/2') > -1 &&
           f.indexOf('y=h-th-34') > -1 &&
           f.indexOf('y=h-th-8') > -1;
@@ -518,6 +518,8 @@ module.exports = async function run() {
       const thinBorderMatches = composeFilter.match(/:borderw=1\b/g) || [];
       assert.strictEqual(thinBorderMatches.length, 2, 'timestamp and generated labels should use thin text outlines');
       assert.strictEqual(composeFilter.indexOf(':borderw=3') > -1, false, 'thick timestamp outline should not be used');
+      assert.ok(composeFilter.indexOf(':fontcolor=black') > -1, 'labels should use black text');
+      assert.ok(composeFilter.indexOf(':bordercolor=white') > -1, 'labels should use white outline');
       assert.strictEqual(filter.indexOf('crop=') > -1, false, 'encode stage should not crop again');
       assert.strictEqual(filter.indexOf('drawtext=') > -1, false, 'encode stage should not redraw timestamp');
     }
