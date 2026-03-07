@@ -690,20 +690,10 @@
 
     #binSummaryPage {
       display: grid;
-      grid-template-rows: auto 1fr;
-      gap: 6px;
+      grid-template-rows: 1fr;
+      gap: 0;
       align-content: start;
       width: 100%;
-    }
-
-    #binSummaryLabel {
-      font-size: 11px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: #9cb0c4;
-      font-family: var(--font-display);
-      font-weight: 800;
-      padding-top: 2px;
     }
 
     #binRows {
@@ -1525,7 +1515,6 @@
         <span class="panel-title">Bins</span>
         <div id="binPages">
           <div id="binSummaryPage">
-            <div id="binSummaryLabel">Upcoming</div>
             <div id="binRows"></div>
           </div>
           <div id="binFocusPage">
@@ -1582,6 +1571,7 @@
       var binsPageTimer = null;
       var binsPageIndex = 0;
       var BINS_PAGE_ROTATE_MS = 15000;
+      var lastBinsSig = '';
 
       var TILE_SIZE = 256;
       var MAP_TILE_OVERDRAW = 1;
@@ -2725,6 +2715,23 @@
           .replace(/'/g, '&#39;');
       }
 
+      function binsItemsSignature(items) {
+        var source = Array.isArray(items) ? items : [];
+        return source.map(function (item) {
+          if (!item) {
+            return 'none';
+          }
+          return [
+            item.kind || '',
+            item.label || '',
+            item.tag || '',
+            item.detail || '',
+            item.icon || '',
+            item.tone || ''
+          ].join('|');
+        }).join('||');
+      }
+
       function fallbackBinItems(binsState) {
         if (!binsState || (!binsState.nextType && !binsState.error)) {
           return [];
@@ -3194,7 +3201,16 @@
           }
           renderForecast(state.weather.forecast || []);
         }
-        renderBinsCard(state.bins || {});
+        var nextBinsItems = Array.isArray((state.bins || {}).items) && (state.bins || {}).items.length
+          ? (state.bins || {}).items
+          : fallbackBinItems(state.bins || {});
+        var nextBinsSig = binsItemsSignature(nextBinsItems);
+        if (nextBinsSig !== lastBinsSig) {
+          lastBinsSig = nextBinsSig;
+          renderBinsCard(state.bins || {});
+        } else if (!binsPageTimer && Array.isArray((state.bins || {}).items) && (state.bins || {}).items.length > 1) {
+          renderBinsCard(state.bins || {});
+        }
         var newsHeadlines = Array.isArray(state.news.headlines) ? state.news.headlines : [];
         setNewsTickerText(newsHeadlines.join('   |   ') || 'No headlines currently available');
 
