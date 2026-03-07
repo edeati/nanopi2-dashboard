@@ -776,6 +776,7 @@
       font-size: 58px;
       line-height: 1;
       opacity: 0.92;
+      color: #eef2f6;
     }
 
     #binFocusLabel {
@@ -799,18 +800,6 @@
       line-height: 1;
       font-weight: 900;
       letter-spacing: 0.08em;
-    }
-
-    #binFocusDetail {
-      font-size: 18px;
-      line-height: 1.1;
-      color: #aebaca;
-      text-align: center;
-      min-height: 20px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 100%;
     }
 
     #binCard.bin-card-focus #binSummaryPage {
@@ -844,13 +833,15 @@
     }
 
     .bin-row.is-yellow .bin-row-icon,
-    #binFocusPage.is-yellow #binFocusTag {
+    #binFocusPage.is-yellow #binFocusTag,
+    #binFocusPage.is-yellow #binFocusIcon {
       color: #f2d44b;
       border-color: rgba(242, 212, 75, 0.5);
     }
 
     .bin-row.is-green .bin-row-icon,
-    #binFocusPage.is-green #binFocusTag {
+    #binFocusPage.is-green #binFocusTag,
+    #binFocusPage.is-green #binFocusIcon {
       color: #8edb7c;
       border-color: rgba(142, 219, 124, 0.5);
     }
@@ -1521,7 +1512,6 @@
             <div id="binFocusIcon">🗑</div>
             <div id="binFocusLabel">Bins</div>
             <div id="binFocusTag">--</div>
-            <div id="binFocusDetail"></div>
           </div>
         </div>
       </section>
@@ -1567,7 +1557,6 @@
       var binFocusIconNode = document.getElementById('binFocusIcon');
       var binFocusLabelNode = document.getElementById('binFocusLabel');
       var binFocusTagNode = document.getElementById('binFocusTag');
-      var binFocusDetailNode = document.getElementById('binFocusDetail');
       var binsPageTimer = null;
       var binsPageIndex = 0;
       var BINS_PAGE_ROTATE_MS = 15000;
@@ -2806,7 +2795,6 @@
           binFocusIconNode.textContent = focusItem.icon || '🗑';
           binFocusLabelNode.textContent = focusItem.label || 'Bins';
           binFocusTagNode.textContent = focusItem.tag || '--';
-          binFocusDetailNode.textContent = focusItem.detail || '';
         }
       }
 

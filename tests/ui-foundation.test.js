@@ -137,7 +137,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('id="binFocusPage"') > -1, 'bin focus page markup missing');
   assert.ok(html.indexOf('id="binFocusLabel"') > -1, 'bin focus label missing');
   assert.ok(html.indexOf('id="binFocusTag"') > -1, 'bin focus tag missing');
-  assert.ok(html.indexOf('id="binFocusDetail"') > -1, 'bin focus detail missing');
+  assert.strictEqual(html.indexOf('id="binFocusDetail"'), -1, 'bin focus detail row should be removed');
   assert.strictEqual(html.indexOf('id="binSummaryLabel"'), -1, 'bin summary headline should be removed to save space');
   assert.ok(html.indexOf('#binCard {\n      display: grid;\n      grid-template-rows: 1fr;') > -1, 'bin card should use a dedicated page layout');
   assert.strictEqual(html.indexOf('id="binsType"'), -1, 'legacy single bins headline should be removed');
@@ -153,6 +153,8 @@ module.exports = async function run() {
   assert.ok(html.indexOf("if (nextBinsSig !== lastBinsSig) {\n          lastBinsSig = nextBinsSig;\n          renderBinsCard(state.bins || {});") > -1, 'bins card should only restart when content changes');
   assert.ok(html.indexOf("} else if (!binsPageTimer && Array.isArray((state.bins || {}).items) && (state.bins || {}).items.length > 1) {") > -1, 'bins timer should only restart when missing');
   assert.ok(html.indexOf('binRowsNode.innerHTML = rowsHtml;') > -1, 'bins renderer should populate summary rows');
+  assert.ok(html.indexOf('#binFocusPage.is-yellow #binFocusIcon') > -1, 'focus recycle icon should use yellow tone');
+  assert.ok(html.indexOf('#binFocusPage.is-green #binFocusIcon') > -1, 'focus organic icon should use green tone');
   assert.ok(html.indexOf("binCardNode.classList.toggle('bin-card-focus',") > -1, 'bins card should toggle focus-page mode');
   assert.ok(html.indexOf("binCardNode.classList.toggle('bin-card-empty',") > -1, 'bins card should toggle empty mode');
   assert.ok(html.indexOf("if (binsPageTimer) {\n          clearInterval(binsPageTimer);") > -1, 'bins renderer should reset paging timer');
