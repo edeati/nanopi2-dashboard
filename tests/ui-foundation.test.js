@@ -252,6 +252,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf("usageGaugeTextNode.classList.toggle('is-importing', importW > 0.02);") > -1, 'usage gauge text should switch to import state when importing');
   assert.ok(html.indexOf("generationGaugeNode.classList.toggle('is-maxed', genW >= capW * 0.98);") > -1, 'generation gauge should pulse when near inverter max');
   assert.ok(html.indexOf("solarStatusImportCard.classList.toggle('is-importing', importReady && Number(today.importKwh || 0) > 0);") > -1, 'grid import status card should switch to import accent when import is positive');
+  assert.ok(html.indexOf('.solar-status-card-import.is-importing {\n      background: rgba(120, 24, 24, 0.18);') > -1, 'grid import status card should use the red inactive-solar accent when importing');
   assert.ok(html.indexOf("style=\"background:#ff6b3d;\"") > -1, 'solar usage legend should show orange-red import swatch');
   assert.ok(html.indexOf('function drawDawnQuarterBars(') > -1, 'dawn quarter draw helper missing');
   assert.ok(html.indexOf('function buildSolarPanelSignatures(') > -1, 'solar panel signature helper missing');
