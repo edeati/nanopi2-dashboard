@@ -129,7 +129,19 @@ module.exports = async function run() {
       initialExternalState: {
         weather: { summary: 'Cloudy', tempC: 23 },
         news: { headlines: ['One', 'Two'] },
-        bins: { nextType: 'Recycle', nextDate: '2026-02-20' }
+        bins: {
+          nextType: 'Today: Recycle',
+          nextDate: '2026-02-20',
+          items: [
+            { kind: 'recycle', label: 'Recycle', tag: 'TODAY', detail: null, icon: '♻', tone: 'yellow', priority: 0 },
+            { kind: 'kerbside', label: 'Kerbside', tag: 'PUT OUT', detail: 'Mon 9 Mar', icon: '📦', tone: 'neutral', priority: 1 }
+          ],
+          pages: [
+            { type: 'summary', items: ['recycle', 'kerbside'] },
+            { type: 'focus', item: 'recycle' },
+            { type: 'focus', item: 'kerbside' }
+          ]
+        }
       },
       initialSolarHistory: [
         { ts: 1000, generatedW: 500, gridW: 120, loadW: 620 },
@@ -191,6 +203,11 @@ module.exports = async function run() {
     assert.strictEqual(statePayload.internet.downloadMbps, 674.08, 'internet payload should pass through current download from probe state');
     assert.ok(statePayload.ha && Array.isArray(statePayload.ha.cards), 'ha payload should expose cards array');
     assert.ok(Object.prototype.hasOwnProperty.call(statePayload.ha, 'stale'), 'ha payload should expose stale flag');
+    assert.ok(Array.isArray(statePayload.bins.items), 'bins payload should expose normalized items');
+    assert.strictEqual(statePayload.bins.items.length, 2, 'bins payload should preserve multiple display items');
+    assert.ok(Array.isArray(statePayload.bins.pages), 'bins payload should expose page metadata');
+    assert.strictEqual(statePayload.bins.items[0].tag, 'TODAY');
+    assert.strictEqual(statePayload.bins.items[1].tag, 'PUT OUT');
 
     const realtimeState = await request(server, { path: '/api/state/realtime' });
     assert.strictEqual(realtimeState.statusCode, 200);

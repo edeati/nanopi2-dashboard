@@ -108,6 +108,17 @@ function formatDateLocal(date) {
     '-' + String(date.getDate()).padStart(2, '0');
 }
 
+function formatShortDateLabel(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date.toLocaleDateString('en-AU', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short'
+  }).replace(',', '');
+}
+
 function startOfLocalDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
@@ -208,6 +219,127 @@ function rankBinEventType(eventType) {
   return 2;
 }
 
+function isKerbsideCandidate(name, rawType) {
+  const value = (String(name || '') + ' ' + String(rawType || '')).toLowerCase();
+  return value.indexOf('kerb') > -1 || value.indexOf('curb') > -1 || value.indexOf('hard waste') > -1;
+}
+
+function normalizeBinLabel(candidate) {
+  const displayName = String((candidate && candidate.displayName) || '').trim();
+  const lowered = displayName.toLowerCase();
+  if (candidate && candidate.eventType === 'recycle') {
+    return 'Recycle';
+  }
+  if (candidate && candidate.eventType === 'organic') {
+    return 'Green';
+  }
+  if (candidate && candidate.eventType === 'general') {
+    return 'General';
+  }
+  if (isKerbsideCandidate(displayName, candidate && candidate.rawType)) {
+    return 'Kerbside';
+  }
+  if (lowered.indexOf('drop-off') > -1) {
+    return 'Drop-off';
+  }
+  if (displayName) {
+    return displayName;
+  }
+  return 'Scheduled';
+}
+
+function buildBinDisplayItem(candidate, nowDate) {
+  if (!candidate) {
+    return null;
+  }
+  const now = nowDate || new Date();
+  const todayStartMs = startOfLocalDay(now).getTime();
+  const label = normalizeBinLabel(candidate);
+  const collectionDate = candidate.collectionDate || candidate.date;
+  const collectionStartMs = collectionDate ? startOfLocalDay(collectionDate).getTime() : 0;
+  const placementDate = candidate.placementDate || null;
+  const placementStartMs = placementDate ? startOfLocalDay(placementDate).getTime() : null;
+  let tag = null;
+  let detail = null;
+  let sortBucket = 3;
+
+  if (candidate.isKerbside) {
+    if (collectionStartMs < todayStartMs) {
+      return null;
+    }
+    if (collectionStartMs === todayStartMs) {
+      tag = 'TODAY';
+      sortBucket = 0;
+    } else if (placementStartMs !== null && placementStartMs <= todayStartMs) {
+      tag = 'PUT OUT';
+      detail = formatShortDateLabel(collectionDate);
+      sortBucket = 1;
+    } else {
+      tag = formatShortDateLabel(collectionDate);
+      if (tag) {
+        tag = tag.split(' ')[0].toUpperCase();
+      }
+      detail = formatShortDateLabel(collectionDate);
+      sortBucket = 2;
+    }
+  } else {
+    if (collectionStartMs < todayStartMs) {
+      return null;
+    }
+    if (collectionStartMs === todayStartMs) {
+      tag = 'TODAY';
+      sortBucket = 0;
+    } else {
+      tag = formatShortDateLabel(collectionDate);
+      if (tag) {
+        tag = tag.split(' ')[0].toUpperCase();
+      }
+      detail = formatShortDateLabel(collectionDate);
+      sortBucket = 2;
+    }
+  }
+
+  return {
+    kind: candidate.isKerbside ? 'kerbside' : candidate.eventType,
+    label,
+    tag: tag || 'CHECK',
+    detail: detail || null,
+    icon: iconForBinEvent(candidate.eventType),
+    tone: toneForBinEvent(candidate.eventType),
+    priority: rankBinEventType(candidate.eventType),
+    sortBucket,
+    sortDateMs: collectionStartMs || todayStartMs
+  };
+}
+
+function buildBinsItems(candidates, nowDate) {
+  const source = Array.isArray(candidates) ? candidates : [];
+  return source
+    .map((candidate) => buildBinDisplayItem(candidate, nowDate))
+    .filter(Boolean)
+    .sort((a, b) => {
+      if (a.sortBucket !== b.sortBucket) {
+        return a.sortBucket - b.sortBucket;
+      }
+      if (a.sortDateMs !== b.sortDateMs) {
+        return a.sortDateMs - b.sortDateMs;
+      }
+      if (a.priority !== b.priority) {
+        return a.priority - b.priority;
+      }
+      return String(a.label).localeCompare(String(b.label));
+    })
+    .map((item) => ({
+      kind: item.kind,
+      label: item.label,
+      tag: item.tag,
+      detail: item.detail,
+      icon: item.icon,
+      tone: item.tone,
+      priority: item.priority
+    }));
+}
+
 function buildBinsUrl(configBins, nowDate) {
   const now = nowDate || new Date();
   const startDate = new Date(now.getTime());
@@ -251,35 +383,44 @@ function normalizeBinCandidate(item) {
     item.nextType ||
     null;
   const name = item.name || item.displayName || collection.name || null;
-  const rawDate = item.date ||
-    item.nextDate ||
-    item.start ||
-    item.start_date ||
-    item.serviceDate ||
-    item.collectionDate ||
+  const rawCollectionDate = item.collectionDate ||
     item.collection_date ||
+    item.serviceDate ||
     item.pickupDate ||
     item.event_date ||
+    item.date ||
+    item.nextDate ||
     item.dateLabel ||
     item.displayDate ||
     item.dateText ||
     collection.date ||
-    collection.start ||
-    collection.start_date ||
-    collection.dateLabel ||
     collection.collectionDate ||
+    collection.dateLabel ||
     null;
-  const parsedDate = parseDateLocal(rawDate);
+  const rawPlacementDate = item.start_date ||
+    item.start ||
+    item.putOutDate ||
+    item.put_out_date ||
+    collection.start_date ||
+    collection.start ||
+    null;
+  const parsedCollectionDate = parseDateLocal(rawCollectionDate);
+  const parsedPlacementDate = parseDateLocal(rawPlacementDate);
+  const parsedDate = parsedCollectionDate || parsedPlacementDate;
   if (!parsedDate) {
     return null;
   }
   const eventType = classifyBinType(rawType, name);
+  const kerbside = isKerbsideCandidate(name, rawType);
   return {
     eventType,
     date: parsedDate,
     dateText: formatDateLocal(parsedDate),
+    collectionDate: parsedCollectionDate || parsedDate,
+    placementDate: parsedPlacementDate,
     displayName: displayNameForBinEvent(eventType, name, rawType),
-    rawType: rawType ? String(rawType) : ''
+    rawType: rawType ? String(rawType) : '',
+    isKerbside: kerbside
   };
 }
 
@@ -394,9 +535,11 @@ function pickBestBinCandidate(candidates, nowDate) {
 }
 
 function parseBinsPayload(json, nowDate) {
-  const best = pickBestBinCandidate(collectBinCandidates(json), nowDate);
+  const candidates = collectBinCandidates(json);
+  const items = buildBinsItems(candidates, nowDate);
+  const best = pickBestBinCandidate(candidates, nowDate);
   if (best) {
-    return best;
+    return Object.assign({}, best, { items });
   }
 
   if (json.nextType || json.nextDate) {
@@ -408,7 +551,21 @@ function parseBinsPayload(json, nowDate) {
       isToday: false,
       eventType,
       displayIcon: iconForBinEvent(eventType),
-      displayTone: toneForBinEvent(eventType)
+      displayTone: toneForBinEvent(eventType),
+      items
+    };
+  }
+
+  if (items.length) {
+    return {
+      nextType: items[0].label,
+      nextDate: null,
+      subtitle: null,
+      isToday: items[0].tag === 'TODAY',
+      eventType: items[0].kind === 'kerbside' ? 'special' : items[0].kind,
+      displayIcon: items[0].icon,
+      displayTone: items[0].tone,
+      items
     };
   }
 
