@@ -2721,6 +2721,17 @@
         }).join('||');
       }
 
+      function focusBinIconGlyph(item) {
+        var source = item || {};
+        if (String(source.kind || '').toLowerCase() === 'recycle' || String(source.label || '').toLowerCase().indexOf('recycle') > -1) {
+          return '♻︎';
+        }
+        if (String(source.kind || '').toLowerCase() === 'organic' || String(source.label || '').toLowerCase() === 'green') {
+          return '☘︎';
+        }
+        return source.icon || '🗑';
+      }
+
       function fallbackBinItems(binsState) {
         if (!binsState || (!binsState.nextType && !binsState.error)) {
           return [];
@@ -2792,7 +2803,7 @@
         binFocusPageNode.id = 'binFocusPage';
         if (focusItem) {
           binFocusPageNode.classList.add('is-' + tone);
-          binFocusIconNode.textContent = focusItem.icon || '🗑';
+          binFocusIconNode.textContent = focusBinIconGlyph(focusItem);
           binFocusLabelNode.textContent = focusItem.label || 'Bins';
           binFocusTagNode.textContent = focusItem.tag || '--';
         }
