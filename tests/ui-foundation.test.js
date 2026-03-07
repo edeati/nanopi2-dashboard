@@ -42,7 +42,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('#mainRadar {\n        min-width: 0;\n      }') > -1, 'tablet radar panel should allow shrink to prevent edge stripe');
   assert.ok(html.indexOf('grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);') > -1, 'tablet weather layout should prioritize forecast width');
   assert.ok(html.indexOf('#timeBig {\n        font-size: 66px;') > -1, 'tablet clock should be more legible at distance');
-  assert.ok(html.indexOf('.solar-gauge canvas {\n      width: 108px;') > -1, 'solar gauges should keep enough size for in-gauge detail text while preserving lower-card room');
+  assert.ok(html.indexOf('.solar-gauge canvas {\n      width: 76px;') > -1, 'solar gauges should shrink with the tighter top-row cards');
   assert.ok(html.indexOf('min-height: 84px;') > -1, 'solar top gauge cards should be shorter to free room for lower cards');
   assert.ok(html.indexOf('height: 92px;') > -1, 'solar top row should shrink further to avoid bottom-card truncation');
   assert.ok(html.indexOf('class="solar-gauge solar-gauge-generation skeleton"') > -1, 'generation gauge should use dedicated gauge class');
@@ -50,10 +50,12 @@ module.exports = async function run() {
   assert.ok(html.indexOf('.g-overlay {') > -1, 'gauge overlay text layer should exist');
   assert.ok(html.indexOf('id="generationGaugeText"') > -1, 'generation gauge overlay node missing');
   assert.ok(html.indexOf('id="usageGaugeText"') > -1, 'usage gauge overlay node missing');
-  assert.ok(html.indexOf('font-size: clamp(22px, 3.9vh, 32px);') > -1, 'gauge primary text should be larger for distance readability');
-  assert.ok(html.indexOf('-webkit-text-stroke: 1.6px rgba(5, 8, 12, 0.98);') > -1, 'gauge primary text needs stronger border contrast');
+  assert.ok(html.indexOf('.g-label {\n      position: absolute;\n      top: 6px;') > -1, 'gauge labels should sit at the top of the cards');
+  assert.ok(html.indexOf('font-size: clamp(16px, 2.7vh, 22px);') > -1, 'gauge primary text should be scaled down to fit the smaller cards');
+  assert.ok(html.indexOf('-webkit-text-stroke: 1.2px rgba(5, 8, 12, 0.98);') > -1, 'gauge primary text needs strong border contrast at the smaller size');
   assert.ok(html.indexOf('0 0 14px rgba(0, 0, 0, 0.7),') > -1, 'gauge text should include a stronger outer glow/halo');
-  assert.ok(html.indexOf('-webkit-text-stroke: 1.2px rgba(5, 8, 12, 0.95);') > -1, 'gauge secondary text needs a stronger border contrast');
+  assert.ok(html.indexOf('font-size: clamp(10px, 1.7vh, 14px);') > -1, 'gauge secondary text should be scaled down to fit the smaller cards');
+  assert.ok(html.indexOf('-webkit-text-stroke: 0.9px rgba(5, 8, 12, 0.95);') > -1, 'gauge secondary text needs a stronger border contrast');
   assert.strictEqual(html.indexOf('.g-value {'), -1, 'legacy side-value gauge text should be removed');
   assert.ok(html.indexOf('.solar-status-card {\n        min-height: 86px;') > -1, 'tablet solar status cards should be larger for readability');
   assert.ok(html.indexOf('.solar-status-value {\n        font-size: 40px;') > -1, 'tablet solar status values should be larger');
