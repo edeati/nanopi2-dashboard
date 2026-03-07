@@ -152,6 +152,7 @@ module.exports = async function run() {
     news: { feedUrl: '', maxItems: 5 },
     bins: { sourceUrl: 'https://example.invalid/bins' }
   }, {
+    now: () => new Date('2026-02-20T08:00:00+10:00'),
     fetchText: async () => JSON.stringify({
       services: [
         { service: 'General Waste', date: '2026-02-25' }
@@ -168,6 +169,7 @@ module.exports = async function run() {
     news: { feedUrl: '', maxItems: 5 },
     bins: { sourceUrl: 'https://example.invalid/nested-bins' }
   }, {
+    now: () => new Date('2026-02-20T08:00:00+10:00'),
     fetchText: async () => JSON.stringify({
       data: {
         nextCollection: {
@@ -187,6 +189,7 @@ module.exports = async function run() {
     news: { feedUrl: '', maxItems: 5 },
     bins: { sourceUrl: 'https://example.invalid/deep-bins' }
   }, {
+    now: () => new Date('2026-02-20T08:00:00+10:00'),
     fetchText: async () => JSON.stringify({
       collections: {
         upcoming: [
@@ -347,4 +350,65 @@ module.exports = async function run() {
   assert.strictEqual(sameDayAfter.nextType, 'Kerbside Pickup');
   assert.strictEqual(sameDayAfter.eventType, 'special');
   assert.strictEqual(sameDayAfter.displayIcon, '📦');
+
+  const belmontPutOutBins = createExternalSources({
+    weather: { provider: 'none' },
+    news: { feedUrl: '', maxItems: 5 },
+    bins: { sourceUrl: 'https://example.invalid/belmont-putout' }
+  }, {
+    now: () => new Date('2026-03-07T09:00:00+10:00'),
+    fetchText: async () => JSON.stringify({
+      upcoming: [
+        { event_type: 'recycle', date: '2026-03-07' },
+        {
+          event_type: 'special',
+          name: 'Household hazardous waste free drop-off day',
+          date: '2026-03-07'
+        },
+        {
+          event_type: 'special',
+          name: 'Kerbside collection',
+          collectionDate: '2026-03-09',
+          start_date: '2026-03-07'
+        }
+      ]
+    })
+  });
+  const belmontPutOut = await belmontPutOutBins.fetchBins();
+  assert.ok(Array.isArray(belmontPutOut.items), 'expected normalized bins items');
+  assert.strictEqual(belmontPutOut.items.length, 3);
+  assert.deepStrictEqual(
+    belmontPutOut.items.map((item) => ({ label: item.label, tag: item.tag, detail: item.detail })),
+    [
+      { label: 'Recycle', tag: 'TODAY', detail: null },
+      { label: 'Drop-off', tag: 'TODAY', detail: null },
+      { label: 'Kerbside', tag: 'PUT OUT', detail: 'Mon 9 Mar' }
+    ]
+  );
+
+  const belmontCollectionBins = createExternalSources({
+    weather: { provider: 'none' },
+    news: { feedUrl: '', maxItems: 5 },
+    bins: { sourceUrl: 'https://example.invalid/belmont-collection' }
+  }, {
+    now: () => new Date('2026-03-09T08:00:00+10:00'),
+    fetchText: async () => JSON.stringify({
+      upcoming: [
+        {
+          event_type: 'special',
+          name: 'Kerbside collection',
+          collectionDate: '2026-03-09',
+          start_date: '2026-03-07'
+        }
+      ]
+    })
+  });
+  const belmontCollection = await belmontCollectionBins.fetchBins();
+  assert.ok(Array.isArray(belmontCollection.items), 'expected normalized bins items on collection day');
+  assert.deepStrictEqual(
+    belmontCollection.items.map((item) => ({ label: item.label, tag: item.tag, detail: item.detail })),
+    [
+      { label: 'Kerbside', tag: 'TODAY', detail: null }
+    ]
+  );
 };

@@ -651,8 +651,7 @@
     }
     #binCard {
       display: grid;
-      grid-template-columns: 1fr;
-      align-items: center;
+      grid-template-rows: 1fr;
       position: relative;
       overflow: hidden;
     }
@@ -674,65 +673,205 @@
 
     .sub { font-family: var(--font-data); font-size: 18px; color: var(--muted); }
 
-    #binsIcon {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 128px;
-      line-height: 1;
-      margin: 0;
-      color: #d9e2eb;
-      opacity: 0.36;
-      pointer-events: none;
-    }
-
-    #binDetails {
+    #binPages {
       display: grid;
-      gap: 4px;
-      min-width: 0;
-      align-content: center;
+      min-height: 0;
+      width: 100%;
+      height: 100%;
       position: relative;
       z-index: 1;
-      justify-self: center;
+    }
+
+    #binSummaryPage,
+    #binFocusPage {
+      grid-area: 1 / 1;
+      min-height: 0;
+    }
+
+    #binSummaryPage {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 8px;
+      align-content: start;
       width: 100%;
+    }
+
+    #binSummaryLabel {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9cb0c4;
+      font-family: var(--font-display);
+      font-weight: 800;
+      padding-top: 2px;
+    }
+
+    #binRows {
+      display: grid;
+      gap: 7px;
+      min-width: 0;
+      align-content: start;
+    }
+
+    .bin-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      border: 1px solid rgba(92, 106, 122, 0.45);
+      border-radius: 10px;
+      background: rgba(12, 15, 20, 0.72);
+      padding: 8px 10px;
+      min-height: 52px;
+    }
+
+    .bin-row-icon {
+      font-size: 24px;
+      line-height: 1;
+      opacity: 0.95;
+    }
+
+    .bin-row-copy {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+    }
+
+    .bin-row-label {
+      font-family: var(--font-display);
+      font-size: 24px;
+      line-height: 1;
+      font-weight: 800;
+      color: #f0f3f7;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .bin-row-detail {
+      font-size: 13px;
+      line-height: 1.1;
+      color: #aebaca;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .bin-tag {
+      justify-self: end;
+      min-width: 68px;
+      padding: 6px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(124, 140, 160, 0.45);
+      background: rgba(16, 22, 30, 0.88);
+      color: #eef2f6;
+      font-family: var(--font-display);
+      font-size: 16px;
+      line-height: 1;
+      font-weight: 900;
+      letter-spacing: 0.06em;
       text-align: center;
     }
 
-    #binsType {
-      margin: 0;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      font-size: clamp(46px, 7.8vh, 72px);
-      font-weight: 800;
+    #binFocusPage {
+      display: none;
+      align-content: center;
+      justify-items: center;
+      text-align: center;
+      gap: 10px;
+      padding: 8px 6px;
+    }
+
+    #binFocusIcon {
+      font-size: 58px;
       line-height: 1;
+      opacity: 0.92;
     }
 
-    #binsDate {
-      font-size: clamp(24px, 3.8vh, 36px);
-      font-weight: 800;
-      line-height: 1.08;
+    #binFocusLabel {
+      font-family: var(--font-display);
+      font-size: clamp(28px, 4.6vh, 40px);
+      font-weight: 900;
+      line-height: 1;
+      color: #f0f3f7;
+      text-align: center;
+    }
+
+    #binFocusTag {
+      min-width: 112px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(124, 140, 160, 0.5);
+      background: rgba(18, 25, 34, 0.92);
+      color: #eef2f6;
+      font-family: var(--font-display);
+      font-size: clamp(20px, 3.4vh, 28px);
+      line-height: 1;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+    }
+
+    #binFocusDetail {
+      font-size: 18px;
+      line-height: 1.1;
+      color: #aebaca;
+      text-align: center;
+      min-height: 20px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      max-width: 100%;
     }
 
-    #binCard.bin-card-today #binsType {
-      white-space: normal;
-      overflow: visible;
-      text-overflow: clip;
-      font-size: clamp(34px, 5.8vh, 54px);
-      line-height: 1.04;
-      text-wrap: balance;
+    #binCard.bin-card-focus #binSummaryPage {
+      display: none;
     }
 
-    #binCard.bin-card-today #binsDate {
-      white-space: normal;
-      overflow: visible;
-      text-overflow: clip;
-      font-size: clamp(16px, 2.6vh, 24px);
-      line-height: 1.14;
+    #binCard.bin-card-focus #binFocusPage {
+      display: grid;
+    }
+
+    #binCard.bin-card-empty #binRows {
+      align-content: center;
+    }
+
+    .bin-row.is-yellow .bin-tag {
+      color: #f2d44b;
+      border-color: rgba(242, 212, 75, 0.5);
+    }
+
+    .bin-row.is-green .bin-tag {
+      color: #8edb7c;
+      border-color: rgba(142, 219, 124, 0.5);
+    }
+
+    .bin-row.is-neutral .bin-tag {
+      color: #d7e0ea;
+    }
+
+    .bin-row.is-default .bin-tag {
+      color: #d7e0ea;
+    }
+
+    .bin-row.is-yellow .bin-row-icon,
+    #binFocusPage.is-yellow #binFocusTag {
+      color: #f2d44b;
+      border-color: rgba(242, 212, 75, 0.5);
+    }
+
+    .bin-row.is-green .bin-row-icon,
+    #binFocusPage.is-green #binFocusTag {
+      color: #8edb7c;
+      border-color: rgba(142, 219, 124, 0.5);
+    }
+
+    #binFocusPage.is-neutral #binFocusTag,
+    #binFocusPage.is-default #binFocusTag {
+      color: #eef2f6;
+    }
+
+    #binPages {
+      position: relative;
     }
 
     #weatherMainRow {
@@ -1210,17 +1349,22 @@
         font-size: 18px;
       }
 
-      #binsIcon {
-        font-size: 116px;
-        opacity: 0.32;
+      .bin-row {
+        min-height: 56px;
+        padding: 8px 10px;
       }
 
-      #binsType {
-        font-size: clamp(36px, 6.6vh, 56px);
+      .bin-row-label {
+        font-size: 22px;
       }
 
-      #binsDate {
-        font-size: clamp(18px, 3.4vh, 28px);
+      .bin-row-detail {
+        font-size: 14px;
+      }
+
+      .bin-tag {
+        min-width: 72px;
+        font-size: 15px;
       }
 
       #timeBig {
@@ -1379,10 +1523,17 @@
       <section id="binCard" class="panel panel-icon">
         <span class="panel-corner-icon"><svg><use href="#i-bin"></use></svg></span>
         <span class="panel-title">Bins</span>
-        <div id="binsIcon">🗑</div>
-        <div id="binDetails">
-          <div id="binsType" class="metric">--</div>
-          <div id="binsDate" class="sub">--</div>
+        <div id="binPages">
+          <div id="binSummaryPage">
+            <div id="binSummaryLabel">Upcoming</div>
+            <div id="binRows"></div>
+          </div>
+          <div id="binFocusPage">
+            <div id="binFocusIcon">🗑</div>
+            <div id="binFocusLabel">Bins</div>
+            <div id="binFocusTag">--</div>
+            <div id="binFocusDetail"></div>
+          </div>
         </div>
       </section>
 
@@ -1422,6 +1573,15 @@
       var solarBarCtx = solarBarCanvas.getContext('2d');
       var newsTickerNode = document.getElementById('newsTicker');
       var binCardNode = document.getElementById('binCard');
+      var binRowsNode = document.getElementById('binRows');
+      var binFocusPageNode = document.getElementById('binFocusPage');
+      var binFocusIconNode = document.getElementById('binFocusIcon');
+      var binFocusLabelNode = document.getElementById('binFocusLabel');
+      var binFocusTagNode = document.getElementById('binFocusTag');
+      var binFocusDetailNode = document.getElementById('binFocusDetail');
+      var binsPageTimer = null;
+      var binsPageIndex = 0;
+      var BINS_PAGE_ROTATE_MS = 4200;
 
       var TILE_SIZE = 256;
       var MAP_TILE_OVERDRAW = 1;
@@ -2556,6 +2716,127 @@
         return '#62bbff';
       }
 
+      function escapeHtml(value) {
+        return String(value == null ? '' : value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function fallbackBinItems(binsState) {
+        if (!binsState || (!binsState.nextType && !binsState.error)) {
+          return [];
+        }
+        var label = normalizeBinType(binsState.nextType || 'Bins');
+        if (binsState.isToday && /^today:\s*/i.test(label)) {
+          label = label.replace(/^today:\s*/i, '').trim() || 'Bins';
+        }
+        var detail = null;
+        if (binsState.error) {
+          detail = 'Check source';
+        } else if (binsState.subtitle) {
+          detail = String(binsState.subtitle);
+        } else if (binsState.nextDate && !binsState.isToday) {
+          detail = formatBinDate(binsState.nextDate);
+        }
+        return [{
+          kind: 'legacy',
+          label: label || 'Bins',
+          tag: binsState.isToday ? 'TODAY' : (binsState.nextDate ? formatBinDate(binsState.nextDate).split(' ')[0].toUpperCase() : 'CHECK'),
+          detail: detail,
+          icon: binsState.displayIcon || iconForBinType(label),
+          tone: binsState.displayTone || (String(label || '').toLowerCase().indexOf('recycl') > -1 ? 'yellow' : 'default')
+        }];
+      }
+
+      function buildBinsPages(items) {
+        var rows = Array.isArray(items) ? items.filter(Boolean) : [];
+        if (!rows.length) {
+          return [{
+            type: 'summary',
+            items: [{
+              label: 'Bins',
+              tag: 'CHECK',
+              detail: 'No schedule',
+              icon: '⚠',
+              tone: 'default'
+            }]
+          }];
+        }
+        var pages = [{
+          type: 'summary',
+          items: rows
+        }];
+        if (rows.length > 1) {
+          rows.forEach(function (item) {
+            pages.push({
+              type: 'focus',
+              item: item
+            });
+          });
+        }
+        return pages;
+      }
+
+      function setBinCardPage(pages, index) {
+        var list = Array.isArray(pages) ? pages : [];
+        var page = list[index] || list[0] || null;
+        if (!page) {
+          return;
+        }
+        var focusItem = page.type === 'focus' ? page.item : null;
+        var tone = (focusItem && focusItem.tone) || 'default';
+        binCardNode.classList.toggle('bin-card-focus', !!focusItem);
+        binCardNode.classList.toggle('bin-card-empty', !page.items && !focusItem);
+        binFocusPageNode.className = '';
+        binFocusPageNode.id = 'binFocusPage';
+        if (focusItem) {
+          binFocusPageNode.classList.add('is-' + tone);
+          binFocusIconNode.textContent = focusItem.icon || '🗑';
+          binFocusLabelNode.textContent = focusItem.label || 'Bins';
+          binFocusTagNode.textContent = focusItem.tag || '--';
+          binFocusDetailNode.textContent = focusItem.detail || '';
+        }
+      }
+
+      function renderBinsCard(binsState) {
+        var items = Array.isArray(binsState && binsState.items) && binsState.items.length
+          ? binsState.items
+          : fallbackBinItems(binsState || {});
+        var pages = buildBinsPages(items);
+        var summaryItems = pages[0] && Array.isArray(pages[0].items) ? pages[0].items : [];
+        var rowsHtml = summaryItems.map(function (item) {
+          var tone = String(item.tone || 'default').toLowerCase();
+          var detailHtml = item.detail
+            ? '<div class="bin-row-detail">' + escapeHtml(item.detail) + '</div>'
+            : '';
+          return '<div class="bin-row is-' + escapeHtml(tone) + '">' +
+            '<div class="bin-row-icon">' + escapeHtml(item.icon || '🗑') + '</div>' +
+            '<div class="bin-row-copy">' +
+            '<div class="bin-row-label">' + escapeHtml(item.label || 'Bins') + '</div>' +
+            detailHtml +
+            '</div>' +
+            '<div class="bin-tag">' + escapeHtml(item.tag || '--') + '</div>' +
+            '</div>';
+        }).join('');
+        binRowsNode.innerHTML = rowsHtml;
+        binsPageIndex = 0;
+        setBinCardPage(pages, binsPageIndex);
+        binCardNode.classList.toggle('bin-card-empty', !summaryItems.length);
+        if (binsPageTimer) {
+          clearInterval(binsPageTimer);
+          binsPageTimer = null;
+        }
+        if (pages.length > 1) {
+          binsPageTimer = setInterval(function () {
+            binsPageIndex = (binsPageIndex + 1) % pages.length;
+            setBinCardPage(pages, binsPageIndex);
+          }, BINS_PAGE_ROTATE_MS);
+        }
+      }
+
       function iconForWeather(iconCode, summary) {
         var s = String(summary || '').toLowerCase();
         if (iconCode && iconCode.indexOf('01') === 0) { return '☀'; }
@@ -2911,34 +3192,7 @@
           }
           renderForecast(state.weather.forecast || []);
         }
-        var binsState = state.bins || {};
-        var binTypeText = binsState.nextType || '';
-        var normalizedBinType = normalizeBinType(binTypeText || 'Unknown');
-        if ((!binTypeText || normalizedBinType === 'Unknown') && binsState.error) {
-          normalizedBinType = 'Bins unavailable';
-        }
-        if (binsState.isToday && /^today:\s*/i.test(normalizedBinType)) {
-          normalizedBinType = normalizedBinType.replace(/^today:\s*/i, '').trim() || 'Today';
-        }
-        document.getElementById('binsType').textContent = normalizedBinType;
-        var binDateLine = '--';
-        if (binsState.error) {
-          binDateLine = 'Check source';
-        } else if (binsState.isToday) {
-          binDateLine = binsState.subtitle ? String(binsState.subtitle) : 'Put out now';
-        } else {
-          binDateLine = binsState.subtitle
-            ? (String(binsState.subtitle) + (binsState.nextDate ? (' • ' + formatBinDate(binsState.nextDate)) : ''))
-            : formatBinDate(binsState.nextDate || '');
-        }
-        document.getElementById('binsDate').textContent = binDateLine;
-        binCardNode.classList.toggle('bin-card-today', !!(binsState.isToday && !binsState.error));
-        var binsTextColor = binTextColorForType(normalizedBinType);
-        document.getElementById('binsType').style.color = binsTextColor;
-        document.getElementById('binsDate').style.color = binsTextColor;
-        var binsIconNode = document.getElementById('binsIcon');
-        binsIconNode.textContent = binsState.displayIcon || iconForBinType(normalizedBinType);
-        styleBinIcon(binsIconNode, binsState.displayTone || (normalizedBinType.toLowerCase().indexOf('recycl') > -1 ? 'yellow' : 'default'));
+        renderBinsCard(state.bins || {});
         var newsHeadlines = Array.isArray(state.news.headlines) ? state.news.headlines : [];
         setNewsTickerText(newsHeadlines.join('   |   ') || 'No headlines currently available');
 
