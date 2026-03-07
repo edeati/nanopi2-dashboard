@@ -411,4 +411,28 @@ module.exports = async function run() {
       { label: 'Kerbside', tag: 'TODAY', detail: null }
     ]
   );
+
+  const belmontCleanupBins = createExternalSources({
+    weather: { provider: 'none' },
+    news: { feedUrl: '', maxItems: 5 },
+    bins: { sourceUrl: 'https://example.invalid/belmont-cleanup' }
+  }, {
+    now: () => new Date('2026-03-07T09:00:00+10:00'),
+    fetchText: async () => JSON.stringify({
+      upcoming: [
+        {
+          event_type: 'clean_up',
+          collectionDate: '2026-03-09',
+          start_date: '2026-03-07'
+        }
+      ]
+    })
+  });
+  const belmontCleanup = await belmontCleanupBins.fetchBins();
+  assert.deepStrictEqual(
+    belmontCleanup.items.map((item) => ({ kind: item.kind, label: item.label, tag: item.tag, detail: item.detail })),
+    [
+      { kind: 'kerbside', label: 'Kerbside', tag: 'PUT OUT', detail: 'Mon 9 Mar' }
+    ]
+  );
 };

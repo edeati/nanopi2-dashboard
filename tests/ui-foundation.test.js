@@ -145,6 +145,9 @@ module.exports = async function run() {
   assert.ok(html.indexOf('function renderBinsCard(') > -1, 'bins card render helper missing');
   assert.ok(html.indexOf('function buildBinsPages(') > -1, 'bins page builder missing');
   assert.ok(html.indexOf('function setBinCardPage(') > -1, 'bins page switch helper missing');
+  assert.ok(html.indexOf('var BINS_PAGE_ROTATE_MS = 15000;') > -1, 'bins paging should match weather subcard cadence');
+  assert.ok(html.indexOf('var summaryItems = items.slice(0, 3);') > -1, 'bins summary should cap visible rows to avoid truncation');
+  assert.ok(html.indexOf('var focusItems = items.slice(0, 3);') > -1, 'bins focus cycle should follow the summary items');
   assert.ok(html.indexOf('binRowsNode.innerHTML = rowsHtml;') > -1, 'bins renderer should populate summary rows');
   assert.ok(html.indexOf("binCardNode.classList.toggle('bin-card-focus',") > -1, 'bins card should toggle focus-page mode');
   assert.ok(html.indexOf("binCardNode.classList.toggle('bin-card-empty',") > -1, 'bins card should toggle empty mode');

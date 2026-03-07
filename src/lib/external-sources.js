@@ -147,6 +147,9 @@ function classifyBinType(rawType, name) {
   if (value.indexOf('special') > -1 || value.indexOf('curb') > -1 || value.indexOf('kerb') > -1 || value.indexOf('bulky') > -1 || value.indexOf('hard') > -1) {
     return 'special';
   }
+  if (value.indexOf('clean_up') > -1 || value.indexOf('cleanup') > -1 || value.indexOf('clean up') > -1) {
+    return 'special';
+  }
   if (value.indexOf('general') > -1 || value.indexOf('waste') > -1 || value.indexOf('red') > -1) {
     return 'general';
   }
@@ -221,7 +224,12 @@ function rankBinEventType(eventType) {
 
 function isKerbsideCandidate(name, rawType) {
   const value = (String(name || '') + ' ' + String(rawType || '')).toLowerCase();
-  return value.indexOf('kerb') > -1 || value.indexOf('curb') > -1 || value.indexOf('hard waste') > -1;
+  return value.indexOf('kerb') > -1 ||
+    value.indexOf('curb') > -1 ||
+    value.indexOf('hard waste') > -1 ||
+    value.indexOf('clean_up') > -1 ||
+    value.indexOf('cleanup') > -1 ||
+    value.indexOf('clean up') > -1;
 }
 
 function normalizeBinLabel(candidate) {
