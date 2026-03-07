@@ -43,8 +43,8 @@ module.exports = async function run() {
   assert.ok(html.indexOf('grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);') > -1, 'tablet weather layout should prioritize forecast width');
   assert.ok(html.indexOf('#timeBig {\n        font-size: 66px;') > -1, 'tablet clock should be more legible at distance');
   assert.ok(html.indexOf('.solar-gauge canvas {\n      width: 108px;') > -1, 'solar gauges should keep enough size for in-gauge detail text while preserving lower-card room');
-  assert.ok(html.indexOf('min-height: 96px;') > -1, 'solar top gauge cards should be shorter to free room for taller charts');
-  assert.ok(html.indexOf('height: 104px;') > -1, 'solar top row should shrink to free room for taller charts');
+  assert.ok(html.indexOf('min-height: 84px;') > -1, 'solar top gauge cards should be shorter to free room for lower cards');
+  assert.ok(html.indexOf('height: 92px;') > -1, 'solar top row should shrink further to avoid bottom-card truncation');
   assert.ok(html.indexOf('class="solar-gauge solar-gauge-generation skeleton"') > -1, 'generation gauge should use dedicated gauge class');
   assert.ok(html.indexOf('solar-gauge solar-gauge-usage') > -1, 'usage/import gauge should use dedicated gauge class');
   assert.ok(html.indexOf('.g-overlay {') > -1, 'gauge overlay text layer should exist');
@@ -83,6 +83,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('body.takeover-solar .chart-wrap {\n      height: 392px;') > -1, 'solar chart card should be doubled in takeover/fullscreen mode');
   assert.ok(html.indexOf('body.takeover-solar .chart {\n      height: 392px;') > -1, 'solar chart canvas should be doubled in takeover/fullscreen mode');
   assert.ok(html.indexOf('id="solarUsageLegend"') > -1, 'solar usage chart legend container missing');
+  assert.strictEqual(html.indexOf('Usage (Self + Import)'), -1, 'primary solar chart label should be removed');
   assert.ok(html.indexOf('Generated') > -1, 'solar usage chart legend should include generated series');
   assert.ok(html.indexOf('Self-used') > -1, 'solar usage chart legend should include self-used series');
   assert.ok(html.indexOf('Import') > -1, 'solar usage chart legend should include import series');
