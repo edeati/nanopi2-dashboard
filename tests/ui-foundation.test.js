@@ -31,10 +31,10 @@ module.exports = async function run() {
   assert.ok(html.indexOf('id="weatherBinsStripTrack"') > -1, 'combined weather/bins strip track missing');
   assert.ok(html.indexOf('.strip-card-bg-icon {') > -1, 'strip weather cards should support a background icon');
   assert.ok(html.indexOf('class="strip-card-bg-icon">') > -1, 'weather now strip card should render a background icon');
-  assert.ok(html.indexOf('.strip-card {\n      width: 208px;') > -1, 'strip cards should be narrower to avoid truncation');
-  assert.ok(html.indexOf('.strip-card.strip-card-bin {\n      width: 232px;') > -1, 'bin strip cards should be narrower to avoid truncation');
-  assert.ok(html.indexOf('font-size: 22px;') > -1, 'strip titles should be reduced to fit the card height');
-  assert.ok(html.indexOf('font-size: 34px;') > -1, 'strip value text should be reduced to fit the card height');
+  assert.ok(html.indexOf('.strip-card {\n      width: 196px;') > -1, 'strip cards should be narrower to avoid truncation');
+  assert.ok(html.indexOf('.strip-card.strip-card-bin {\n      width: 220px;') > -1, 'bin strip cards should be narrower to avoid truncation');
+  assert.ok(html.indexOf('font-size: 18px;') > -1, 'strip titles should be reduced further to fit the card height');
+  assert.ok(html.indexOf('font-size: 28px;') > -1, 'strip value text should be reduced further to fit the card height');
   assert.ok(html.indexOf('symbol id="i-recycle"') > -1, 'recycle svg symbol missing');
   assert.ok(html.indexOf('class="panel-title">Clock</span>') > -1, 'clock card title missing');
   assert.ok(html.indexOf('body.takeover-radar #mainRadar .panel-title') > -1, 'radar takeover title hide rule missing');
@@ -117,7 +117,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('#binCard {\n      display: none;') > -1, 'legacy bins panel should be hidden once combined into the strip');
   assert.ok(html.indexOf('strip-card-metrics') > -1, 'climate strip cards should render explicit metric rows');
   assert.ok(html.indexOf('Humidity') > -1, 'climate strip cards should include a humidity row');
-  assert.ok(html.indexOf('strip-card-value {\n      font-family: var(--font-display);\n      font-size: 34px;') > -1 && html.indexOf('white-space: nowrap;') > -1, 'strip values should stay on one line');
+  assert.ok(html.indexOf('strip-card-value {\n      font-family: var(--font-display);\n      font-size: 28px;') > -1 && html.indexOf('white-space: nowrap;') > -1, 'strip values should stay on one line');
   assert.ok(html.indexOf('strip-internet-chart') > -1, 'internet strip cards should include a mini chart');
   assert.ok(html.indexOf('var WEATHER_ROTATE_MS = 15000;') > -1, 'weather rotator should use 15s interval');
   assert.ok(html.indexOf('function buildWeatherRotatorCards(') > -1, 'weather rotator card builder missing');
