@@ -290,10 +290,17 @@ module.exports = async function run() {
     })
   });
   const prioritized = await prioritizedBins.fetchBins();
-  assert.strictEqual(prioritized.nextType, 'Recycle');
-  assert.strictEqual(prioritized.eventType, 'recycle');
-  assert.strictEqual(prioritized.displayIcon, '♻');
-  assert.strictEqual(prioritized.displayTone, 'yellow');
+  assert.strictEqual(prioritized.nextType, 'General Waste');
+  assert.strictEqual(prioritized.eventType, 'general');
+  assert.strictEqual(prioritized.displayIcon, '🗑');
+  assert.strictEqual(prioritized.displayTone, 'default');
+  assert.deepStrictEqual(
+    prioritized.items.map((item) => ({ label: item.label, tag: item.tag })),
+    [
+      { label: 'General', tag: 'SUN' },
+      { label: 'Kerbside', tag: 'MON' }
+    ]
+  );
 
   const specialNameBins = createExternalSources({
     weather: { provider: 'none' },
@@ -433,6 +440,29 @@ module.exports = async function run() {
     belmontCleanup.items.map((item) => ({ kind: item.kind, label: item.label, tag: item.tag, detail: item.detail })),
     [
       { kind: 'kerbside', label: 'Kerbside', tag: 'PUT OUT', detail: 'Mon 9 Mar' }
+    ]
+  );
+
+  const distantRecycleBins = createExternalSources({
+    weather: { provider: 'none' },
+    news: { feedUrl: '', maxItems: 5 },
+    bins: { sourceUrl: 'https://example.invalid/distant-recycle' }
+  }, {
+    now: () => new Date('2026-03-10T08:00:00+10:00'),
+    fetchText: async () => JSON.stringify({
+      upcoming: [
+        { event_type: 'general', date: '2026-03-11' },
+        { event_type: 'recycle', date: '2026-03-24' },
+        { event_type: 'special', name: 'Drop-off day', date: '2026-03-12' }
+      ]
+    })
+  });
+  const distantRecycle = await distantRecycleBins.fetchBins();
+  assert.deepStrictEqual(
+    distantRecycle.items.map((item) => ({ label: item.label, tag: item.tag })),
+    [
+      { label: 'General', tag: 'WED' },
+      { label: 'Drop-off', tag: 'THU' }
     ]
   );
 };

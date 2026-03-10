@@ -320,9 +320,39 @@ function buildBinDisplayItem(candidate, nowDate) {
   };
 }
 
+function isSupplementaryBinItem(item) {
+  if (!item) {
+    return false;
+  }
+  const label = String(item.label || '').toLowerCase();
+  return item.kind === 'kerbside' ||
+    item.kind === 'special' ||
+    label.indexOf('drop-off') > -1;
+}
+
+function filterBinsToNextCollectionWindow(items) {
+  const source = Array.isArray(items) ? items : [];
+  if (!source.length) {
+    return [];
+  }
+  const anchor = source.find((item) => !isSupplementaryBinItem(item)) || source[0];
+  const anchorDateMs = Number(anchor.sortDateMs || 0);
+  const supplementCutoffMs = anchorDateMs + (6 * 24 * 60 * 60 * 1000);
+  return source.filter((item) => {
+    const itemDateMs = Number(item.sortDateMs || 0);
+    if (itemDateMs === anchorDateMs) {
+      return true;
+    }
+    if (isSupplementaryBinItem(item) && itemDateMs <= supplementCutoffMs) {
+      return true;
+    }
+    return false;
+  });
+}
+
 function buildBinsItems(candidates, nowDate) {
   const source = Array.isArray(candidates) ? candidates : [];
-  return source
+  return filterBinsToNextCollectionWindow(source
     .map((candidate) => buildBinDisplayItem(candidate, nowDate))
     .filter(Boolean)
     .sort((a, b) => {
@@ -336,7 +366,7 @@ function buildBinsItems(candidates, nowDate) {
         return a.priority - b.priority;
       }
       return String(a.label).localeCompare(String(b.label));
-    })
+    }))
     .map((item) => ({
       kind: item.kind,
       label: item.label,
@@ -520,12 +550,12 @@ function pickBestBinCandidate(candidates, nowDate) {
   const nextWeek = filtered.filter((item) => item.dayStartMs <= weekEndMs);
   const pool = nextWeek.length > 0 ? nextWeek : filtered;
   pool.sort((a, b) => {
+    if (a.dayStartMs !== b.dayStartMs) {
+      return a.dayStartMs - b.dayStartMs;
+    }
     const typeDiff = rankBinEventType(a.eventType) - rankBinEventType(b.eventType);
     if (typeDiff !== 0) {
       return typeDiff;
-    }
-    if (a.dayStartMs !== b.dayStartMs) {
-      return a.dayStartMs - b.dayStartMs;
     }
     return String(a.displayName).localeCompare(String(b.displayName));
   });

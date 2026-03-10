@@ -26,6 +26,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('class="panel-title">Solar</span>') > -1, 'solar card title missing');
   assert.ok(html.indexOf('class="panel-title">Weather</span>') > -1, 'weather card title missing');
   assert.ok(html.indexOf('class="panel-title">Bins</span>') > -1, 'bins card title missing');
+  assert.ok(html.indexOf('symbol id="i-recycle"') > -1, 'recycle svg symbol missing');
   assert.ok(html.indexOf('class="panel-title">Clock</span>') > -1, 'clock card title missing');
   assert.ok(html.indexOf('body.takeover-radar #mainRadar .panel-title') > -1, 'radar takeover title hide rule missing');
   assert.ok(html.indexOf('id="weatherForecast"') > -1, 'weather forecast section missing');
@@ -150,6 +151,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('function escapeHtml(') > -1, 'HTML escaping helper missing for bins rows');
   assert.ok(html.indexOf('function binsItemsSignature(') > -1, 'bins signature helper missing');
   assert.ok(html.indexOf('function renderBinsCard(') > -1, 'bins card render helper missing');
+  assert.ok(html.indexOf('function binIconMarkup(') > -1, 'bins icon markup helper missing');
   assert.ok(html.indexOf('function buildBinsPages(') > -1, 'bins page builder missing');
   assert.ok(html.indexOf('function setBinCardPage(') > -1, 'bins page switch helper missing');
   assert.ok(html.indexOf('var BINS_PAGE_ROTATE_MS = 15000;') > -1, 'bins paging should match weather subcard cadence');
@@ -157,9 +159,11 @@ module.exports = async function run() {
   assert.ok(html.indexOf('var focusItems = items.slice(0, 3);') > -1, 'bins focus cycle should follow the summary items');
   assert.ok(html.indexOf("if (nextBinsSig !== lastBinsSig) {\n          lastBinsSig = nextBinsSig;\n          renderBinsCard(state.bins || {});") > -1, 'bins card should only restart when content changes');
   assert.ok(html.indexOf("} else if (!binsPageTimer && Array.isArray((state.bins || {}).items) && (state.bins || {}).items.length > 1) {") > -1, 'bins timer should only restart when missing');
+  assert.ok(html.indexOf("'<div class=\"bin-row-icon\">' + binIconMarkup(item, false) + '</div>'") > -1, 'bins renderer should use markup helper for icon rendering');
   assert.ok(html.indexOf('binRowsNode.innerHTML = rowsHtml;') > -1, 'bins renderer should populate summary rows');
   assert.ok(html.indexOf('#binFocusPage.is-yellow #binFocusIcon') > -1, 'focus recycle icon should use yellow tone');
   assert.ok(html.indexOf('#binFocusPage.is-green #binFocusIcon') > -1, 'focus organic icon should use green tone');
+  assert.ok(html.indexOf('binFocusIconNode.innerHTML = binIconMarkup(focusItem, true);') > -1, 'focus bins icon should use markup helper for icon rendering');
   assert.ok(html.indexOf("binCardNode.classList.toggle('bin-card-focus',") > -1, 'bins card should toggle focus-page mode');
   assert.ok(html.indexOf("binCardNode.classList.toggle('bin-card-empty',") > -1, 'bins card should toggle empty mode');
   assert.ok(html.indexOf("if (binsPageTimer) {\n          clearInterval(binsPageTimer);") > -1, 'bins renderer should reset paging timer');
