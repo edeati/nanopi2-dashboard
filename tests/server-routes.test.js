@@ -141,7 +141,10 @@ module.exports = async function run() {
             { type: 'focus', item: 'recycle' },
             { type: 'focus', item: 'kerbside' }
           ]
-        }
+        },
+        reminders: [
+          { title: 'Lita Nexgard', icon: 'pill', tag: 'SUN', tone: 'neutral', dueDate: '2026-02-22' }
+        ]
       },
       initialSolarHistory: [
         { ts: 1000, generatedW: 500, gridW: 120, loadW: 620 },
@@ -208,6 +211,8 @@ module.exports = async function run() {
     assert.ok(Array.isArray(statePayload.bins.pages), 'bins payload should expose page metadata');
     assert.strictEqual(statePayload.bins.items[0].tag, 'TODAY');
     assert.strictEqual(statePayload.bins.items[1].tag, 'PUT OUT');
+    assert.ok(Array.isArray(statePayload.reminders), 'state payload should expose reminders');
+    assert.strictEqual(statePayload.reminders[0].title, 'Lita Nexgard');
 
     const realtimeState = await request(server, { path: '/api/state/realtime' });
     assert.strictEqual(realtimeState.statusCode, 200);

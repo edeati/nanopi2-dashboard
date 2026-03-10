@@ -61,6 +61,20 @@ function normalizeDashboardConfig(input) {
   }, config.weather || {});
   config.news = Object.assign({ feedUrl: '', maxItems: 5 }, config.news || {});
   config.bins = Object.assign({ sourceUrl: '', propertyId: '' }, config.bins || {});
+  config.reminders = Array.isArray(config.reminders) ? config.reminders.map((item) => {
+    const source = item && typeof item === 'object' ? item : {};
+    const schedule = source.schedule && typeof source.schedule === 'object' ? source.schedule : {};
+    return {
+      title: typeof source.title === 'string' ? source.title : '',
+      icon: typeof source.icon === 'string' ? source.icon : '',
+      note: typeof source.note === 'string' ? source.note : '',
+      schedule: {
+        type: typeof schedule.type === 'string' ? schedule.type : '',
+        weekday: typeof schedule.weekday === 'string' ? schedule.weekday : '',
+        dayOfMonth: Number(schedule.dayOfMonth || 0)
+      }
+    };
+  }).filter((item) => item.title && (item.schedule.type === 'weekly' || item.schedule.type === 'monthly_day')) : [];
   config.homeAssistant = Object.assign({
     enabled: false,
     baseUrl: 'http://127.0.0.1:8123',
@@ -154,6 +168,19 @@ function validateDashboardConfig(config) {
     typeof config.weather.forecastApiBase === 'string' &&
     typeof config.weather.refreshSeconds === 'number' &&
     typeof config.news.maxItems === 'number' &&
+    Array.isArray(config.reminders) &&
+    config.reminders.every((item) => item &&
+      typeof item.title === 'string' &&
+      typeof item.icon === 'string' &&
+      typeof item.note === 'string' &&
+      item.schedule &&
+      typeof item.schedule.type === 'string' &&
+      typeof item.schedule.weekday === 'string' &&
+      typeof item.schedule.dayOfMonth === 'number' &&
+      (
+        (item.schedule.type === 'weekly' && item.schedule.weekday.length > 0) ||
+        (item.schedule.type === 'monthly_day' && item.schedule.dayOfMonth >= 1 && item.schedule.dayOfMonth <= 31)
+      )) &&
     config.homeAssistant &&
     typeof config.homeAssistant.enabled === 'boolean' &&
     typeof config.homeAssistant.baseUrl === 'string' &&

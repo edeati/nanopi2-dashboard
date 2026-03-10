@@ -67,6 +67,36 @@ module.exports = async function run() {
     assert.strictEqual(config.radar.renderMode, 'server_gif');
     assert.strictEqual(config.radar.iframeUrl, 'https://www.rainviewer.com/map.html');
     assert.strictEqual(config.radar.sourceUrl, '');
+    assert.ok(Array.isArray(config.reminders));
+    assert.deepStrictEqual(config.reminders, []);
+  });
+
+  withTempDir((dir) => {
+    fs.writeFileSync(path.join(dir, 'dashboard.json'), JSON.stringify({
+      reminders: [
+        {
+          title: 'Lita Nexgard',
+          icon: 'pill',
+          schedule: {
+            type: 'monthly_day',
+            dayOfMonth: 22
+          }
+        }
+      ]
+    }));
+    const config = loadDashboardConfig(dir);
+    assert.ok(Array.isArray(config.reminders));
+    assert.strictEqual(config.reminders.length, 1);
+    assert.deepStrictEqual(config.reminders[0], {
+      title: 'Lita Nexgard',
+      icon: 'pill',
+      note: '',
+      schedule: {
+        type: 'monthly_day',
+        weekday: '',
+        dayOfMonth: 22
+      }
+    });
   });
 
   withTempDir((dir) => {

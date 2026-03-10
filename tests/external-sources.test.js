@@ -465,4 +465,60 @@ module.exports = async function run() {
       { label: 'Drop-off', tag: 'THU' }
     ]
   );
+
+  const reminderSources = createExternalSources({
+    weather: { provider: 'none' },
+    news: { feedUrl: '', maxItems: 5 },
+    bins: { sourceUrl: '' },
+    reminders: [
+      {
+        title: 'Lita Nexgard',
+        icon: 'pill',
+        schedule: { type: 'monthly_day', dayOfMonth: 22 }
+      },
+      {
+        title: 'Put bins out',
+        icon: 'bell',
+        schedule: { type: 'weekly', weekday: 'monday' }
+      }
+    ]
+  }, {
+    now: () => new Date('2026-03-20T08:00:00+10:00')
+  });
+  const monthlyUpcoming = await reminderSources.fetchReminders();
+  assert.deepStrictEqual(
+    monthlyUpcoming.map((item) => ({ title: item.title, tag: item.tag, tone: item.tone })),
+    [
+      { title: 'Lita Nexgard', tag: 'SUN', tone: 'neutral' },
+      { title: 'Put bins out', tag: 'MON', tone: 'neutral' }
+    ]
+  );
+
+  const reminderOverdueSources = createExternalSources({
+    weather: { provider: 'none' },
+    news: { feedUrl: '', maxItems: 5 },
+    bins: { sourceUrl: '' },
+    reminders: [
+      {
+        title: 'Lita Nexgard',
+        icon: 'pill',
+        schedule: { type: 'monthly_day', dayOfMonth: 22 }
+      },
+      {
+        title: 'Put bins out',
+        icon: 'bell',
+        schedule: { type: 'weekly', weekday: 'monday' }
+      }
+    ]
+  }, {
+    now: () => new Date('2026-03-24T08:00:00+10:00')
+  });
+  const overdueSet = await reminderOverdueSources.fetchReminders();
+  assert.deepStrictEqual(
+    overdueSet.map((item) => ({ title: item.title, tag: item.tag, tone: item.tone })),
+    [
+      { title: 'Lita Nexgard', tag: 'SUN', tone: 'overdue' },
+      { title: 'Put bins out', tag: 'MON', tone: 'overdue' }
+    ]
+  );
 };

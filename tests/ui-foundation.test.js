@@ -26,6 +26,8 @@ module.exports = async function run() {
   assert.ok(html.indexOf('class="panel-title">Solar</span>') > -1, 'solar card title missing');
   assert.ok(html.indexOf('class="panel-title">Weather</span>') > -1, 'weather card title missing');
   assert.ok(html.indexOf('class="panel-title">Bins</span>') > -1, 'bins card title missing');
+  assert.ok(html.indexOf('id="weatherBinsStripViewport"') > -1, 'combined weather/bins strip viewport missing');
+  assert.ok(html.indexOf('id="weatherBinsStripTrack"') > -1, 'combined weather/bins strip track missing');
   assert.ok(html.indexOf('symbol id="i-recycle"') > -1, 'recycle svg symbol missing');
   assert.ok(html.indexOf('class="panel-title">Clock</span>') > -1, 'clock card title missing');
   assert.ok(html.indexOf('body.takeover-radar #mainRadar .panel-title') > -1, 'radar takeover title hide rule missing');
@@ -36,7 +38,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('--bg-panel') > -1, 'new dark panel palette missing');
   assert.ok(html.indexOf('grid-template-rows: 1fr 0.34fr;') > -1, 'top row should reclaim more vertical space');
   assert.ok(html.indexOf('@media (max-width: 1100px) and (max-height: 820px) and (min-height: 700px) and (orientation: landscape)') > -1, 'tablet landscape breakpoint missing');
-  assert.ok(html.indexOf('grid-template-columns: 1.7fr 1fr 1fr;') > -1, 'tablet bottom row ratio should favor weather panel');
+  assert.ok(html.indexOf('grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);') > -1, 'tablet bottom row should use a wide strip plus fixed clock');
   assert.ok(html.indexOf('animation-duration: 52s;') > -1, 'tablet ticker should scroll slower for readability');
   assert.ok(html.indexOf('--global-bar-clearance: 62px;') > -1, 'tablet clearance should reclaim vertical space after readability pass');
   assert.ok(html.indexOf('grid-template-rows: 1fr 0.45fr;') > -1, 'tablet row split should reduce dead gap while preserving larger lower metrics');
@@ -100,6 +102,12 @@ module.exports = async function run() {
   assert.ok(html.indexOf('padding: 7px 8px;') > -1, 'solar status cards should use tighter padding to avoid clipping');
   assert.ok(html.indexOf('id="weatherMainRow"') > -1, 'weather main row layout missing');
   assert.ok(html.indexOf('id="weatherRotator"') > -1, 'weather rotator container missing');
+  assert.ok(html.indexOf('function buildCombinedStripCards(') > -1, 'combined strip card builder missing');
+  assert.ok(html.indexOf('function renderCombinedStrip(') > -1, 'combined strip renderer missing');
+  assert.ok(html.indexOf('function buildReminderStripCards(') > -1, 'reminder strip card builder missing');
+  assert.ok(html.indexOf("var combinedStripCards = buildCombinedStripCards(state);") > -1, 'state apply should build combined strip cards');
+  assert.ok(html.indexOf('buildWeatherStripCards(state).concat(buildBinsStripCards(state), buildReminderStripCards(state));') > -1, 'combined strip should render weather first, then bins, then reminders');
+  assert.ok(html.indexOf('#binCard {\n      display: none;') > -1, 'legacy bins panel should be hidden once combined into the strip');
   assert.ok(html.indexOf('var WEATHER_ROTATE_MS = 15000;') > -1, 'weather rotator should use 15s interval');
   assert.ok(html.indexOf('function buildWeatherRotatorCards(') > -1, 'weather rotator card builder missing');
   assert.ok(html.indexOf('function weatherRotatorSignature(') > -1, 'weather rotator signature helper missing');
@@ -145,7 +153,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('id="binFocusTag"') > -1, 'bin focus tag missing');
   assert.strictEqual(html.indexOf('id="binFocusDetail"'), -1, 'bin focus detail row should be removed');
   assert.strictEqual(html.indexOf('id="binSummaryLabel"'), -1, 'bin summary headline should be removed to save space');
-  assert.ok(html.indexOf('#binCard {\n      display: grid;\n      grid-template-rows: 1fr;') > -1, 'bin card should use a dedicated page layout');
+  assert.ok(html.indexOf('#binCard {\n      display: none;') > -1, 'legacy bins panel should be hidden once combined into the strip');
   assert.strictEqual(html.indexOf('id="binsType"'), -1, 'legacy single bins headline should be removed');
   assert.strictEqual(html.indexOf('id="binsDate"'), -1, 'legacy single bins subtitle should be removed');
   assert.ok(html.indexOf('function escapeHtml(') > -1, 'HTML escaping helper missing for bins rows');

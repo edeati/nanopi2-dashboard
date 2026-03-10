@@ -469,6 +469,7 @@ function createApp(options) {
         weather: externalState.weather,
         news: externalState.news,
         bins: externalState.bins,
+        reminders: Array.isArray(externalState.reminders) ? externalState.reminders : [],
         ha: externalState.ha || { cards: [], stale: true, error: 'ha_unavailable' },
         solarHistory: getSolarHistory(),
         solarDailyBins: getSolarDailyBins(),

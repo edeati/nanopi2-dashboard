@@ -772,6 +772,12 @@ function scheduleExternalPolling(sources, externalState, dashboardConfig, timers
     }
 
     try {
+      externalState.reminders = await sources.fetchReminders();
+    } catch (_error) {
+      externalState.reminders = Array.isArray(externalState.reminders) ? externalState.reminders : [];
+    }
+
+    try {
       externalState.ha = {
         cards: await sources.fetchHomeAssistantCards(),
         stale: false,
@@ -947,6 +953,7 @@ function createServer(options) {
     weather: { summary: 'Loading', tempC: 0 },
     news: { headlines: [] },
     bins: { nextType: 'Unknown', nextDate: null },
+    reminders: [],
     ha: { cards: [], stale: true, error: null }
   }, (options && options.initialExternalState) || {});
 

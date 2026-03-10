@@ -52,6 +52,17 @@
     "sourceUrl": "",
     "propertyId": "638788"
   },
+  "reminders": [
+    {
+      "title": "Lita Nexgard",
+      "icon": "pill",
+      "note": "",
+      "schedule": {
+        "type": "monthly_day",
+        "dayOfMonth": 22
+      }
+    }
+  ],
   "homeAssistant": {
     "enabled": true,
     "baseUrl": "http://192.168.0.24:8123",

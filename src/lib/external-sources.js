@@ -624,6 +624,103 @@ function batteryBand(percent) {
   return { icon: '❗', tone: 'critical' };
 }
 
+function weekdayIndex(value) {
+  const key = String(value || '').toLowerCase();
+  if (key === 'sunday') { return 0; }
+  if (key === 'monday') { return 1; }
+  if (key === 'tuesday') { return 2; }
+  if (key === 'wednesday') { return 3; }
+  if (key === 'thursday') { return 4; }
+  if (key === 'friday') { return 5; }
+  if (key === 'saturday') { return 6; }
+  return -1;
+}
+
+function addDays(date, days) {
+  const out = new Date(date.getTime());
+  out.setDate(out.getDate() + days);
+  return out;
+}
+
+function weeklyOccurrenceForWindow(nowDate, weekday) {
+  const idx = weekdayIndex(weekday);
+  if (idx < 0) {
+    return null;
+  }
+  const now = startOfLocalDay(nowDate);
+  const thisWeek = addDays(now, idx - now.getDay());
+  const thisWeekStart = addDays(thisWeek, -3).getTime();
+  const thisWeekEnd = addDays(thisWeek, 1).getTime();
+  const nowMs = now.getTime();
+  if (nowMs >= thisWeekStart && nowMs <= thisWeekEnd) {
+    return thisWeek;
+  }
+  if (nowMs < thisWeekStart) {
+    return thisWeek;
+  }
+  return addDays(thisWeek, 7);
+}
+
+function monthlyOccurrenceForWindow(nowDate, dayOfMonth) {
+  const now = startOfLocalDay(nowDate);
+  const day = Math.max(1, Math.min(31, Number(dayOfMonth || 1)));
+  function createTarget(year, month) {
+    const target = new Date(year, month, day);
+    if (target.getMonth() !== month) {
+      return new Date(year, month + 1, 0);
+    }
+    return target;
+  }
+  const current = createTarget(now.getFullYear(), now.getMonth());
+  const currentStart = addDays(current, -3).getTime();
+  const currentEnd = addDays(current, 7).getTime();
+  const nowMs = now.getTime();
+  if (nowMs >= currentStart && nowMs <= currentEnd) {
+    return current;
+  }
+  if (nowMs < currentStart) {
+    return current;
+  }
+  return createTarget(now.getFullYear(), now.getMonth() + 1);
+}
+
+function buildReminderItem(reminder, nowDate) {
+  const source = reminder || {};
+  const schedule = source.schedule || {};
+  const now = startOfLocalDay(nowDate || new Date());
+  let dueDate = null;
+  let visibleStart = null;
+  let visibleEnd = null;
+  if (schedule.type === 'weekly') {
+    dueDate = weeklyOccurrenceForWindow(now, schedule.weekday);
+    if (!dueDate) {
+      return null;
+    }
+    visibleStart = addDays(dueDate, -3);
+    visibleEnd = addDays(dueDate, 1);
+  } else if (schedule.type === 'monthly_day') {
+    dueDate = monthlyOccurrenceForWindow(now, schedule.dayOfMonth);
+    visibleStart = addDays(dueDate, -3);
+    visibleEnd = addDays(dueDate, 7);
+  } else {
+    return null;
+  }
+
+  if (now.getTime() < startOfLocalDay(visibleStart).getTime() || now.getTime() > startOfLocalDay(visibleEnd).getTime()) {
+    return null;
+  }
+
+  return {
+    title: String(source.title || 'Reminder'),
+    icon: String(source.icon || ''),
+    note: String(source.note || ''),
+    tag: formatShortDateLabel(dueDate).split(' ')[0].toUpperCase(),
+    tone: now.getTime() > startOfLocalDay(dueDate).getTime() ? 'overdue' : 'neutral',
+    dueDate: formatDateLocal(dueDate),
+    sortDateMs: startOfLocalDay(dueDate).getTime()
+  };
+}
+
 function createExternalSources(config, overrides) {
   const hasFetchTextOverride = !!(overrides && typeof overrides.fetchText === 'function');
   const fetchText = (overrides && overrides.fetchText) || createFetcher({
@@ -821,6 +918,20 @@ function createExternalSources(config, overrides) {
         nextType: json.nextType || 'No schedule',
         nextDate: json.nextDate || null
       };
+    },
+
+    async fetchReminders() {
+      const reminders = Array.isArray(config.reminders) ? config.reminders : [];
+      const now = getNow();
+      return reminders
+        .map((item) => buildReminderItem(item, now))
+        .filter(Boolean)
+        .sort((a, b) => {
+          if (a.sortDateMs !== b.sortDateMs) {
+            return a.sortDateMs - b.sortDateMs;
+          }
+          return String(a.title || '').localeCompare(String(b.title || ''));
+        });
     },
 
     async fetchHomeAssistantCards() {

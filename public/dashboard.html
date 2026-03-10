@@ -662,7 +662,7 @@
       grid-column: 1 / span 2;
       grid-row: 2;
       display: grid;
-      grid-template-columns: 2fr 1fr 1fr;
+      grid-template-columns: minmax(0, 2.35fr) minmax(0, 1fr);
       gap: 8px;
       min-height: 0;
     }
@@ -678,8 +678,7 @@
       box-shadow: 0 12px 22px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(172, 220, 244, 0.12);
     }
     #binCard {
-      display: grid;
-      grid-template-rows: 1fr;
+      display: none;
       position: relative;
       overflow: hidden;
     }
@@ -700,6 +699,163 @@
     }
 
     .sub { font-family: var(--font-data); font-size: 18px; color: var(--muted); }
+
+    #weatherBinsStripViewport {
+      position: relative;
+      min-height: 0;
+      height: 100%;
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid rgba(110, 165, 200, 0.2);
+      background: rgba(7, 20, 34, 0.26);
+    }
+
+    #weatherBinsStripTrack {
+      display: flex;
+      gap: 14px;
+      align-items: stretch;
+      width: max-content;
+      min-height: 100%;
+      padding: 4px;
+      animation: combined-strip-scroll 90s linear infinite;
+      will-change: transform;
+    }
+
+    @keyframes combined-strip-scroll {
+      from { transform: translateX(0); }
+      to { transform: translateX(calc(-50% - 7px)); }
+    }
+
+    .strip-card {
+      width: 240px;
+      min-height: 100%;
+      border-radius: 14px;
+      border: 1px solid rgba(114, 128, 148, 0.34);
+      background: rgba(14, 18, 24, 0.84);
+      padding: 14px 15px;
+      display: grid;
+      align-content: space-between;
+      gap: 10px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .strip-card.strip-card-bin {
+      width: 280px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)), rgba(13, 17, 22, 0.9);
+    }
+
+    .strip-card.strip-card-reminder {
+      width: 230px;
+      background: rgba(18, 20, 26, 0.86);
+    }
+
+    .strip-card.strip-tone-yellow {
+      border-color: rgba(242, 212, 75, 0.44);
+      box-shadow: inset 0 0 24px rgba(242, 212, 75, 0.08);
+    }
+
+    .strip-card.strip-tone-green {
+      border-color: rgba(88, 214, 66, 0.44);
+      box-shadow: inset 0 0 24px rgba(88, 214, 66, 0.08);
+    }
+
+    .strip-card.strip-tone-blue {
+      border-color: rgba(132, 197, 232, 0.5);
+      box-shadow: inset 0 0 24px rgba(132, 197, 232, 0.08);
+    }
+
+    .strip-card.strip-tone-purple {
+      border-color: rgba(192, 128, 239, 0.48);
+      box-shadow: inset 0 0 24px rgba(192, 128, 239, 0.08);
+    }
+
+    .strip-card.strip-tone-overdue {
+      background: rgba(120, 24, 24, 0.18);
+      border-color: rgba(255, 124, 124, 0.34);
+      box-shadow: inset 0 0 24px rgba(150, 24, 24, 0.1);
+    }
+
+    .strip-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .strip-card-kicker {
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #a7b8c8;
+      font-family: var(--font-display);
+    }
+
+    .strip-card-tag {
+      padding: 5px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(153, 165, 182, 0.35);
+      background: rgba(17, 22, 28, 0.9);
+      font-size: 12px;
+      line-height: 1;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #f0f4f8;
+      font-family: var(--font-display);
+      white-space: nowrap;
+    }
+
+    .strip-card-title {
+      font-family: var(--font-display);
+      font-size: 30px;
+      line-height: 0.98;
+      font-weight: 900;
+      color: #f4f7fb;
+    }
+
+    .strip-card-copy {
+      font-size: 18px;
+      line-height: 1.18;
+      color: #dde7f1;
+    }
+
+    .strip-card-micro {
+      display: grid;
+      gap: 6px;
+    }
+
+    .strip-weather-list,
+    .strip-battery-list {
+      display: grid;
+      gap: 6px;
+    }
+
+    .strip-weather-row,
+    .strip-battery-row {
+      display: grid;
+      grid-template-columns: auto auto 1fr;
+      gap: 8px;
+      align-items: center;
+      font-size: 16px;
+      color: #edf3fa;
+    }
+
+    .strip-battery-row {
+      grid-template-columns: auto 1fr auto;
+    }
+
+    .strip-card-value {
+      font-family: var(--font-display);
+      font-size: 44px;
+      line-height: 1;
+      font-weight: 900;
+      color: #f5fbff;
+    }
+
+    .strip-card-sub {
+      font-size: 15px;
+      color: #b8c8d8;
+    }
 
     #binPages {
       display: grid;
@@ -1337,7 +1493,11 @@
       }
 
       #bottomRow {
-        grid-template-columns: 1.7fr 1fr 1fr;
+        grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
+      }
+
+      #weatherBinsStripTrack {
+        animation-duration: 110s;
       }
 
       #weatherMainRow {
@@ -1534,15 +1694,20 @@
       <section id="weatherCard" class="panel panel-icon">
         <span class="panel-corner-icon"><svg><use href="#i-cloud"></use></svg></span>
         <span class="panel-title">Weather</span>
-        <div id="weatherMainRow">
-          <div class="weather-current weather-now-panel">
-            <div id="weatherIcon">☁</div>
-            <div class="weather-now-copy">
-              <div id="weatherSummary" class="metric">--</div>
-              <div id="weatherTemp" class="weather-temp-large">-- °C</div>
+        <div id="weatherBinsStripViewport">
+          <div id="weatherBinsStripTrack"></div>
+        </div>
+        <div id="weatherLegacyContent" hidden>
+          <div id="weatherMainRow">
+            <div class="weather-current weather-now-panel">
+              <div id="weatherIcon">☁</div>
+              <div class="weather-now-copy">
+                <div id="weatherSummary" class="metric">--</div>
+                <div id="weatherTemp" class="weather-temp-large">-- °C</div>
+              </div>
             </div>
+            <div id="weatherForecast"><div id="weatherRotator"><canvas id="weatherInternetMiniChart" width="220" height="54" style="display:none"></canvas></div></div>
           </div>
-          <div id="weatherForecast"><div id="weatherRotator"><canvas id="weatherInternetMiniChart" width="220" height="54" style="display:none"></canvas></div></div>
         </div>
       </section>
 
@@ -1597,6 +1762,7 @@
       var solarBarCanvas = document.getElementById('solarDawnChart');
       var solarBarCtx = solarBarCanvas.getContext('2d');
       var newsTickerNode = document.getElementById('newsTicker');
+      var weatherBinsStripTrackNode = document.getElementById('weatherBinsStripTrack');
       var binCardNode = document.getElementById('binCard');
       var binRowsNode = document.getElementById('binRows');
       var binFocusPageNode = document.getElementById('binFocusPage');
@@ -1642,6 +1808,7 @@
       var weatherRotatorIsTransitioning = false;
       var weatherRotatorQueuedIndex = -1;
       var lastWeatherRotatorSig = '';
+      var lastCombinedStripSig = '';
       var firstDataApplied = false;
       var radarLoopStarted = false;
       var stateFetchInFlight = false;
@@ -3096,6 +3263,159 @@
         }).join('||');
       }
 
+      function reminderIconGlyph(icon) {
+        var key = String(icon || '').toLowerCase();
+        if (key === 'pill') {
+          return '💊';
+        }
+        if (key === 'bell') {
+          return '🔔';
+        }
+        return key ? String(icon) : '⏰';
+      }
+
+      function buildWeatherStripCards(state) {
+        var cards = [{
+          kind: 'weather_now',
+          summary: (state.weather && state.weather.summary) || 'Unknown',
+          tempC: Number((state.weather && state.weather.tempC) || 0),
+          icon: iconForWeather(state.weather && state.weather.icon, state.weather && state.weather.summary)
+        }];
+        return cards.concat(buildWeatherRotatorCards(state));
+      }
+
+      function binsToneClass(tone) {
+        var key = String(tone || 'default').toLowerCase();
+        if (key === 'yellow') { return 'strip-tone-yellow'; }
+        if (key === 'green') { return 'strip-tone-green'; }
+        if (key === 'neutral') { return 'strip-tone-blue'; }
+        if (key === 'purple') { return 'strip-tone-purple'; }
+        return '';
+      }
+
+      function buildBinsStripCards(state) {
+        var items = Array.isArray((state.bins || {}).items) ? (state.bins || {}).items : [];
+        return items.map(function (item) {
+          return {
+            kind: 'bin_feature',
+            label: item.label || 'Bins',
+            tag: item.tag || '--',
+            detail: item.detail || '',
+            iconMarkup: binIconMarkup(item, false),
+            toneClass: binsToneClass(item.tone || 'default')
+          };
+        });
+      }
+
+      function buildReminderStripCards(state) {
+        var items = Array.isArray(state.reminders) ? state.reminders : [];
+        return items.map(function (item) {
+          return {
+            kind: 'reminder',
+            title: item.title || 'Reminder',
+            tag: item.tag || '--',
+            note: item.note || '',
+            icon: reminderIconGlyph(item.icon),
+            toneClass: String(item.tone || '').toLowerCase() === 'overdue' ? 'strip-tone-overdue' : ''
+          };
+        });
+      }
+
+      function buildCombinedStripCards(state) {
+        return buildWeatherStripCards(state).concat(buildBinsStripCards(state), buildReminderStripCards(state));
+      }
+
+      function combinedStripSignature(cards) {
+        var source = Array.isArray(cards) ? cards : [];
+        return source.map(function (card) {
+          if (!card) {
+            return 'none';
+          }
+          return JSON.stringify(card);
+        }).join('||');
+      }
+
+      function renderCombinedStripCard(card) {
+        if (!card) {
+          return '';
+        }
+        if (card.kind === 'weather_now') {
+          return '<article class="strip-card strip-card-weather">' +
+            '<div class="strip-card-head"><div class="strip-card-kicker">Weather Now</div><div class="strip-card-tag">' + escapeHtml(card.icon || '☁') + '</div></div>' +
+            '<div class="strip-card-value">' + Number(card.tempC || 0).toFixed(1).replace(/\\.0$/, '') + '°C</div>' +
+            '<div class="strip-card-copy">' + escapeHtml(card.summary || 'Unknown') + '</div>' +
+            '</article>';
+        }
+        if (card.kind === 'forecast5') {
+          var forecastRows = (Array.isArray(card.items) ? card.items : []).slice(0, 5).map(function (item) {
+            return '<div class="strip-weather-row"><span>' + escapeHtml(item.day || '--') + '</span><span>' +
+              escapeHtml(iconForWeather(item.icon, item.summary)) + '</span><span>' +
+              Number(item.tempC || 0).toFixed(0) + ' °C</span></div>';
+          }).join('');
+          return '<article class="strip-card strip-card-weather">' +
+            '<div class="strip-card-head"><div class="strip-card-kicker">Forecast</div><div class="strip-card-tag">5 Days</div></div>' +
+            '<div class="strip-card-title">Outlook</div>' +
+            '<div class="strip-weather-list">' + forecastRows + '</div>' +
+            '</article>';
+        }
+        if (card.kind === 'climate') {
+          return '<article class="strip-card strip-card-weather">' +
+            '<div class="strip-card-head"><div class="strip-card-kicker">Home Assistant</div><div class="strip-card-tag">' + escapeHtml(card.icon || '🌡') + '</div></div>' +
+            '<div class="strip-card-title">' + escapeHtml(card.label || 'Climate') + '</div>' +
+            '<div class="strip-card-value">' + Number(card.temperature.value || 0).toFixed(1).replace(/\\.0$/, '') + escapeHtml(card.temperature.unit || '°C') + '</div>' +
+            '<div class="strip-card-sub">Humidity ' + (card.humidity ? (Number(card.humidity.value || 0).toFixed(0) + escapeHtml(card.humidity.unit || '%')) : '--') + '</div>' +
+            '</article>';
+        }
+        if (card.kind === 'battery_summary') {
+          var rows = (Array.isArray(card.items) ? card.items : []).slice(0, 3).map(function (item) {
+            return '<div class="strip-battery-row"><span>' + escapeHtml(item.icon || '🔋') + '</span><span>' +
+              escapeHtml(item.label || 'Battery') + '</span><span>' +
+              Number(item.value || 0).toFixed(0) + escapeHtml(item.unit || '%') + '</span></div>';
+          }).join('');
+          return '<article class="strip-card strip-card-weather">' +
+            '<div class="strip-card-head"><div class="strip-card-kicker">Home Assistant</div><div class="strip-card-tag">Battery</div></div>' +
+            '<div class="strip-card-title">' + escapeHtml(card.label || 'Batteries') + '</div>' +
+            '<div class="strip-battery-list">' + rows + '</div>' +
+            '</article>';
+        }
+        if (card.kind === 'internet') {
+          return '<article class="strip-card strip-card-weather">' +
+            '<div class="strip-card-head"><div class="strip-card-kicker">Network</div><div class="strip-card-tag">' + (card.online ? 'Online' : 'Offline') + '</div></div>' +
+            '<div class="strip-card-title">Internet</div>' +
+            '<div class="strip-card-value">' + (Number.isFinite(Number(card.downloadMbps)) ? Number(card.downloadMbps).toFixed(0) + ' Mbps' : '--') + '</div>' +
+            '<div class="strip-card-sub">Upload ' + (Number.isFinite(Number(card.uploadMbps)) ? Number(card.uploadMbps).toFixed(0) + ' Mbps' : '--') + '</div>' +
+            '</article>';
+        }
+        if (card.kind === 'bin_feature') {
+          return '<article class="strip-card strip-card-bin ' + escapeHtml(card.toneClass || '') + '">' +
+            '<div class="strip-card-head"><div class="strip-card-kicker">Upcoming Collection</div><div class="strip-card-tag">' + escapeHtml(card.tag || '--') + '</div></div>' +
+            '<div class="strip-card-title">' + card.iconMarkup + ' ' + escapeHtml(card.label || 'Bins') + '</div>' +
+            '<div class="strip-card-copy">' + escapeHtml(card.detail || 'Street-side collection') + '</div>' +
+            '</article>';
+        }
+        if (card.kind === 'reminder') {
+          return '<article class="strip-card strip-card-reminder ' + escapeHtml(card.toneClass || '') + '">' +
+            '<div class="strip-card-head"><div class="strip-card-kicker">Reminder</div><div class="strip-card-tag">' + escapeHtml(card.tag || '--') + '</div></div>' +
+            '<div class="strip-card-title">' + escapeHtml(card.icon || '⏰') + ' ' + escapeHtml(card.title || 'Reminder') + '</div>' +
+            '<div class="strip-card-copy">' + escapeHtml(card.note || 'Scheduled reminder') + '</div>' +
+            '</article>';
+        }
+        return '';
+      }
+
+      function renderCombinedStrip(cards) {
+        if (!weatherBinsStripTrackNode) {
+          return;
+        }
+        var source = Array.isArray(cards) ? cards.filter(Boolean) : [];
+        if (!source.length) {
+          weatherBinsStripTrackNode.innerHTML = '<article class="strip-card"><div class="strip-card-title">No cards</div></article>';
+          return;
+        }
+        var cardsHtml = source.map(renderCombinedStripCard).join('');
+        weatherBinsStripTrackNode.innerHTML = cardsHtml + cardsHtml;
+      }
+
       function renderWeatherRotatorCard(card) {
         var node = document.getElementById('weatherRotator');
         if (!node || !card) {
@@ -3270,6 +3590,12 @@
           renderBinsCard(state.bins || {});
         } else if (!binsPageTimer && Array.isArray((state.bins || {}).items) && (state.bins || {}).items.length > 1) {
           renderBinsCard(state.bins || {});
+        }
+        var combinedStripCards = buildCombinedStripCards(state);
+        var combinedStripSig = combinedStripSignature(combinedStripCards);
+        if (combinedStripSig !== lastCombinedStripSig) {
+          lastCombinedStripSig = combinedStripSig;
+          renderCombinedStrip(combinedStripCards);
         }
         var newsHeadlines = Array.isArray(state.news.headlines) ? state.news.headlines : [];
         setNewsTickerText(newsHeadlines.join('   |   ') || 'No headlines currently available');
