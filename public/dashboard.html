@@ -769,6 +769,15 @@
       opacity: 0.1;
     }
 
+    .strip-card-bg-icon.is-hero {
+      right: 50%;
+      top: 50%;
+      bottom: auto;
+      transform: translate(50%, -50%);
+      font-size: 94px;
+      opacity: 0.12;
+    }
+
     .strip-card > :not(.strip-card-bg-icon) {
       position: relative;
       z-index: 1;
@@ -777,6 +786,8 @@
     .strip-card.strip-card-bin {
       width: 220px;
       background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)), rgba(13, 17, 22, 0.9);
+      align-content: center;
+      text-align: center;
     }
 
     .strip-card.strip-card-reminder {
@@ -900,7 +911,9 @@
     }
 
     .strip-card.strip-card-bin .strip-card-title {
-      font-size: 22px;
+      font-size: 30px;
+      line-height: 0.98;
+      text-align: center;
       position: relative;
       z-index: 1;
     }
@@ -908,8 +921,25 @@
     .strip-card.strip-card-bin .strip-card-copy {
       font-size: 15px;
       line-height: 1.16;
+      text-align: center;
       position: relative;
       z-index: 1;
+    }
+
+    .strip-card-bin-day {
+      justify-self: center;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(188, 200, 214, 0.34);
+      background: rgba(9, 14, 20, 0.84);
+      font-family: var(--font-display);
+      font-size: 19px;
+      line-height: 1;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #f3f7fb;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
     }
 
     .strip-weather-row,
@@ -3433,7 +3463,7 @@
         }
         if (card.kind === 'weather_now') {
           return '<article class="strip-card strip-card-weather">' +
-            '<div class="strip-card-bg-icon is-watermark">' + escapeHtml(card.icon || '☁') + '</div>' +
+            '<div class="strip-card-bg-icon is-hero">' + escapeHtml(card.icon || '☁') + '</div>' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Weather Now</div><div class="strip-card-tag">' + escapeHtml(card.icon || '☁') + '</div></div>' +
             '<div class="strip-card-value">' + Number(card.tempC || 0).toFixed(1).replace(/\\.0$/, '') + '°C</div>' +
             '<div class="strip-card-copy">' + escapeHtml(card.summary || 'Unknown') + '</div>' +
@@ -3484,9 +3514,10 @@
         }
         if (card.kind === 'bin_feature') {
           return '<article class="strip-card strip-card-bin ' + escapeHtml(card.toneClass || '') + '">' +
-            '<div class="strip-card-bg-icon is-watermark">' + card.iconMarkup + '</div>' +
-            '<div class="strip-card-head"><div class="strip-card-kicker">Upcoming Collection</div><div class="strip-card-tag">' + escapeHtml(card.tag || '--') + '</div></div>' +
+            '<div class="strip-card-bg-icon is-hero">' + card.iconMarkup + '</div>' +
+            '<div class="strip-card-head"><div class="strip-card-kicker">Upcoming Collection</div></div>' +
             '<div class="strip-card-title">' + escapeHtml(card.label || 'Bins') + '</div>' +
+            '<div class="strip-card-bin-day">' + escapeHtml(card.tag || '--') + '</div>' +
             '<div class="strip-card-copy">' + escapeHtml(card.detail || 'Street-side collection') + '</div>' +
             '</article>';
         }

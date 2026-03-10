@@ -30,8 +30,8 @@ module.exports = async function run() {
   assert.ok(html.indexOf('id="weatherBinsStripViewport"') > -1, 'combined weather/bins strip viewport missing');
   assert.ok(html.indexOf('id="weatherBinsStripTrack"') > -1, 'combined weather/bins strip track missing');
   assert.ok(html.indexOf('.strip-card-bg-icon {') > -1, 'strip weather cards should support a background icon');
-  assert.ok(html.indexOf('class="strip-card-bg-icon is-watermark">') > -1, 'weather now strip card should render a background icon');
-  assert.ok(html.indexOf('.strip-card-bg-icon.is-watermark') > -1, 'strip cards should support watermark background icons');
+  assert.ok(html.indexOf('class="strip-card-bg-icon is-hero">') > -1, 'weather now strip card should render a hero background icon');
+  assert.ok(html.indexOf('.strip-card-bg-icon.is-hero') > -1, 'strip cards should support centered hero background icons');
   assert.ok(html.indexOf('.strip-card > :not(.strip-card-bg-icon) {\n      position: relative;\n      z-index: 1;') > -1, 'strip content should stay above the background icon');
   assert.ok(html.indexOf('.strip-card {\n      width: 196px;') > -1, 'strip cards should be narrower to avoid truncation');
   assert.ok(html.indexOf('.strip-card.strip-card-bin {\n      width: 220px;') > -1, 'bin strip cards should be narrower to avoid truncation');
@@ -125,7 +125,9 @@ module.exports = async function run() {
   assert.ok(html.indexOf('.strip-battery-row {\n      grid-template-columns: auto 1fr auto;\n      font-size: 15px;') > -1, 'home assistant battery rows should use 15px text');
   assert.ok(html.indexOf('strip-card-value {\n      font-family: var(--font-display);\n      font-size: 28px;') > -1 && html.indexOf('white-space: nowrap;') > -1, 'strip values should stay on one line');
   assert.ok(html.indexOf('strip-internet-chart') > -1, 'internet strip cards should include a mini chart');
-  assert.ok(html.indexOf("'<div class=\"strip-card-bg-icon is-watermark\">' + card.iconMarkup + '</div>'") > -1, 'bin feature cards should render a background icon');
+  assert.ok(html.indexOf("'<div class=\"strip-card-bg-icon is-hero\">' + card.iconMarkup + '</div>'") > -1, 'bin feature cards should render a centered background icon');
+  assert.ok(html.indexOf('strip-card-bin-day') > -1, 'bin feature cards should render a dedicated day badge under the title');
+  assert.ok(html.indexOf('.strip-card.strip-card-bin .strip-card-title {\n      font-size: 30px;') > -1, 'bin feature title should be larger and prominent');
   assert.ok(html.indexOf('var WEATHER_ROTATE_MS = 15000;') > -1, 'weather rotator should use 15s interval');
   assert.ok(html.indexOf('function buildWeatherRotatorCards(') > -1, 'weather rotator card builder missing');
   assert.ok(html.indexOf('function weatherRotatorSignature(') > -1, 'weather rotator signature helper missing');
