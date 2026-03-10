@@ -760,6 +760,16 @@
       filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.25));
     }
 
+    .strip-card-bg-icon.is-centered {
+      right: auto;
+      left: 50%;
+      top: 50%;
+      bottom: auto;
+      transform: translate(-50%, -50%);
+      font-size: 88px;
+      opacity: 0.14;
+    }
+
     .strip-card.strip-card-bin {
       width: 220px;
       background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)), rgba(13, 17, 22, 0.9);
@@ -867,12 +877,31 @@
       color: #edf3fa;
     }
 
+    .strip-card-metric-label {
+      font-size: 16px;
+      line-height: 1;
+      opacity: 0.95;
+    }
+
     .strip-card-metric-value {
       font-family: var(--font-display);
-      font-size: 16px;
+      font-size: 20px;
       line-height: 1;
       font-weight: 800;
       color: #f5fbff;
+    }
+
+    .strip-card.strip-card-bin .strip-card-title {
+      font-size: 22px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .strip-card.strip-card-bin .strip-card-copy {
+      font-size: 15px;
+      line-height: 1.16;
+      position: relative;
+      z-index: 1;
     }
 
     .strip-weather-row,
@@ -3395,7 +3424,7 @@
         }
         if (card.kind === 'weather_now') {
           return '<article class="strip-card strip-card-weather">' +
-            '<div class="strip-card-bg-icon">' + escapeHtml(card.icon || '☁') + '</div>' +
+            '<div class="strip-card-bg-icon is-centered">' + escapeHtml(card.icon || '☁') + '</div>' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Weather Now</div><div class="strip-card-tag">' + escapeHtml(card.icon || '☁') + '</div></div>' +
             '<div class="strip-card-value">' + Number(card.tempC || 0).toFixed(1).replace(/\\.0$/, '') + '°C</div>' +
             '<div class="strip-card-copy">' + escapeHtml(card.summary || 'Unknown') + '</div>' +
@@ -3418,8 +3447,8 @@
             '<div class="strip-card-head"><div class="strip-card-kicker">Home Assistant</div><div class="strip-card-tag">' + escapeHtml(card.icon || '🌡') + '</div></div>' +
             '<div class="strip-card-title">' + escapeHtml(card.label || 'Climate') + '</div>' +
             '<div class="strip-card-metrics">' +
-            '<div class="strip-card-metric"><span>🌡 Temperature</span><span class="strip-card-metric-value">' + Number(card.temperature.value || 0).toFixed(1).replace(/\\.0$/, '') + escapeHtml(card.temperature.unit || '°C') + '</span></div>' +
-            '<div class="strip-card-metric"><span>💧 Humidity</span><span class="strip-card-metric-value">' + (card.humidity ? (Number(card.humidity.value || 0).toFixed(0) + escapeHtml(card.humidity.unit || '%')) : '--') + '</span></div>' +
+            '<div class="strip-card-metric"><span class="strip-card-metric-label">🌡</span><span class="strip-card-metric-value">' + Number(card.temperature.value || 0).toFixed(1).replace(/\\.0$/, '') + escapeHtml(card.temperature.unit || '°C') + '</span></div>' +
+            '<div class="strip-card-metric"><span class="strip-card-metric-label">💧</span><span class="strip-card-metric-value">' + (card.humidity ? (Number(card.humidity.value || 0).toFixed(0) + escapeHtml(card.humidity.unit || '%')) : '--') + '</span></div>' +
             '</div>' +
             '</article>';
         }
@@ -3446,8 +3475,9 @@
         }
         if (card.kind === 'bin_feature') {
           return '<article class="strip-card strip-card-bin ' + escapeHtml(card.toneClass || '') + '">' +
+            '<div class="strip-card-bg-icon is-centered">' + card.iconMarkup + '</div>' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Upcoming Collection</div><div class="strip-card-tag">' + escapeHtml(card.tag || '--') + '</div></div>' +
-            '<div class="strip-card-title">' + card.iconMarkup + ' ' + escapeHtml(card.label || 'Bins') + '</div>' +
+            '<div class="strip-card-title">' + escapeHtml(card.label || 'Bins') + '</div>' +
             '<div class="strip-card-copy">' + escapeHtml(card.detail || 'Street-side collection') + '</div>' +
             '</article>';
         }

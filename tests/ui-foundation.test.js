@@ -30,7 +30,8 @@ module.exports = async function run() {
   assert.ok(html.indexOf('id="weatherBinsStripViewport"') > -1, 'combined weather/bins strip viewport missing');
   assert.ok(html.indexOf('id="weatherBinsStripTrack"') > -1, 'combined weather/bins strip track missing');
   assert.ok(html.indexOf('.strip-card-bg-icon {') > -1, 'strip weather cards should support a background icon');
-  assert.ok(html.indexOf('class="strip-card-bg-icon">') > -1, 'weather now strip card should render a background icon');
+  assert.ok(html.indexOf('class="strip-card-bg-icon is-centered">') > -1, 'weather now strip card should render a background icon');
+  assert.ok(html.indexOf('.strip-card-bg-icon.is-centered') > -1, 'strip cards should support centered background icons');
   assert.ok(html.indexOf('.strip-card {\n      width: 196px;') > -1, 'strip cards should be narrower to avoid truncation');
   assert.ok(html.indexOf('.strip-card.strip-card-bin {\n      width: 220px;') > -1, 'bin strip cards should be narrower to avoid truncation');
   assert.ok(html.indexOf('font-size: 18px;') > -1, 'strip titles should be reduced further to fit the card height');
@@ -116,9 +117,13 @@ module.exports = async function run() {
   assert.ok(html.indexOf('buildWeatherStripCards(state).concat(buildBinsStripCards(state), buildReminderStripCards(state));') > -1, 'combined strip should render weather first, then bins, then reminders');
   assert.ok(html.indexOf('#binCard {\n      display: none;') > -1, 'legacy bins panel should be hidden once combined into the strip');
   assert.ok(html.indexOf('strip-card-metrics') > -1, 'climate strip cards should render explicit metric rows');
-  assert.ok(html.indexOf('Humidity') > -1, 'climate strip cards should include a humidity row');
+  assert.strictEqual(html.indexOf('Temperature</span>'), -1, 'climate strip cards should remove verbose temperature labels');
+  assert.strictEqual(html.indexOf('Humidity</span>'), -1, 'climate strip cards should remove verbose humidity labels');
+  assert.ok(html.indexOf('strip-card-metric-label') > -1, 'climate strip cards should use compact icon-only metric labels');
+  assert.ok(html.indexOf('font-size: 20px;') > -1, 'climate strip card metric values should be larger for tablet readability');
   assert.ok(html.indexOf('strip-card-value {\n      font-family: var(--font-display);\n      font-size: 28px;') > -1 && html.indexOf('white-space: nowrap;') > -1, 'strip values should stay on one line');
   assert.ok(html.indexOf('strip-internet-chart') > -1, 'internet strip cards should include a mini chart');
+  assert.ok(html.indexOf("'<div class=\"strip-card-bg-icon is-centered\">' + card.iconMarkup + '</div>'") > -1, 'bin feature cards should render a background icon');
   assert.ok(html.indexOf('var WEATHER_ROTATE_MS = 15000;') > -1, 'weather rotator should use 15s interval');
   assert.ok(html.indexOf('function buildWeatherRotatorCards(') > -1, 'weather rotator card builder missing');
   assert.ok(html.indexOf('function weatherRotatorSignature(') > -1, 'weather rotator signature helper missing');
