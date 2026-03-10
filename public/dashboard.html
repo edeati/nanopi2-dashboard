@@ -760,14 +760,18 @@
       filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.25));
     }
 
-    .strip-card-bg-icon.is-centered {
-      right: auto;
-      left: 50%;
+    .strip-card-bg-icon.is-watermark {
+      right: 6px;
       top: 50%;
       bottom: auto;
-      transform: translate(-50%, -50%);
-      font-size: 88px;
-      opacity: 0.14;
+      transform: translateY(-42%);
+      font-size: 72px;
+      opacity: 0.1;
+    }
+
+    .strip-card > :not(.strip-card-bg-icon) {
+      position: relative;
+      z-index: 1;
     }
 
     .strip-card.strip-card-bin {
@@ -891,6 +895,10 @@
       color: #f5fbff;
     }
 
+    .strip-card-metric-value.strip-card-metric-value-temp {
+      font-size: 30px;
+    }
+
     .strip-card.strip-card-bin .strip-card-title {
       font-size: 22px;
       position: relative;
@@ -916,6 +924,7 @@
 
     .strip-battery-row {
       grid-template-columns: auto 1fr auto;
+      font-size: 15px;
     }
 
     .strip-card-value {
@@ -3424,7 +3433,7 @@
         }
         if (card.kind === 'weather_now') {
           return '<article class="strip-card strip-card-weather">' +
-            '<div class="strip-card-bg-icon is-centered">' + escapeHtml(card.icon || '☁') + '</div>' +
+            '<div class="strip-card-bg-icon is-watermark">' + escapeHtml(card.icon || '☁') + '</div>' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Weather Now</div><div class="strip-card-tag">' + escapeHtml(card.icon || '☁') + '</div></div>' +
             '<div class="strip-card-value">' + Number(card.tempC || 0).toFixed(1).replace(/\\.0$/, '') + '°C</div>' +
             '<div class="strip-card-copy">' + escapeHtml(card.summary || 'Unknown') + '</div>' +
@@ -3447,7 +3456,7 @@
             '<div class="strip-card-head"><div class="strip-card-kicker">Home Assistant</div><div class="strip-card-tag">' + escapeHtml(card.icon || '🌡') + '</div></div>' +
             '<div class="strip-card-title">' + escapeHtml(card.label || 'Climate') + '</div>' +
             '<div class="strip-card-metrics">' +
-            '<div class="strip-card-metric"><span class="strip-card-metric-label">🌡</span><span class="strip-card-metric-value">' + Number(card.temperature.value || 0).toFixed(1).replace(/\\.0$/, '') + escapeHtml(card.temperature.unit || '°C') + '</span></div>' +
+            '<div class="strip-card-metric"><span class="strip-card-metric-label">🌡</span><span class="strip-card-metric-value strip-card-metric-value-temp">' + Number(card.temperature.value || 0).toFixed(1).replace(/\\.0$/, '') + escapeHtml(card.temperature.unit || '°C') + '</span></div>' +
             '<div class="strip-card-metric"><span class="strip-card-metric-label">💧</span><span class="strip-card-metric-value">' + (card.humidity ? (Number(card.humidity.value || 0).toFixed(0) + escapeHtml(card.humidity.unit || '%')) : '--') + '</span></div>' +
             '</div>' +
             '</article>';
@@ -3475,7 +3484,7 @@
         }
         if (card.kind === 'bin_feature') {
           return '<article class="strip-card strip-card-bin ' + escapeHtml(card.toneClass || '') + '">' +
-            '<div class="strip-card-bg-icon is-centered">' + card.iconMarkup + '</div>' +
+            '<div class="strip-card-bg-icon is-watermark">' + card.iconMarkup + '</div>' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Upcoming Collection</div><div class="strip-card-tag">' + escapeHtml(card.tag || '--') + '</div></div>' +
             '<div class="strip-card-title">' + escapeHtml(card.label || 'Bins') + '</div>' +
             '<div class="strip-card-copy">' + escapeHtml(card.detail || 'Street-side collection') + '</div>' +
