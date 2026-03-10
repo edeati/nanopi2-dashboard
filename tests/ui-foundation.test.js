@@ -35,8 +35,9 @@ module.exports = async function run() {
   assert.ok(html.indexOf('.strip-card > :not(.strip-card-bg-icon) {\n      position: relative;\n      z-index: 1;') > -1, 'strip content should stay above the background icon');
   assert.ok(html.indexOf('.strip-card {\n      width: 196px;') > -1, 'strip cards should be narrower to avoid truncation');
   assert.ok(html.indexOf('.strip-card {\n      width: 196px;\n      min-height: 100%;\n      border-radius: 14px;\n      border: 1px solid rgba(114, 128, 148, 0.34);\n      background: rgba(14, 18, 24, 0.84);\n      padding: 8px 9px;\n      position: relative;') > -1, 'strip cards should anchor absolute background icons inside each card');
-  assert.ok(html.indexOf('.strip-card.strip-card-weather-now {\n      grid-template-rows: auto 1fr auto;') > -1, 'weather now cards should reserve a center row for the temperature');
-  assert.ok(html.indexOf('.strip-card.strip-card-weather-now .strip-card-value {\n      align-self: center;') > -1, 'weather now temperature should sit on the vertical midline');
+  assert.ok(html.indexOf('.strip-card.strip-card-stack {\n      align-content: stretch;\n      grid-template-rows: auto auto minmax(0, 1fr);') > -1, 'regular strip cards should use a consistent top-anchored stack layout');
+  assert.ok(html.indexOf('.strip-card.strip-card-weather-now {\n      align-content: stretch;\n      grid-template-rows: auto auto minmax(0, 1fr);') > -1, 'weather now cards should keep the header and summary at the top with the value centered below');
+  assert.ok(html.indexOf('.strip-card.strip-card-weather-now .strip-card-value {\n      align-self: center;\n      justify-self: center;') > -1, 'weather now temperature should sit on the vertical midline and center on the icon');
   assert.ok(html.indexOf('.strip-card.strip-card-bin {\n      width: 220px;') > -1, 'bin strip cards should be narrower to avoid truncation');
   assert.ok(html.indexOf('grid-template-rows: auto 1fr auto auto auto 1fr;') > -1, 'bin strip cards should keep the kicker at the top and center the main content');
   assert.ok(html.indexOf('font-size: 18px;') > -1, 'strip titles should be reduced further to fit the card height');
@@ -133,7 +134,9 @@ module.exports = async function run() {
   assert.ok(html.indexOf('strip-card-bin-day') > -1, 'bin feature cards should render a dedicated day badge under the title');
   assert.ok(html.indexOf('.strip-card.strip-card-bin .strip-card-title {\n      grid-row: 3;\n      font-size: 30px;') > -1, 'bin feature title should be larger and prominent');
   assert.ok(html.indexOf('.strip-card.strip-card-bin .strip-card-head {\n      align-self: start;') > -1, 'bin feature kicker should stay pinned to the top');
-  assert.ok(html.indexOf("'<article class=\"strip-card strip-card-weather strip-card-weather-now\">' +") > -1, 'weather now renderer should use the dedicated centered layout variant');
+  assert.ok(html.indexOf("'<article class=\"strip-card strip-card-weather strip-card-stack strip-card-weather-now\">' +") > -1, 'weather now renderer should use the dedicated centered layout variant');
+  assert.ok(html.indexOf("'<div class=\"strip-card-head\"><div class=\"strip-card-kicker\">Weather Now</div><div class=\"strip-card-tag\">' + escapeHtml(card.icon || '☁') + '</div></div>' +\n            '<div class=\"strip-card-copy\">' + escapeHtml(card.summary || 'Unknown') + '</div>' +\n            '<div class=\"strip-card-value\">' + Number(card.tempC || 0).toFixed(1).replace(/\\\\.0$/, '') + '°C</div>' +") > -1, 'weather now cards should place the summary under the header and keep the temperature as the centered hero value');
+  assert.ok(html.indexOf('.strip-weather-row {\n      font-size: 15px;') > -1, 'forecast rows should use 15px text for tablet readability');
   assert.ok(html.indexOf('var WEATHER_ROTATE_MS = 15000;') > -1, 'weather rotator should use 15s interval');
   assert.ok(html.indexOf('function buildWeatherRotatorCards(') > -1, 'weather rotator card builder missing');
   assert.ok(html.indexOf('function weatherRotatorSignature(') > -1, 'weather rotator signature helper missing');

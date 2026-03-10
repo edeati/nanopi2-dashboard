@@ -784,6 +784,11 @@
       z-index: 1;
     }
 
+    .strip-card.strip-card-stack {
+      align-content: stretch;
+      grid-template-rows: auto auto minmax(0, 1fr);
+    }
+
     .strip-card.strip-card-bin {
       width: 220px;
       background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)), rgba(13, 17, 22, 0.9);
@@ -964,6 +969,10 @@
       color: #edf3fa;
     }
 
+    .strip-weather-row {
+      font-size: 15px;
+    }
+
     .strip-battery-row {
       grid-template-columns: auto 1fr auto;
       font-size: 15px;
@@ -979,11 +988,14 @@
     }
 
     .strip-card.strip-card-weather-now {
-      grid-template-rows: auto 1fr auto;
+      align-content: stretch;
+      grid-template-rows: auto auto minmax(0, 1fr);
     }
 
     .strip-card.strip-card-weather-now .strip-card-value {
       align-self: center;
+      justify-self: center;
+      text-align: center;
     }
 
     .strip-card-sub {
@@ -3482,11 +3494,11 @@
           return '';
         }
         if (card.kind === 'weather_now') {
-          return '<article class="strip-card strip-card-weather strip-card-weather-now">' +
+          return '<article class="strip-card strip-card-weather strip-card-stack strip-card-weather-now">' +
             '<div class="strip-card-bg-icon is-hero">' + escapeHtml(card.icon || '☁') + '</div>' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Weather Now</div><div class="strip-card-tag">' + escapeHtml(card.icon || '☁') + '</div></div>' +
-            '<div class="strip-card-value">' + Number(card.tempC || 0).toFixed(1).replace(/\\.0$/, '') + '°C</div>' +
             '<div class="strip-card-copy">' + escapeHtml(card.summary || 'Unknown') + '</div>' +
+            '<div class="strip-card-value">' + Number(card.tempC || 0).toFixed(1).replace(/\\.0$/, '') + '°C</div>' +
             '</article>';
         }
         if (card.kind === 'forecast5') {
@@ -3495,14 +3507,14 @@
               escapeHtml(iconForWeather(item.icon, item.summary)) + '</span><span>' +
               Number(item.tempC || 0).toFixed(0) + ' °C</span></div>';
           }).join('');
-          return '<article class="strip-card strip-card-weather">' +
+          return '<article class="strip-card strip-card-weather strip-card-stack">' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Forecast</div><div class="strip-card-tag">5 Days</div></div>' +
             '<div class="strip-card-title">Outlook</div>' +
             '<div class="strip-weather-list">' + forecastRows + '</div>' +
             '</article>';
         }
         if (card.kind === 'climate') {
-          return '<article class="strip-card strip-card-weather">' +
+          return '<article class="strip-card strip-card-weather strip-card-stack">' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Home Assistant</div><div class="strip-card-tag">' + escapeHtml(card.icon || '🌡') + '</div></div>' +
             '<div class="strip-card-title">' + escapeHtml(card.label || 'Climate') + '</div>' +
             '<div class="strip-card-metrics">' +
@@ -3517,14 +3529,14 @@
               escapeHtml(item.label || 'Battery') + '</span><span>' +
               Number(item.value || 0).toFixed(0) + escapeHtml(item.unit || '%') + '</span></div>';
           }).join('');
-          return '<article class="strip-card strip-card-weather">' +
+          return '<article class="strip-card strip-card-weather strip-card-stack">' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Home Assistant</div><div class="strip-card-tag">Battery</div></div>' +
             '<div class="strip-card-title">' + escapeHtml(card.label || 'Batteries') + '</div>' +
             '<div class="strip-battery-list">' + rows + '</div>' +
             '</article>';
         }
         if (card.kind === 'internet') {
-          return '<article class="strip-card strip-card-weather">' +
+          return '<article class="strip-card strip-card-weather strip-card-stack">' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Network</div><div class="strip-card-tag">' + (card.online ? 'Online' : 'Offline') + '</div></div>' +
             '<div class="strip-card-title">Internet</div>' +
             '<div class="strip-card-value">' + (Number.isFinite(Number(card.downloadMbps)) ? Number(card.downloadMbps).toFixed(0) + ' Mbps' : '--') + '</div>' +
@@ -3542,7 +3554,7 @@
             '</article>';
         }
         if (card.kind === 'reminder') {
-          return '<article class="strip-card strip-card-reminder ' + escapeHtml(card.toneClass || '') + '">' +
+          return '<article class="strip-card strip-card-reminder strip-card-stack ' + escapeHtml(card.toneClass || '') + '">' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Reminder</div><div class="strip-card-tag">' + escapeHtml(card.tag || '--') + '</div></div>' +
             '<div class="strip-card-title">' + escapeHtml(card.icon || '⏰') + ' ' + escapeHtml(card.title || 'Reminder') + '</div>' +
             '<div class="strip-card-copy">' + escapeHtml(card.note || 'Scheduled reminder') + '</div>' +
