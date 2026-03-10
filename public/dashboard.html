@@ -677,6 +677,15 @@
       border-color: rgba(92, 170, 210, 0.35);
       box-shadow: 0 12px 22px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(172, 220, 244, 0.12);
     }
+
+    #weatherCard .panel-corner-icon,
+    #weatherCard .panel-title {
+      display: none;
+    }
+
+    #weatherCard.panel-icon {
+      padding-top: 10px;
+    }
     #binCard {
       display: none;
       position: relative;
@@ -727,25 +736,37 @@
     }
 
     .strip-card {
-      width: 240px;
+      width: 208px;
       min-height: 100%;
       border-radius: 14px;
       border: 1px solid rgba(114, 128, 148, 0.34);
       background: rgba(14, 18, 24, 0.84);
-      padding: 14px 15px;
+      padding: 10px 11px;
       display: grid;
       align-content: space-between;
-      gap: 10px;
+      gap: 7px;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      overflow: hidden;
+    }
+
+    .strip-card-bg-icon {
+      position: absolute;
+      right: 10px;
+      bottom: 2px;
+      font-size: 78px;
+      line-height: 1;
+      opacity: 0.16;
+      pointer-events: none;
+      filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.25));
     }
 
     .strip-card.strip-card-bin {
-      width: 280px;
+      width: 232px;
       background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)), rgba(13, 17, 22, 0.9);
     }
 
     .strip-card.strip-card-reminder {
-      width: 230px;
+      width: 200px;
       background: rgba(18, 20, 26, 0.86);
     }
 
@@ -783,7 +804,7 @@
     }
 
     .strip-card-kicker {
-      font-size: 11px;
+      font-size: 10px;
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: #a7b8c8;
@@ -791,11 +812,11 @@
     }
 
     .strip-card-tag {
-      padding: 5px 9px;
+      padding: 4px 8px;
       border-radius: 999px;
       border: 1px solid rgba(153, 165, 182, 0.35);
       background: rgba(17, 22, 28, 0.9);
-      font-size: 12px;
+      font-size: 11px;
       line-height: 1;
       font-weight: 800;
       letter-spacing: 0.08em;
@@ -807,16 +828,18 @@
 
     .strip-card-title {
       font-family: var(--font-display);
-      font-size: 30px;
-      line-height: 0.98;
+      font-size: 22px;
+      line-height: 1;
       font-weight: 900;
       color: #f4f7fb;
+      overflow: hidden;
     }
 
     .strip-card-copy {
-      font-size: 18px;
-      line-height: 1.18;
+      font-size: 15px;
+      line-height: 1.14;
       color: #dde7f1;
+      overflow: hidden;
     }
 
     .strip-card-micro {
@@ -830,13 +853,35 @@
       gap: 6px;
     }
 
+    .strip-card-metrics {
+      display: grid;
+      gap: 6px;
+    }
+
+    .strip-card-metric {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px;
+      align-items: center;
+      font-size: 14px;
+      color: #edf3fa;
+    }
+
+    .strip-card-metric-value {
+      font-family: var(--font-display);
+      font-size: 18px;
+      line-height: 1;
+      font-weight: 800;
+      color: #f5fbff;
+    }
+
     .strip-weather-row,
     .strip-battery-row {
       display: grid;
       grid-template-columns: auto auto 1fr;
       gap: 8px;
       align-items: center;
-      font-size: 16px;
+      font-size: 14px;
       color: #edf3fa;
     }
 
@@ -846,15 +891,24 @@
 
     .strip-card-value {
       font-family: var(--font-display);
-      font-size: 44px;
+      font-size: 34px;
       line-height: 1;
       font-weight: 900;
       color: #f5fbff;
+      white-space: nowrap;
     }
 
     .strip-card-sub {
-      font-size: 15px;
+      font-size: 13px;
       color: #b8c8d8;
+    }
+
+    .strip-internet-chart {
+      width: 100%;
+      height: 40px;
+      display: block;
+      border: 0;
+      background: transparent;
     }
 
     #binPages {
@@ -3133,7 +3187,7 @@
       }
 
       function drawWeatherInternetMiniChart(history) {
-        var canvas = document.getElementById('weatherInternetMiniChart');
+        var canvas = document.getElementById('stripInternetMiniChart') || document.getElementById('weatherInternetMiniChart');
         if (!canvas || !canvas.getContext) {
           return;
         }
@@ -3341,6 +3395,7 @@
         }
         if (card.kind === 'weather_now') {
           return '<article class="strip-card strip-card-weather">' +
+            '<div class="strip-card-bg-icon">' + escapeHtml(card.icon || '☁') + '</div>' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Weather Now</div><div class="strip-card-tag">' + escapeHtml(card.icon || '☁') + '</div></div>' +
             '<div class="strip-card-value">' + Number(card.tempC || 0).toFixed(1).replace(/\\.0$/, '') + '°C</div>' +
             '<div class="strip-card-copy">' + escapeHtml(card.summary || 'Unknown') + '</div>' +
@@ -3362,8 +3417,10 @@
           return '<article class="strip-card strip-card-weather">' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Home Assistant</div><div class="strip-card-tag">' + escapeHtml(card.icon || '🌡') + '</div></div>' +
             '<div class="strip-card-title">' + escapeHtml(card.label || 'Climate') + '</div>' +
-            '<div class="strip-card-value">' + Number(card.temperature.value || 0).toFixed(1).replace(/\\.0$/, '') + escapeHtml(card.temperature.unit || '°C') + '</div>' +
-            '<div class="strip-card-sub">Humidity ' + (card.humidity ? (Number(card.humidity.value || 0).toFixed(0) + escapeHtml(card.humidity.unit || '%')) : '--') + '</div>' +
+            '<div class="strip-card-metrics">' +
+            '<div class="strip-card-metric"><span>🌡 Temperature</span><span class="strip-card-metric-value">' + Number(card.temperature.value || 0).toFixed(1).replace(/\\.0$/, '') + escapeHtml(card.temperature.unit || '°C') + '</span></div>' +
+            '<div class="strip-card-metric"><span>💧 Humidity</span><span class="strip-card-metric-value">' + (card.humidity ? (Number(card.humidity.value || 0).toFixed(0) + escapeHtml(card.humidity.unit || '%')) : '--') + '</span></div>' +
+            '</div>' +
             '</article>';
         }
         if (card.kind === 'battery_summary') {
@@ -3384,6 +3441,7 @@
             '<div class="strip-card-title">Internet</div>' +
             '<div class="strip-card-value">' + (Number.isFinite(Number(card.downloadMbps)) ? Number(card.downloadMbps).toFixed(0) + ' Mbps' : '--') + '</div>' +
             '<div class="strip-card-sub">Upload ' + (Number.isFinite(Number(card.uploadMbps)) ? Number(card.uploadMbps).toFixed(0) + ' Mbps' : '--') + '</div>' +
+            '<canvas id="stripInternetMiniChart" class="strip-internet-chart" width="196" height="40"></canvas>' +
             '</article>';
         }
         if (card.kind === 'bin_feature') {
@@ -3414,6 +3472,12 @@
         }
         var cardsHtml = source.map(renderCombinedStripCard).join('');
         weatherBinsStripTrackNode.innerHTML = cardsHtml + cardsHtml;
+        for (var i = 0; i < source.length; i += 1) {
+          if (source[i] && source[i].kind === 'internet') {
+            drawWeatherInternetMiniChart(source[i].history);
+            break;
+          }
+        }
       }
 
       function renderWeatherRotatorCard(card) {
