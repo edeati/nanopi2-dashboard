@@ -34,6 +34,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('.strip-card-bg-icon.is-hero') > -1, 'strip cards should support centered hero background icons');
   assert.ok(html.indexOf('.strip-card > :not(.strip-card-bg-icon) {\n      position: relative;\n      z-index: 1;') > -1, 'strip content should stay above the background icon');
   assert.ok(html.indexOf('.strip-card {\n      width: 196px;') > -1, 'strip cards should be narrower to avoid truncation');
+  assert.ok(html.indexOf('.strip-card {\n      width: 196px;\n      min-height: 100%;\n      border-radius: 14px;\n      border: 1px solid rgba(114, 128, 148, 0.34);\n      background: rgba(14, 18, 24, 0.84);\n      padding: 8px 9px;\n      position: relative;') > -1, 'strip cards should anchor absolute background icons inside each card');
   assert.ok(html.indexOf('.strip-card.strip-card-bin {\n      width: 220px;') > -1, 'bin strip cards should be narrower to avoid truncation');
   assert.ok(html.indexOf('font-size: 18px;') > -1, 'strip titles should be reduced further to fit the card height');
   assert.ok(html.indexOf('font-size: 28px;') > -1, 'strip value text should be reduced further to fit the card height');
