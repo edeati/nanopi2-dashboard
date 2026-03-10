@@ -787,6 +787,7 @@
     .strip-card.strip-card-stack {
       align-content: stretch;
       grid-template-rows: auto auto minmax(0, 1fr);
+      gap: 3px;
     }
 
     .strip-card.strip-card-bin {
@@ -880,7 +881,12 @@
       gap: 4px;
     }
 
-    .strip-weather-list,
+    .strip-weather-list {
+      display: grid;
+      gap: 3px;
+      align-content: start;
+    }
+
     .strip-battery-list {
       display: grid;
       gap: 6px;
@@ -971,6 +977,8 @@
 
     .strip-weather-row {
       font-size: 15px;
+      gap: 6px;
+      line-height: 1;
     }
 
     .strip-battery-row {
