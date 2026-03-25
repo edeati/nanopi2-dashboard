@@ -290,8 +290,9 @@ module.exports = async function run() {
   assert.ok(html.indexOf('var b = Math.max(0, Number(bin.importWh || 0)) / bucketHours;') > -1, 'import series should be converted from bucket energy back to average power');
   assert.ok(html.indexOf("ctx.fillStyle = 'rgba(112, 168, 255, 0.44)';") > -1, 'import bars should use a cooler translucent blue fill');
   assert.ok(html.indexOf('function buildGeneratedHistorySeries(') > -1, 'generated history helper missing for solar chart');
-  assert.ok(html.indexOf("var latestDayKey = '';") > -1, 'generated history helper should track the latest local day');
-  assert.ok(html.indexOf('if (dayKey > latestDayKey) {\n              latestDayKey = dayKey;\n            }') > -1, 'generated history helper should filter to the latest day before plotting');
+  assert.ok(html.indexOf('function dayKeyForTimestampInZone(') > -1, 'generated history helper should use the configured timezone when filtering');
+  assert.ok(html.indexOf('function secondOfDayForTimestampInZone(') > -1, 'generated history helper should compute time-of-day in the configured timezone');
+  assert.ok(html.indexOf('return item.dayKey === activeDayKey;') > -1, 'generated history helper should filter to the active solar day before plotting');
   assert.ok(html.indexOf('function drawGeneratedLine(') > -1, 'generated line helper missing for hybrid chart');
   assert.strictEqual(html.indexOf('function smoothSeries('), -1, 'generated line should avoid averaging helper');
   assert.ok(html.indexOf("ctx.fillStyle = 'rgba(255, 226, 122, 0.42)';") > -1, 'generated series should render as a translucent yellow fill');
@@ -304,7 +305,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('var selfWh = generatedWh > 0 ? Math.min(generatedWh, Math.max(0, Number(bin.selfWh || 0)) / bucketHours) : 0;') > -1, 'self-used bars should drop to zero when there is no generation');
   assert.ok(html.indexOf('if (bh > 0) {\n            ctx.fillStyle = \'rgba(112, 168, 255, 0.44)\';') > -1, 'import bars should not draw a baseline pixel when zero');
   assert.ok(html.indexOf('if (ah > 0) {\n            ctx.fillStyle = \'#8edb7c\';') > -1, 'self-used bars should not draw a baseline pixel when zero');
-  assert.ok(html.indexOf('var generatedSeries = buildGeneratedHistorySeries(solarHistory);') > -1, 'generated series should prefer raw solar history for power plotting');
+  assert.ok(html.indexOf('var generatedSeries = buildGeneratedHistorySeries(solarHistory, solarMeta);') > -1, 'generated series should prefer raw solar history for power plotting');
   assert.ok(html.indexOf('var generatedLinePeakWh = generatedSeries.reduce(function (peak, point) { return Math.max(peak, Number((point && point.value) || 0)); }, 0);') > -1, 'generated line scale should derive peak from raw values');
   assert.ok(html.indexOf('var generatedCapWh = Number(pricingConfig.inverterCapacityKw || 6.3) * 1000;') > -1, 'generated line scaling should use inverter capacity with a 6.3kW default');
   assert.ok(html.indexOf('usagePeakWh = Math.max(usagePeakWh, Math.max((Number(item.selfWh || 0) + Number(item.importWh || 0)) / bucketHours, Number(item.generatedWh || 0) / bucketHours));') > -1, 'usage chart scale should consider generated output as well as usage stack');
@@ -333,8 +334,9 @@ module.exports = async function run() {
   assert.ok(html.indexOf('function buildSolarPanelSignatures(') > -1, 'solar panel signature helper missing');
   assert.ok(html.indexOf('var usageChartBins = Array.isArray(state.solarDailyBins) && state.solarDailyBins.length ? state.solarDailyBins : (Array.isArray(state.solarUsageHourly) ? state.solarUsageHourly : []);') > -1, 'usage chart should prefer half-hour solar bins to avoid a visual lag');
   assert.ok(html.indexOf('var solarHistorySeries = Array.isArray(state.solarHistory) ? state.solarHistory : [];') > -1, 'usage chart should read solar history for generated power rendering');
+  assert.ok(html.indexOf('var solarMeta = state.solarMeta || {};') > -1, 'usage chart should read solar meta for timezone-aware generation plotting');
   assert.ok(html.indexOf('var panelSigs = buildSolarPanelSignatures(usageChartBins, solarHistorySeries, dawnQuarterBins, flowSummary, chartsLoading);') > -1, 'solar panel signatures should include the generation history source');
-  assert.ok(html.indexOf('drawUsageHourlyBars(usageBarCtx, usageBarCanvas, usageChartBins, solarHistorySeries);') > -1, 'usage chart should render from the selected bins plus solar history');
+  assert.ok(html.indexOf('drawUsageHourlyBars(usageBarCtx, usageBarCanvas, usageChartBins, solarHistorySeries, solarMeta);') > -1, 'usage chart should render from the selected bins plus solar history');
   assert.ok(html.indexOf('if (panelSigs.usage !== lastSolarUsageSig) {') > -1, 'usage panel redraw guard missing');
   assert.ok(html.indexOf('if (panelSigs.dawn !== lastSolarDawnSig) {') > -1, 'dawn panel redraw guard missing');
   assert.ok(html.indexOf('if (panelSigs.flow !== lastSolarFlowSig) {') > -1, 'flow panel redraw guard missing');
