@@ -281,15 +281,16 @@ module.exports = async function run() {
   assert.ok(html.indexOf("ctx.fillStyle = 'rgba(112, 168, 255, 0.44)';") > -1, 'import bars should use a cooler translucent blue fill');
   assert.ok(html.indexOf('function drawGeneratedLine(') > -1, 'generated line helper missing for hybrid chart');
   assert.strictEqual(html.indexOf('function smoothSeries('), -1, 'generated line should avoid averaging helper');
-  assert.ok(html.indexOf("ctx.strokeStyle = '#ffe27a';") > -1, 'generated hybrid line color should stay distinct from import bars');
-  assert.ok(html.indexOf('ctx.lineWidth = 4;') > -1, 'generated hybrid line should be thicker');
-  assert.ok(html.indexOf('if (generatedSeries[i] <= 0) {\n            drawing = false;\n            continue;\n          }') > -1, 'generated line should skip zero-value periods instead of drawing a baseline');
+  assert.ok(html.indexOf("ctx.fillStyle = 'rgba(255, 226, 122, 0.42)';") > -1, 'generated series should render as a translucent yellow fill');
+  assert.ok(html.indexOf('if (generatedSeries[i] <= 0) {\n            if (drawing) {\n              ctx.lineTo(lastX, chartBottom);') > -1, 'generated fill should close each positive segment before zero-value gaps');
   assert.ok(html.indexOf("ctx.lineJoin = 'round';") > -1, 'generated hybrid line should use rounded joins');
   assert.ok(html.indexOf("ctx.lineCap = 'round';") > -1, 'generated hybrid line should use rounded caps');
   assert.strictEqual(html.indexOf('ctx.quadraticCurveTo('), -1, 'generated hybrid line should avoid curve interpolation');
   assert.ok(html.indexOf('var usagePeakWh = 1;') > -1, 'usage bars should track usage peak independently');
   assert.ok(html.indexOf('usagePeakWh = Math.max(usagePeakWh, Math.max(Number(item.selfWh || 0) + Number(item.importWh || 0), Number(item.generatedWh || 0)));') > -1, 'usage bars should scale from the larger of the usage stack or generated output');
   assert.ok(html.indexOf('var selfWh = generatedWh > 0 ? Math.min(generatedWh, Math.max(0, Number(bin.selfWh || 0))) : 0;') > -1, 'self-used bars should drop to zero when there is no generation');
+  assert.ok(html.indexOf('if (bh > 0) {\n            ctx.fillStyle = \'rgba(112, 168, 255, 0.44)\';') > -1, 'import bars should not draw a baseline pixel when zero');
+  assert.ok(html.indexOf('if (ah > 0) {\n            ctx.fillStyle = \'#8edb7c\';') > -1, 'self-used bars should not draw a baseline pixel when zero');
   assert.ok(html.indexOf('var generatedLinePeakWh = generatedSeries.reduce(function (peak, value) { return Math.max(peak, Number(value || 0)); }, 0);') > -1, 'generated line scale should derive peak from raw values');
   assert.ok(html.indexOf('var generatedCapWh = Number(pricingConfig.inverterCapacityKw || 6.3) * 1000;') > -1, 'generated line scaling should use inverter capacity with a 6.3kW default');
   assert.ok(html.indexOf('usagePeakWh = Math.max(usagePeakWh, Math.max(Number(item.selfWh || 0) + Number(item.importWh || 0), Number(item.generatedWh || 0)));') > -1, 'usage chart scale should consider generated output as well as usage stack');
@@ -313,7 +314,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('.solar-status-card-import.is-importing {\n      background: rgba(120, 24, 24, 0.18);') > -1, 'grid import status card should use the red inactive-solar accent when importing');
   assert.ok(html.indexOf("style=\"background:#70a8ff;\"") > -1, 'solar usage legend should show blue import swatch');
   assert.ok(html.indexOf("ctx.fillStyle = 'rgba(112, 168, 255, 0.44)';") > -1, 'import bars should be more transparent and cooler');
-  assert.ok(html.indexOf("ctx.strokeStyle = '#ffe27a';") > -1, 'generated line should use a brighter gold tone');
+  assert.ok(html.indexOf("ctx.fillStyle = 'rgba(255, 226, 122, 0.42)';") > -1, 'generated area should use a brighter gold tone');
   assert.ok(html.indexOf('function drawDawnQuarterBars(') > -1, 'dawn quarter draw helper missing');
   assert.ok(html.indexOf('function buildSolarPanelSignatures(') > -1, 'solar panel signature helper missing');
   assert.ok(html.indexOf('if (panelSigs.usage !== lastSolarUsageSig) {') > -1, 'usage panel redraw guard missing');

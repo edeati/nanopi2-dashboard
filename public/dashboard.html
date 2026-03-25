@@ -2767,10 +2767,14 @@
           var drawW = Math.max(1, xNext - x - 1);
           var yB = chartBottom - bh;
           var yA = yB - ah;
-          ctx.fillStyle = 'rgba(112, 168, 255, 0.44)';
-          ctx.fillRect(x, yB, drawW, Math.max(1, bh));
-          ctx.fillStyle = '#8edb7c';
-          ctx.fillRect(x, yA, drawW, Math.max(1, ah));
+          if (bh > 0) {
+            ctx.fillStyle = 'rgba(112, 168, 255, 0.44)';
+            ctx.fillRect(x, yB, drawW, bh);
+          }
+          if (ah > 0) {
+            ctx.fillStyle = '#8edb7c';
+            ctx.fillRect(x, yA, drawW, ah);
+          }
         }
         var generatedSeries = data.map(function (item) {
           return Math.max(0, Number((item || {}).generatedWh || 0));
@@ -2791,27 +2795,38 @@
         });
         ctx.save();
         ctx.lineWidth = 4;
-        ctx.strokeStyle = '#ffe27a';
+        ctx.fillStyle = 'rgba(255, 226, 122, 0.42)';
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
         var drawing = false;
+        var lastX = 0;
         ctx.beginPath();
         for (var i = 0; i < generatedSeries.length; i += 1) {
           if (generatedSeries[i] <= 0) {
+            if (drawing) {
+              ctx.lineTo(lastX, chartBottom);
+              ctx.closePath();
+              ctx.fill();
+              ctx.beginPath();
+            }
             drawing = false;
             continue;
           }
           var x = Math.round(pad + (i * barW) + (barW / 2));
           var y = chartBottom - Math.floor((generatedSeries[i] / Math.max(1, maxY)) * (chartBottom - pad));
           if (!drawing) {
-            ctx.moveTo(x, y);
+            ctx.moveTo(x, chartBottom);
+            ctx.lineTo(x, y);
             drawing = true;
           } else {
             ctx.lineTo(x, y);
           }
+          lastX = x;
         }
         if (drawing) {
-          ctx.stroke();
+          ctx.lineTo(lastX, chartBottom);
+          ctx.closePath();
+          ctx.fill();
         }
         ctx.restore();
       }
