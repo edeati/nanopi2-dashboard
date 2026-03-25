@@ -283,11 +283,13 @@ module.exports = async function run() {
   assert.strictEqual(html.indexOf('function smoothSeries('), -1, 'generated line should avoid averaging helper');
   assert.ok(html.indexOf("ctx.strokeStyle = '#ffe27a';") > -1, 'generated hybrid line color should stay distinct from import bars');
   assert.ok(html.indexOf('ctx.lineWidth = 4;') > -1, 'generated hybrid line should be thicker');
+  assert.ok(html.indexOf('if (generatedSeries[i] <= 0) {\n            drawing = false;\n            continue;\n          }') > -1, 'generated line should skip zero-value periods instead of drawing a baseline');
   assert.ok(html.indexOf("ctx.lineJoin = 'round';") > -1, 'generated hybrid line should use rounded joins');
   assert.ok(html.indexOf("ctx.lineCap = 'round';") > -1, 'generated hybrid line should use rounded caps');
   assert.strictEqual(html.indexOf('ctx.quadraticCurveTo('), -1, 'generated hybrid line should avoid curve interpolation');
   assert.ok(html.indexOf('var usagePeakWh = 1;') > -1, 'usage bars should track usage peak independently');
   assert.ok(html.indexOf('usagePeakWh = Math.max(usagePeakWh, Math.max(Number(item.selfWh || 0) + Number(item.importWh || 0), Number(item.generatedWh || 0)));') > -1, 'usage bars should scale from the larger of the usage stack or generated output');
+  assert.ok(html.indexOf('var selfWh = generatedWh > 0 ? Math.min(generatedWh, Math.max(0, Number(bin.selfWh || 0))) : 0;') > -1, 'self-used bars should drop to zero when there is no generation');
   assert.ok(html.indexOf('var generatedLinePeakWh = generatedSeries.reduce(function (peak, value) { return Math.max(peak, Number(value || 0)); }, 0);') > -1, 'generated line scale should derive peak from raw values');
   assert.ok(html.indexOf('var generatedCapWh = Number(pricingConfig.inverterCapacityKw || 6.3) * 1000;') > -1, 'generated line scaling should use inverter capacity with a 6.3kW default');
   assert.ok(html.indexOf('usagePeakWh = Math.max(usagePeakWh, Math.max(Number(item.selfWh || 0) + Number(item.importWh || 0), Number(item.generatedWh || 0)));') > -1, 'usage chart scale should consider generated output as well as usage stack');

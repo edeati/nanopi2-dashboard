@@ -2756,7 +2756,9 @@
         var barW = (w - pad * 2) / barsCount;
         for (var j = 0; j < barsCount; j += 1) {
           var bin = data[j] || {};
-          var a = Math.max(0, Number(bin.selfWh || 0));
+          var generatedWh = Math.max(0, Number(bin.generatedWh || 0));
+          var selfWh = generatedWh > 0 ? Math.min(generatedWh, Math.max(0, Number(bin.selfWh || 0))) : 0;
+          var a = selfWh;
           var b = Math.max(0, Number(bin.importWh || 0));
           var ah = Math.floor((a / usagePeakWh) * (chartBottom - pad));
           var bh = Math.floor((b / usagePeakWh) * (chartBottom - pad));
@@ -2787,24 +2789,28 @@
         var generatedSeries = data.map(function (item) {
           return Math.max(0, Number((item || {}).generatedWh || 0));
         });
-        var points = [];
-        for (var i = 0; i < generatedSeries.length; i += 1) {
-          points.push({
-            x: Math.round(pad + (i * barW) + (barW / 2)),
-            y: chartBottom - Math.floor((generatedSeries[i] / Math.max(1, maxY)) * (chartBottom - pad))
-          });
-        }
         ctx.save();
         ctx.lineWidth = 4;
         ctx.strokeStyle = '#ffe27a';
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
+        var drawing = false;
         ctx.beginPath();
-        if (points.length) {
-          ctx.moveTo(points[0].x, points[0].y);
-          for (var j = 1; j < points.length; j += 1) {
-            ctx.lineTo(points[j].x, points[j].y);
+        for (var i = 0; i < generatedSeries.length; i += 1) {
+          if (generatedSeries[i] <= 0) {
+            drawing = false;
+            continue;
           }
+          var x = Math.round(pad + (i * barW) + (barW / 2));
+          var y = chartBottom - Math.floor((generatedSeries[i] / Math.max(1, maxY)) * (chartBottom - pad));
+          if (!drawing) {
+            ctx.moveTo(x, y);
+            drawing = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+        if (drawing) {
           ctx.stroke();
         }
         ctx.restore();
