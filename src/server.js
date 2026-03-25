@@ -96,6 +96,141 @@ function normalizeSeriesSecond(secondKey, dayKey, timeZone) {
   return secondOfDayLocal(tsMs, timeZone);
 }
 
+function normalizeDetailSeriesPoints(series, dayKey, timeZone) {
+  return Object.keys(series || {})
+    .map((secondKey) => ({
+      sec: normalizeSeriesSecond(secondKey, dayKey, timeZone),
+      value: Number(series[secondKey] || 0)
+    }))
+    .filter((point) => point.sec !== null)
+    .sort((a, b) => a.sec - b.sec);
+}
+
+function estimateSeriesStep(points) {
+  let best = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    const diff = points[i].sec - points[i - 1].sec;
+    if (diff <= 0) {
+      continue;
+    }
+    if (!best || diff < best) {
+      best = diff;
+    }
+  }
+  return best;
+}
+
+function isLikelyCumulativeSeries(points) {
+  if (!Array.isArray(points) || points.length < 2) {
+    return false;
+  }
+  let up = 0;
+  let down = 0;
+  let posDeltaSum = 0;
+  let posDeltaCount = 0;
+  let valuesSum = 0;
+  for (let i = 0; i < points.length; i += 1) {
+    valuesSum += Number(points[i].value || 0);
+    if (i === 0) {
+      continue;
+    }
+    const diff = Number(points[i].value || 0) - Number(points[i - 1].value || 0);
+    if (diff >= 0) {
+      up += 1;
+      if (diff > 0) {
+        posDeltaSum += diff;
+        posDeltaCount += 1;
+      }
+    } else {
+      down += 1;
+    }
+  }
+  const monotonicRatio = up / Math.max(1, up + down);
+  const maxDownSteps = Math.max(1, Math.floor(points.length * 0.01));
+  if (monotonicRatio < 0.98 || down > maxDownSteps) {
+    return false;
+  }
+  const first = Number(points[0].value || 0);
+  const last = Number(points[points.length - 1].value || 0);
+  if (last <= first) {
+    return false;
+  }
+  const avgValue = valuesSum / Math.max(1, points.length);
+  const avgPositiveDelta = posDeltaCount > 0 ? (posDeltaSum / posDeltaCount) : 0;
+  if (avgPositiveDelta <= 0) {
+    return false;
+  }
+  return avgValue >= (avgPositiveDelta * 1.5);
+}
+
+function buildGeneratedSeriesFromRealtimeHistory(solarHistory, nowMs, timeZone) {
+  const dayKey = formatDateLocal(nowMs, timeZone);
+  return (Array.isArray(solarHistory) ? solarHistory : [])
+    .filter((item) => item && Number.isFinite(Number(item.ts)))
+    .filter((item) => formatDateLocal(Number(item.ts), timeZone) === dayKey)
+    .sort((a, b) => Number(a.ts || 0) - Number(b.ts || 0))
+    .map((item) => ({
+      secOfDay: secondOfDayLocal(Number(item.ts || 0), timeZone),
+      value: Math.max(0, Number(item.generatedW || 0))
+    }));
+}
+
+function buildGeneratedSeriesFromDetail(detail, dayKey, timeZone) {
+  const points = normalizeDetailSeriesPoints((detail && detail.producedWhBySecond) || {}, dayKey, timeZone);
+  if (points.length < 2) {
+    return [];
+  }
+  const series = [];
+  if (isLikelyCumulativeSeries(points)) {
+    for (let i = 1; i < points.length; i += 1) {
+      const prev = points[i - 1];
+      const curr = points[i];
+      const spanSec = Math.max(0, curr.sec - prev.sec);
+      if (!(spanSec > 0)) {
+        continue;
+      }
+      const deltaWh = Math.max(0, Number(curr.value || 0) - Number(prev.value || 0));
+      series.push({
+        secOfDay: curr.sec,
+        value: deltaWh > 0 ? (deltaWh * 3600) / spanSec : 0
+      });
+    }
+    return series;
+  }
+
+  const fallbackStep = estimateSeriesStep(points);
+  if (!(fallbackStep > 0)) {
+    return [];
+  }
+  for (let i = 0; i < points.length; i += 1) {
+    const point = points[i];
+    const spanSec = i > 0 ? Math.max(0, point.sec - points[i - 1].sec) : fallbackStep;
+    if (!(spanSec > 0)) {
+      continue;
+    }
+    series.push({
+      secOfDay: point.sec,
+      value: Math.max(0, Number(point.value || 0)) * (3600 / spanSec)
+    });
+  }
+  return series;
+}
+
+function mergeGeneratedSeries(archiveSeries, realtimeSeries) {
+  const archive = Array.isArray(archiveSeries) ? archiveSeries.slice() : [];
+  const realtime = Array.isArray(realtimeSeries) ? realtimeSeries.slice() : [];
+  if (!archive.length) {
+    return realtime;
+  }
+  if (!realtime.length) {
+    return archive;
+  }
+  const lastArchive = archive[archive.length - 1];
+  const lastArchiveSec = Number((lastArchive && lastArchive.secOfDay) || 0);
+  const tail = realtime.filter((point) => Number((point && point.secOfDay) || 0) > lastArchiveSec);
+  return tail.length ? archive.concat(tail) : archive;
+}
+
 function createEmptyDailyBins(dayKey) {
   const bins = [];
   for (let i = 0; i < 48; i += 1) {
@@ -543,79 +678,12 @@ function aggregateDetailToDailyBins(detail, dayKey, timeZone) {
     }
   }
 
-  function normalizeSeriesPoints(series) {
-    return Object.keys(series || {})
-      .map((secondKey) => ({
-        sec: normalizeSeriesSecond(secondKey, dayKey, timeZone),
-        value: Number(series[secondKey] || 0)
-      }))
-      .filter((point) => point.sec !== null)
-      .sort((a, b) => a.sec - b.sec);
-  }
-
-  function estimateStep(points) {
-    let best = 0;
-    for (let i = 1; i < points.length; i += 1) {
-      const diff = points[i].sec - points[i - 1].sec;
-      if (diff <= 0) {
-        continue;
-      }
-      if (!best || diff < best) {
-        best = diff;
-      }
-    }
-    return best;
-  }
-
-  function isLikelyCumulative(points) {
-    if (!Array.isArray(points) || points.length < 2) {
-      return false;
-    }
-    let up = 0;
-    let down = 0;
-    let posDeltaSum = 0;
-    let posDeltaCount = 0;
-    let valuesSum = 0;
-    for (let i = 0; i < points.length; i += 1) {
-      valuesSum += Number(points[i].value || 0);
-      if (i === 0) {
-        continue;
-      }
-      const diff = Number(points[i].value || 0) - Number(points[i - 1].value || 0);
-      if (diff >= 0) {
-        up += 1;
-        if (diff > 0) {
-          posDeltaSum += diff;
-          posDeltaCount += 1;
-        }
-      } else {
-        down += 1;
-      }
-    }
-    const monotonicRatio = up / Math.max(1, up + down);
-    const maxDownSteps = Math.max(1, Math.floor(points.length * 0.01));
-    if (monotonicRatio < 0.98 || down > maxDownSteps) {
-      return false;
-    }
-    const first = Number(points[0].value || 0);
-    const last = Number(points[points.length - 1].value || 0);
-    if (last <= first) {
-      return false;
-    }
-    const avgValue = valuesSum / Math.max(1, points.length);
-    const avgPositiveDelta = posDeltaCount > 0 ? (posDeltaSum / posDeltaCount) : 0;
-    if (avgPositiveDelta <= 0) {
-      return false;
-    }
-    return avgValue >= (avgPositiveDelta * 1.5);
-  }
-
   function addSeriesAsValue(series, field) {
-    const points = normalizeSeriesPoints(series);
+    const points = normalizeDetailSeriesPoints(series, dayKey, timeZone);
     if (!points.length) {
       return;
     }
-    if (isLikelyCumulative(points)) {
+    if (isLikelyCumulativeSeries(points)) {
       for (let i = 1; i < points.length; i += 1) {
         const prev = points[i - 1];
         const curr = points[i];
@@ -627,7 +695,7 @@ function aggregateDetailToDailyBins(detail, dayKey, timeZone) {
       }
       return;
     }
-    const fallbackStep = estimateStep(points);
+    const fallbackStep = estimateSeriesStep(points);
     for (let i = 0; i < points.length; i += 1) {
       const point = points[i];
       const thisStep = i > 0 ? Math.max(0, point.sec - points[i - 1].sec) : 0;
@@ -639,7 +707,7 @@ function aggregateDetailToDailyBins(detail, dayKey, timeZone) {
   }
 
   function addSeriesAsDelta(series, field) {
-    const points = normalizeSeriesPoints(series);
+    const points = normalizeDetailSeriesPoints(series, dayKey, timeZone);
     if (points.length < 2) {
       return;
     }
@@ -977,6 +1045,8 @@ function createServer(options) {
     logger
   });
   let solarDailyBins = ((options && options.initialSolarDailyBins) || []).slice();
+  let solarGeneratedArchiveHistory = ((options && options.initialSolarGeneratedHistory) || []).slice();
+  let solarGeneratedArchiveDayKey = String((options && options.initialSolarGeneratedDayKey) || binsDayKey(solarDailyBins) || '');
   let solarHourlyBins = aggregateDailyToHourlyBins(solarDailyBins);
   let archiveDetailReady = false;
   const startupMs = Date.now();
@@ -1233,6 +1303,13 @@ function createServer(options) {
     getExternalState: function getExternalState() { return externalState; },
     getRadarState: function getRadarState() { return radarState; },
     getSolarHistory: function getSolarHistory() { return solarHistory.slice(-720); },
+    getSolarGeneratedHistory: function getSolarGeneratedHistory() {
+      const now = Date.now();
+      const currentDayKey = formatDateLocal(now, dashboardTimeZone);
+      const archiveSeries = solarGeneratedArchiveDayKey === currentDayKey ? solarGeneratedArchiveHistory : [];
+      const realtimeSeries = buildGeneratedSeriesFromRealtimeHistory(solarHistory, now, dashboardTimeZone);
+      return mergeGeneratedSeries(archiveSeries, realtimeSeries);
+    },
     getSolarDailyBins: function getSolarDailyBins() {
       const now = Date.now();
       const froniusSnapshot = froniusState.getState(now);
@@ -1335,8 +1412,12 @@ function createServer(options) {
       if (hasArchive) {
         const archiveDaily = aggregateDetailToDailyBins(detail, dayKey, dashboardTimeZone);
         solarDailyBins = mergeArchiveWithHistoryGaps(archiveDaily, historyDaily);
+        solarGeneratedArchiveHistory = buildGeneratedSeriesFromDetail(detail, dayKey, dashboardTimeZone);
+        solarGeneratedArchiveDayKey = dayKey;
       } else {
         solarDailyBins = historyDaily;
+        solarGeneratedArchiveHistory = [];
+        solarGeneratedArchiveDayKey = '';
       }
       solarHourlyBins = aggregateDailyToHourlyBins(solarDailyBins);
     }, timers, dashboardTimeZone));
@@ -1417,6 +1498,7 @@ module.exports = {
   buildUsageHourlyFromDailyBins,
   buildDawnQuarterlyFromHistory,
   buildFlowSummaryFromBins,
+  buildGeneratedSeriesFromDetail,
   normalizeGeneratedBinsToTodayTotals,
   buildSolarMeta,
   hasUsableArchiveDetail,

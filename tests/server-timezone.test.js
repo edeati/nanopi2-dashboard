@@ -5,6 +5,7 @@ const {
   formatDateLocal,
   aggregateHistoryToDailyBins,
   aggregateDetailToDailyBins,
+  buildGeneratedSeriesFromDetail,
   mergeArchiveWithHistoryGaps,
   buildUsageHourlyFromDailyBins,
   buildDawnQuarterlyFromHistory,
@@ -54,6 +55,17 @@ module.exports = async function run() {
   const detailBins = aggregateDetailToDailyBins(detail, '2026-02-16', 'Australia/Brisbane');
   assert.ok(detailBins[16].generatedWh > 0, 'detail epoch keys should map into Brisbane 8am bin');
   assert.strictEqual(detailBins[47].generatedWh, 0, 'detail epoch keys should not be clamped into last bin');
+
+  const generatedSeries = buildGeneratedSeriesFromDetail({
+    producedWhBySecond: {
+      [String(Math.floor(Date.parse('2026-02-15T22:00:00.000Z') / 1000))]: 3000,
+      [String(Math.floor(Date.parse('2026-02-15T22:30:00.000Z') / 1000))]: 0,
+      [String(Math.floor(Date.parse('2026-02-15T23:00:00.000Z') / 1000))]: 1500
+    }
+  }, '2026-02-16', 'Australia/Brisbane');
+  assert.ok(generatedSeries.some((point) => point.secOfDay === 28800 && point.value === 6000), '30-minute 3000Wh generation should plot at 6kW, not 3kW');
+  assert.ok(generatedSeries.some((point) => point.secOfDay === 30600 && point.value === 0), 'zero-generation intervals should remain in the series so the chart shows a gap');
+  assert.ok(generatedSeries.some((point) => point.secOfDay === 32400 && point.value === 3000), 'later archive intervals should keep their correct power scale');
 
   // Interval-ending timestamps should count into the preceding interval so
   // 08:00 endpoint energy appears in the 07:30-08:00 (hour-7) bar.

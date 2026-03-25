@@ -2731,7 +2731,7 @@
         ctx.stroke();
       }
 
-      function drawUsageHourlyBars(ctx, canvas, bins, solarHistory, solarMeta) {
+      function drawUsageHourlyBars(ctx, canvas, bins, solarGeneratedSeries) {
         var w = canvas.width;
         var h = canvas.height;
         var pad = 28;
@@ -2774,7 +2774,7 @@
             ctx.fillRect(x, yA, drawW, ah);
           }
         }
-        var generatedSeries = buildGeneratedHistorySeries(solarHistory, solarMeta);
+        var generatedSeries = Array.isArray(solarGeneratedSeries) ? solarGeneratedSeries.slice() : [];
         if (!generatedSeries.length) {
           generatedSeries = data.map(function (item, index) {
             return {
@@ -2785,84 +2785,10 @@
         }
         var generatedLinePeakWh = generatedSeries.reduce(function (peak, point) { return Math.max(peak, Number((point && point.value) || 0)); }, 0);
         var generatedCapWh = Number(pricingConfig.inverterCapacityKw || 6.3) * 1000;
-        var generatedLineMaxY = Math.max(usagePeakWh, generatedCapWh);
+        var generatedLineMaxY = Math.max(usagePeakWh, generatedCapWh, generatedLinePeakWh);
         drawPowerAxis(ctx, w, h, pad, chartBottom, generatedLineMaxY);
         drawGeneratedLine(ctx, generatedSeries, w, pad, chartBottom, generatedLineMaxY);
         drawHourAxis(ctx, w, h, pad, chartBottom, barsCount, barW);
-      }
-
-      function dayKeyForTimestampInZone(ts, timeZone) {
-        if (!Number.isFinite(Number(ts))) {
-          return '';
-        }
-        try {
-          var parts = new Intl.DateTimeFormat('en-CA', {
-            timeZone: String(timeZone || 'UTC'),
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-          }).formatToParts(new Date(Number(ts)));
-          var year = '';
-          var month = '';
-          var day = '';
-          for (var i = 0; i < parts.length; i += 1) {
-            if (parts[i].type === 'year') { year = parts[i].value; }
-            if (parts[i].type === 'month') { month = parts[i].value; }
-            if (parts[i].type === 'day') { day = parts[i].value; }
-          }
-          return year && month && day ? [year, month, day].join('-') : '';
-        } catch (_error) {
-          return '';
-        }
-      }
-
-      function secondOfDayForTimestampInZone(ts, timeZone) {
-        if (!Number.isFinite(Number(ts))) {
-          return 0;
-        }
-        try {
-          var parts = new Intl.DateTimeFormat('en-AU', {
-            timeZone: String(timeZone || 'UTC'),
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hourCycle: 'h23'
-          }).formatToParts(new Date(Number(ts)));
-          var hour = 0;
-          var minute = 0;
-          var second = 0;
-          for (var i = 0; i < parts.length; i += 1) {
-            if (parts[i].type === 'hour') { hour = Number(parts[i].value || 0); }
-            if (parts[i].type === 'minute') { minute = Number(parts[i].value || 0); }
-            if (parts[i].type === 'second') { second = Number(parts[i].value || 0); }
-          }
-          return (hour * 3600) + (minute * 60) + second;
-        } catch (_error) {
-          return 0;
-        }
-      }
-
-      function buildGeneratedHistorySeries(solarHistory, solarMeta) {
-        var source = Array.isArray(solarHistory) ? solarHistory : [];
-        var activeDayKey = String((solarMeta && solarMeta.dayKey) || '');
-        var activeTimeZone = String((solarMeta && solarMeta.tz) || 'UTC');
-        var withDay = source
-          .filter(function (item) {
-            return item && Number.isFinite(Number(item.ts));
-          })
-          .map(function (item) {
-            var ts = Number(item.ts);
-            return {
-              dayKey: dayKeyForTimestampInZone(ts, activeTimeZone),
-              secOfDay: secondOfDayForTimestampInZone(ts, activeTimeZone),
-              value: Math.max(0, Number(item.generatedW || 0))
-            };
-          });
-        return withDay
-          .filter(function (item) {
-            return item.dayKey === activeDayKey;
-          })
-          .sort(function (a, b) { return a.secOfDay - b.secOfDay; });
       }
 
       function drawGeneratedLine(ctx, generatedSeries, w, pad, chartBottom, maxY) {
@@ -3048,7 +2974,7 @@
         return totalWh / 1000;
       }
 
-      function buildSolarPanelSignatures(usageBins, solarHistorySeries, dawnBins, flowSummary, chartsLoading) {
+      function buildSolarPanelSignatures(usageBins, solarGeneratedSeries, dawnBins, flowSummary, chartsLoading) {
         var usage = chartsLoading ? 'loading' : 'none';
         var dawn = chartsLoading ? 'loading' : 'none';
         var flow = 'none';
@@ -3061,11 +2987,11 @@
               ].join(',');
             }).join('|');
           }
-          if (Array.isArray(solarHistorySeries) && solarHistorySeries.length) {
-            usage += '|' + solarHistorySeries.slice(-12).map(function (item) {
+          if (Array.isArray(solarGeneratedSeries) && solarGeneratedSeries.length) {
+            usage += '|' + solarGeneratedSeries.slice(-24).map(function (item) {
               return [
-                Math.round(Number((item && item.ts) || 0)),
-                Math.round(Number((item && item.generatedW) || 0))
+                Math.round(Number((item && item.secOfDay) || 0)),
+                Math.round(Number((item && item.value) || 0))
               ].join(',');
             }).join('|');
           }
@@ -4009,7 +3935,7 @@
           ? state.solarHourlyBins
           : (state.solarDailyBins || []);
         var usageChartBins = Array.isArray(state.solarDailyBins) && state.solarDailyBins.length ? state.solarDailyBins : (Array.isArray(state.solarUsageHourly) ? state.solarUsageHourly : []);
-        var solarHistorySeries = Array.isArray(state.solarHistory) ? state.solarHistory : [];
+        var solarGeneratedSeries = Array.isArray(state.solarGeneratedHistory) ? state.solarGeneratedHistory : [];
         var solarMeta = state.solarMeta || {};
         var dawnQuarterBins = Array.isArray(state.solarDawnQuarterly) ? state.solarDawnQuarterly : [];
         var flowSummary = state.solarFlowSummary || {};
@@ -4017,7 +3943,7 @@
         var todayHasTotals = Number(todayRaw.generatedKwh || 0) > 0 || Number(todayRaw.importKwh || 0) > 0 || Number(todayRaw.exportKwh || 0) > 0;
         var chartsLoading = !binsHaveEnergy && (isSolarBackendPending(state.fronius || {}) || todayHasTotals);
         setSolarChartsLoading(chartsLoading);
-        var panelSigs = buildSolarPanelSignatures(usageChartBins, solarHistorySeries, dawnQuarterBins, flowSummary, chartsLoading);
+        var panelSigs = buildSolarPanelSignatures(usageChartBins, solarGeneratedSeries, dawnQuarterBins, flowSummary, chartsLoading);
         if (chartsLoading) {
           drawLoadingBars(usageBarCtx, usageBarCanvas, 'rgba(128, 213, 255, 0.56)', 'rgba(128, 213, 255, 0.18)', 0);
           drawLoadingBars(solarBarCtx, solarBarCanvas, 'rgba(126, 225, 160, 0.62)', 'rgba(126, 225, 160, 0.2)', 0.4);
@@ -4025,7 +3951,7 @@
           lastSolarDawnSig = panelSigs.dawn;
         } else {
           if (panelSigs.usage !== lastSolarUsageSig) {
-            drawUsageHourlyBars(usageBarCtx, usageBarCanvas, usageChartBins, solarHistorySeries, solarMeta);
+            drawUsageHourlyBars(usageBarCtx, usageBarCanvas, usageChartBins, solarGeneratedSeries);
             lastSolarUsageSig = panelSigs.usage;
           }
           if (panelSigs.dawn !== lastSolarDawnSig) {

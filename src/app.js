@@ -346,6 +346,7 @@ function createApp(options) {
   const getExternalState = options.getExternalState;
   const getRadarState = options.getRadarState;
   const getSolarHistory = options.getSolarHistory;
+  const getSolarGeneratedHistory = options.getSolarGeneratedHistory || function emptyGeneratedHistory() { return []; };
   const getSolarDailyBins = options.getSolarDailyBins || function emptyDailyBins() { return []; };
   const getSolarHourlyBins = options.getSolarHourlyBins || function emptyHourlyBins() { return []; };
   const getSolarUsageHourly = options.getSolarUsageHourly || function emptyUsageHourly() { return []; };
@@ -472,6 +473,7 @@ function createApp(options) {
         reminders: Array.isArray(externalState.reminders) ? externalState.reminders : [],
         ha: externalState.ha || { cards: [], stale: true, error: 'ha_unavailable' },
         solarHistory: getSolarHistory(),
+        solarGeneratedHistory: getSolarGeneratedHistory(),
         solarDailyBins: getSolarDailyBins(),
         solarHourlyBins: getSolarHourlyBins(),
         solarUsageHourly: getSolarUsageHourly(),
