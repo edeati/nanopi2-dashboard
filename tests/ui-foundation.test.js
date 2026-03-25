@@ -143,6 +143,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('.strip-card.strip-card-reminder .strip-card-copy {\n      font-size: 15px;') > -1, 'reminder note should be larger on tablet');
   assert.ok(html.indexOf('.strip-card-date {\n      font-size: 13px;') > -1, 'reminder cards should render a dedicated date row');
   assert.ok(html.indexOf("'<div class=\"strip-card-date\">' + escapeHtml(card.date || '') + '</div>' +") > -1, 'reminder cards should render their due date');
+  assert.ok(html.indexOf('.strip-card.strip-card-forecast .strip-card-title {\n      margin-bottom: 8px;') > -1, 'forecast strip title should leave more space before rows');
   assert.ok(html.indexOf("'<article class=\"strip-card strip-card-weather strip-card-stack strip-card-weather-now\">' +") > -1, 'weather now renderer should use the dedicated centered layout variant');
   assert.ok(html.indexOf("'<div class=\"strip-card-head\"><div class=\"strip-card-kicker\">Weather Now</div><div class=\"strip-card-tag\">' + escapeHtml(card.icon || '☁') + '</div></div>' +\n            '<div class=\"strip-card-copy\">' + escapeHtml(card.summary || 'Unknown') + '</div>' +\n            '<div class=\"strip-card-value\">' + Number(card.tempC || 0).toFixed(1).replace(/\\\\.0$/, '') + '°C</div>' +") > -1, 'weather now cards should place the summary under the header and keep the temperature as the centered hero value');
   assert.ok(html.indexOf('.strip-weather-list {\n      display: grid;\n      gap: 3px;\n      align-content: start;') > -1, 'forecast list should tighten spacing so 15px rows do not clip');
@@ -277,10 +278,10 @@ module.exports = async function run() {
   assert.ok(html.indexOf('rgba(126, 225, 160') > -1, 'solar loading bars should use green tone');
   assert.ok(html.indexOf('setSolarChartsLoading(chartsLoading);') > -1, 'solar loading chart toggling missing');
   assert.ok(html.indexOf('function drawUsageHourlyBars(') > -1, 'usage hourly draw helper missing');
-  assert.ok(html.indexOf("ctx.fillStyle = 'rgba(255, 107, 61, 0.68)';") > -1, 'usage bars should use orange-red import fill');
+  assert.ok(html.indexOf("ctx.fillStyle = 'rgba(112, 168, 255, 0.44)';") > -1, 'import bars should use a cooler translucent blue fill');
   assert.ok(html.indexOf('function drawGeneratedLine(') > -1, 'generated line helper missing for hybrid chart');
   assert.strictEqual(html.indexOf('function smoothSeries('), -1, 'generated line should avoid averaging helper');
-  assert.ok(html.indexOf("ctx.strokeStyle = '#ffd166';") > -1, 'generated hybrid line color should stay distinct from import bars');
+  assert.ok(html.indexOf("ctx.strokeStyle = '#ffe27a';") > -1, 'generated hybrid line color should stay distinct from import bars');
   assert.ok(html.indexOf('ctx.lineWidth = 4;') > -1, 'generated hybrid line should be thicker');
   assert.ok(html.indexOf("ctx.lineJoin = 'round';") > -1, 'generated hybrid line should use rounded joins');
   assert.ok(html.indexOf("ctx.lineCap = 'round';") > -1, 'generated hybrid line should use rounded caps');
@@ -308,9 +309,9 @@ module.exports = async function run() {
   assert.ok(html.indexOf("var capW = Math.max(1000, Number(pricingConfig.inverterCapacityKw || 6.3) * 1000);") > -1, 'generation gauge should default to a 6.3kW inverter ceiling');
   assert.ok(html.indexOf("solarStatusImportCard.classList.toggle('is-importing', importReady && Number(today.importKwh || 0) > 0);") > -1, 'grid import status card should switch to import accent when import is positive');
   assert.ok(html.indexOf('.solar-status-card-import.is-importing {\n      background: rgba(120, 24, 24, 0.18);') > -1, 'grid import status card should use the red inactive-solar accent when importing');
-  assert.ok(html.indexOf("style=\"background:#ff6b3d;\"") > -1, 'solar usage legend should show orange-red import swatch');
-  assert.ok(html.indexOf("ctx.fillStyle = 'rgba(255, 107, 61, 0.68)';") > -1, 'import bars should be slightly more transparent');
-  assert.ok(html.indexOf("ctx.strokeStyle = '#ffd166';") > -1, 'generated line should use a clearer gold tone');
+  assert.ok(html.indexOf("style=\"background:#70a8ff;\"") > -1, 'solar usage legend should show blue import swatch');
+  assert.ok(html.indexOf("ctx.fillStyle = 'rgba(112, 168, 255, 0.44)';") > -1, 'import bars should be more transparent and cooler');
+  assert.ok(html.indexOf("ctx.strokeStyle = '#ffe27a';") > -1, 'generated line should use a brighter gold tone');
   assert.ok(html.indexOf('function drawDawnQuarterBars(') > -1, 'dawn quarter draw helper missing');
   assert.ok(html.indexOf('function buildSolarPanelSignatures(') > -1, 'solar panel signature helper missing');
   assert.ok(html.indexOf('if (panelSigs.usage !== lastSolarUsageSig) {') > -1, 'usage panel redraw guard missing');

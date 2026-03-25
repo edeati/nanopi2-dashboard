@@ -991,6 +991,10 @@
       align-self: start;
     }
 
+    .strip-card.strip-card-forecast .strip-card-title {
+      margin-bottom: 8px;
+    }
+
     .strip-card-date {
       font-size: 13px;
       align-self: end;
@@ -1851,9 +1855,9 @@
         <div class="solar-chart-main">
           <div class="chart-wrap skeleton"><canvas id="solarUsageChart" class="chart"></canvas></div>
           <div class="chart-legend" id="solarUsageLegend">
-            <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#f2bb3c;"></span>Generated</span>
+            <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#ffe27a;"></span>Generated</span>
             <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#8edb7c;"></span>Self-used</span>
-            <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#ff6b3d;"></span>Import</span>
+            <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#70a8ff;"></span>Import</span>
           </div>
         </div>
         <div class="solar-chart-secondary">
@@ -2761,7 +2765,7 @@
           var drawW = Math.max(1, xNext - x - 1);
           var yB = chartBottom - bh;
           var yA = yB - ah;
-          ctx.fillStyle = 'rgba(255, 107, 61, 0.68)';
+          ctx.fillStyle = 'rgba(112, 168, 255, 0.44)';
           ctx.fillRect(x, yB, drawW, Math.max(1, bh));
           ctx.fillStyle = '#8edb7c';
           ctx.fillRect(x, yA, drawW, Math.max(1, ah));
@@ -2792,7 +2796,7 @@
         }
         ctx.save();
         ctx.lineWidth = 4;
-        ctx.strokeStyle = '#ffd166';
+        ctx.strokeStyle = '#ffe27a';
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
         ctx.beginPath();
@@ -3552,7 +3556,7 @@
               escapeHtml(iconForWeather(item.icon, item.summary)) + '</span><span>' +
               Number(item.tempC || 0).toFixed(0) + ' °C</span></div>';
           }).join('');
-          return '<article class="strip-card strip-card-weather strip-card-stack">' +
+          return '<article class="strip-card strip-card-weather strip-card-stack strip-card-forecast">' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Forecast</div><div class="strip-card-tag">5 Days</div></div>' +
             '<div class="strip-card-title">Outlook</div>' +
             '<div class="strip-weather-list">' + forecastRows + '</div>' +
