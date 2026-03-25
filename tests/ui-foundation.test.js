@@ -145,7 +145,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf("'<div class=\"strip-card-date\">' + escapeHtml(card.date || '') + '</div>' +") > -1, 'reminder cards should render their due date');
   assert.ok(html.indexOf('.strip-card.strip-card-forecast .strip-card-title {\n      margin-bottom: 8px;') > -1, 'forecast strip title should leave more space before rows');
   assert.ok(html.indexOf("'<article class=\"strip-card strip-card-weather strip-card-stack strip-card-weather-now\">' +") > -1, 'weather now renderer should use the dedicated centered layout variant');
-  assert.ok(html.indexOf("'<div class=\"strip-card-head\"><div class=\"strip-card-kicker\">Weather Now</div><div class=\"strip-card-tag\">' + escapeHtml(card.icon || '☁') + '</div></div>' +\n            '<div class=\"strip-card-copy\">' + escapeHtml(card.summary || 'Unknown') + '</div>' +\n            '<div class=\"strip-card-value\">' + Number(card.tempC || 0).toFixed(1).replace(/\\\\.0$/, '') + '°C</div>' +") > -1, 'weather now cards should place the summary under the header and keep the temperature as the centered hero value');
+  assert.ok(html.indexOf("'<div class=\"strip-card-head has-divider\"><div class=\"strip-card-kicker\">Weather Now</div><div class=\"strip-card-tag\">' + escapeHtml(card.icon || '☁') + '</div></div>' +\n            '<div class=\"strip-card-copy\">' + escapeHtml(card.summary || 'Unknown') + '</div>' +\n            '<div class=\"strip-card-value\">' + Number(card.tempC || 0).toFixed(1).replace(/\\\\.0$/, '') + '°C</div>' +") > -1, 'weather now cards should place the summary under the header and keep the temperature as the centered hero value');
   assert.ok(html.indexOf('.strip-weather-list {\n      display: grid;\n      gap: 3px;\n      align-content: start;') > -1, 'forecast list should tighten spacing so 15px rows do not clip');
   assert.ok(html.indexOf('.strip-weather-row {\n      font-size: 15px;\n      gap: 6px;\n      line-height: 1;') > -1, 'forecast rows should use 15px text with tighter spacing for tablet readability');
   assert.ok(html.indexOf('var WEATHER_ROTATE_MS = 15000;') > -1, 'weather rotator should use 15s interval');
@@ -331,6 +331,16 @@ module.exports = async function run() {
   assert.ok(html.indexOf("ctx.fillStyle = 'rgba(255, 226, 122, 0.42)';") > -1, 'generated area should use a brighter gold tone');
   assert.ok(html.indexOf('function drawDawnQuarterBars(') > -1, 'dawn quarter draw helper missing');
   assert.ok(html.indexOf('function buildSolarPanelSignatures(') > -1, 'solar panel signature helper missing');
+  assert.ok(html.indexOf('.strip-card-head.has-divider::after,') > -1, 'scrolling cards should support a divider under header rows');
+  assert.ok(html.indexOf('.strip-card-title.has-divider::after {') > -1, 'scrolling cards should support a divider under title rows');
+  assert.ok(html.indexOf('<div class="strip-card-title has-divider">Outlook</div>') > -1, 'forecast card should place the divider under the Outlook title');
+  assert.ok(html.indexOf('<div class="strip-card-title has-divider">Internet</div>') > -1, 'internet card should place the divider under the Internet title');
+  assert.ok(html.indexOf('<div class="strip-card-head has-divider"><div class="strip-card-kicker">Upcoming Collection</div></div>') > -1, 'bin card should place the divider under the upcoming collection header');
+  assert.ok(html.indexOf('<div class="strip-card-head has-divider"><div class="strip-card-kicker">Reminder</div>') > -1, 'reminder card should place the divider under the reminder header');
+  assert.ok(html.indexOf('<div class="strip-card-head has-divider"><div class="strip-card-kicker">Weather Now</div>') > -1, 'weather now card should place the divider under the weather header');
+  assert.ok(html.indexOf('.strip-card-sub {\n      font-size: 15px;') > -1, 'internet upload label should be larger for tablet readability');
+  assert.ok(html.indexOf('.strip-card-sub-value {\n      font-family: var(--font-display);') > -1, 'internet upload value should have its own larger display styling');
+  assert.ok(html.indexOf('.strip-card.strip-card-weather-now .strip-card-copy {\n      font-size: 16px;') > -1, 'weather now summary should be larger for tablet readability');
   assert.ok(html.indexOf('var usageChartBins = Array.isArray(state.solarDailyBins) && state.solarDailyBins.length ? state.solarDailyBins : (Array.isArray(state.solarUsageHourly) ? state.solarUsageHourly : []);') > -1, 'usage chart should prefer half-hour solar bins to avoid a visual lag');
   assert.ok(html.indexOf('var solarGeneratedSeries = Array.isArray(state.solarGeneratedHistory) ? state.solarGeneratedHistory : [];') > -1, 'usage chart should read server-prepared generated history');
   assert.ok(html.indexOf('var panelSigs = buildSolarPanelSignatures(usageChartBins, solarGeneratedSeries, dawnQuarterBins, flowSummary, chartsLoading);') > -1, 'solar panel signatures should include the generated history source');

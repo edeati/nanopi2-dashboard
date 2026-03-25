@@ -849,6 +849,25 @@
       gap: 10px;
     }
 
+    .strip-card-head.has-divider,
+    .strip-card-title.has-divider {
+      position: relative;
+      padding-bottom: 7px;
+      margin-bottom: 6px;
+    }
+
+    .strip-card-head.has-divider::after,
+    .strip-card-title.has-divider::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(176, 190, 208, 0.46), rgba(176, 190, 208, 0.14));
+      pointer-events: none;
+    }
+
     .strip-card-kicker {
       font-size: 9px;
       letter-spacing: 0.1em;
@@ -1043,9 +1062,24 @@
       text-align: center;
     }
 
+    .strip-card.strip-card-weather-now .strip-card-copy {
+      font-size: 16px;
+      line-height: 1.12;
+    }
+
     .strip-card-sub {
-      font-size: 12px;
+      font-size: 15px;
+      line-height: 1.08;
       color: #b8c8d8;
+    }
+
+    .strip-card-sub-value {
+      font-family: var(--font-display);
+      font-size: 22px;
+      line-height: 1;
+      font-weight: 800;
+      color: #eef6ff;
+      white-space: nowrap;
     }
 
     .strip-internet-chart {
@@ -3601,7 +3635,7 @@
         if (card.kind === 'weather_now') {
           return '<article class="strip-card strip-card-weather strip-card-stack strip-card-weather-now">' +
             '<div class="strip-card-bg-icon is-hero">' + escapeHtml(card.icon || '☁') + '</div>' +
-            '<div class="strip-card-head"><div class="strip-card-kicker">Weather Now</div><div class="strip-card-tag">' + escapeHtml(card.icon || '☁') + '</div></div>' +
+            '<div class="strip-card-head has-divider"><div class="strip-card-kicker">Weather Now</div><div class="strip-card-tag">' + escapeHtml(card.icon || '☁') + '</div></div>' +
             '<div class="strip-card-copy">' + escapeHtml(card.summary || 'Unknown') + '</div>' +
             '<div class="strip-card-value">' + Number(card.tempC || 0).toFixed(1).replace(/\\.0$/, '') + '°C</div>' +
             '</article>';
@@ -3614,14 +3648,14 @@
           }).join('');
           return '<article class="strip-card strip-card-weather strip-card-stack strip-card-forecast">' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Forecast</div><div class="strip-card-tag">5 Days</div></div>' +
-            '<div class="strip-card-title">Outlook</div>' +
+            '<div class="strip-card-title has-divider">Outlook</div>' +
             '<div class="strip-weather-list">' + forecastRows + '</div>' +
             '</article>';
         }
         if (card.kind === 'climate') {
           return '<article class="strip-card strip-card-weather strip-card-stack">' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Home Assistant</div><div class="strip-card-tag">' + escapeHtml(card.icon || '🌡') + '</div></div>' +
-            '<div class="strip-card-title">' + escapeHtml(card.label || 'Climate') + '</div>' +
+            '<div class="strip-card-title has-divider">' + escapeHtml(card.label || 'Climate') + '</div>' +
             '<div class="strip-card-metrics">' +
             '<div class="strip-card-metric"><span class="strip-card-metric-label">🌡</span><span class="strip-card-metric-value strip-card-metric-value-temp">' + Number(card.temperature.value || 0).toFixed(1).replace(/\\.0$/, '') + escapeHtml(card.temperature.unit || '°C') + '</span></div>' +
             '<div class="strip-card-metric"><span class="strip-card-metric-label">💧</span><span class="strip-card-metric-value">' + (card.humidity ? (Number(card.humidity.value || 0).toFixed(0) + escapeHtml(card.humidity.unit || '%')) : '--') + '</span></div>' +
@@ -3636,23 +3670,23 @@
           }).join('');
           return '<article class="strip-card strip-card-weather strip-card-stack">' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Home Assistant</div><div class="strip-card-tag">Battery</div></div>' +
-            '<div class="strip-card-title">' + escapeHtml(card.label || 'Batteries') + '</div>' +
+            '<div class="strip-card-title has-divider">' + escapeHtml(card.label || 'Batteries') + '</div>' +
             '<div class="strip-battery-list">' + rows + '</div>' +
             '</article>';
         }
         if (card.kind === 'internet') {
           return '<article class="strip-card strip-card-weather strip-card-stack">' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Network</div><div class="strip-card-tag">' + (card.online ? 'Online' : 'Offline') + '</div></div>' +
-            '<div class="strip-card-title">Internet</div>' +
+            '<div class="strip-card-title has-divider">Internet</div>' +
             '<div class="strip-card-value">' + (Number.isFinite(Number(card.downloadMbps)) ? Number(card.downloadMbps).toFixed(0) + ' Mbps' : '--') + '</div>' +
-            '<div class="strip-card-sub">Upload ' + (Number.isFinite(Number(card.uploadMbps)) ? Number(card.uploadMbps).toFixed(0) + ' Mbps' : '--') + '</div>' +
+            '<div class="strip-card-sub">Upload <span class="strip-card-sub-value">' + (Number.isFinite(Number(card.uploadMbps)) ? Number(card.uploadMbps).toFixed(0) + ' Mbps' : '--') + '</span></div>' +
             '<canvas id="stripInternetMiniChart" class="strip-internet-chart" width="196" height="40"></canvas>' +
             '</article>';
         }
         if (card.kind === 'bin_feature') {
           return '<article class="strip-card strip-card-bin ' + escapeHtml(card.toneClass || '') + '">' +
             '<div class="strip-card-bg-icon is-hero">' + card.iconMarkup + '</div>' +
-            '<div class="strip-card-head"><div class="strip-card-kicker">Upcoming Collection</div></div>' +
+            '<div class="strip-card-head has-divider"><div class="strip-card-kicker">Upcoming Collection</div></div>' +
             '<div class="strip-card-title">' + escapeHtml(card.label || 'Bins') + '</div>' +
             '<div class="strip-card-bin-day">' + escapeHtml(card.tag || '--') + '</div>' +
             '<div class="strip-card-copy">' + escapeHtml(card.detail || 'Street-side collection') + '</div>' +
@@ -3660,7 +3694,7 @@
         }
         if (card.kind === 'reminder') {
           return '<article class="strip-card strip-card-reminder strip-card-stack ' + escapeHtml(card.toneClass || '') + '">' +
-            '<div class="strip-card-head"><div class="strip-card-kicker">Reminder</div><div class="strip-card-tag">' + escapeHtml(card.tag || '--') + '</div></div>' +
+            '<div class="strip-card-head has-divider"><div class="strip-card-kicker">Reminder</div><div class="strip-card-tag">' + escapeHtml(card.tag || '--') + '</div></div>' +
             '<div class="strip-card-title">' + escapeHtml(card.icon || '⏰') + ' ' + escapeHtml(card.title || 'Reminder') + '</div>' +
             '<div class="strip-card-copy">' + escapeHtml(card.note || 'Scheduled reminder') + '</div>' +
             '<div class="strip-card-date">' + escapeHtml(card.date || '') + '</div>' +
