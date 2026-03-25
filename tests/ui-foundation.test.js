@@ -282,6 +282,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('rgba(126, 225, 160') > -1, 'solar loading bars should use green tone');
   assert.ok(html.indexOf('setSolarChartsLoading(chartsLoading);') > -1, 'solar loading chart toggling missing');
   assert.ok(html.indexOf('function drawUsageHourlyBars(') > -1, 'usage hourly draw helper missing');
+  assert.ok(html.indexOf('var pad = 28;') > -1, 'solar usage chart should reserve a left gutter for Y-axis labels');
   assert.ok(html.indexOf("ctx.fillStyle = 'rgba(112, 168, 255, 0.44)';") > -1, 'import bars should use a cooler translucent blue fill');
   assert.ok(html.indexOf('function drawGeneratedLine(') > -1, 'generated line helper missing for hybrid chart');
   assert.strictEqual(html.indexOf('function smoothSeries('), -1, 'generated line should avoid averaging helper');
