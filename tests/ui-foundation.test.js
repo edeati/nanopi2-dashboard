@@ -283,6 +283,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('setSolarChartsLoading(chartsLoading);') > -1, 'solar loading chart toggling missing');
   assert.ok(html.indexOf('function drawUsageHourlyBars(') > -1, 'usage hourly draw helper missing');
   assert.ok(html.indexOf('var pad = 28;') > -1, 'solar usage chart should reserve a left gutter for Y-axis labels');
+  assert.ok(html.indexOf('var barsCount = data.length;') > -1, 'solar usage chart should adapt bar count to the source resolution');
   assert.ok(html.indexOf("ctx.fillStyle = 'rgba(112, 168, 255, 0.44)';") > -1, 'import bars should use a cooler translucent blue fill');
   assert.ok(html.indexOf('function drawGeneratedLine(') > -1, 'generated line helper missing for hybrid chart');
   assert.strictEqual(html.indexOf('function smoothSeries('), -1, 'generated line should avoid averaging helper');
@@ -322,6 +323,9 @@ module.exports = async function run() {
   assert.ok(html.indexOf("ctx.fillStyle = 'rgba(255, 226, 122, 0.42)';") > -1, 'generated area should use a brighter gold tone');
   assert.ok(html.indexOf('function drawDawnQuarterBars(') > -1, 'dawn quarter draw helper missing');
   assert.ok(html.indexOf('function buildSolarPanelSignatures(') > -1, 'solar panel signature helper missing');
+  assert.ok(html.indexOf('var usageChartBins = Array.isArray(state.solarDailyBins) && state.solarDailyBins.length ? state.solarDailyBins : (Array.isArray(state.solarUsageHourly) ? state.solarUsageHourly : []);') > -1, 'usage chart should prefer half-hour solar bins to avoid a visual lag');
+  assert.ok(html.indexOf('var panelSigs = buildSolarPanelSignatures(usageChartBins, dawnQuarterBins, flowSummary, chartsLoading);') > -1, 'solar panel signatures should use the active usage chart source');
+  assert.ok(html.indexOf('drawUsageHourlyBars(usageBarCtx, usageBarCanvas, usageChartBins);') > -1, 'usage chart should render from the selected source bins');
   assert.ok(html.indexOf('if (panelSigs.usage !== lastSolarUsageSig) {') > -1, 'usage panel redraw guard missing');
   assert.ok(html.indexOf('if (panelSigs.dawn !== lastSolarDawnSig) {') > -1, 'dawn panel redraw guard missing');
   assert.ok(html.indexOf('if (panelSigs.flow !== lastSolarFlowSig) {') > -1, 'flow panel redraw guard missing');

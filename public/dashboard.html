@@ -2741,8 +2741,8 @@
         var padBottom = 16;
         var chartBottom = h - padBottom;
         ctx.clearRect(0, 0, w, h);
-        var data = Array.isArray(bins) ? bins.slice(0, 24) : [];
-        var barsCount = 24;
+        var data = Array.isArray(bins) ? bins.slice() : [];
+        var barsCount = data.length;
         if (!data.length) {
           drawHourAxis(ctx, w, h, pad, chartBottom, 24, (w - pad * 2) / 24);
           return;
@@ -3924,14 +3924,14 @@
         var bins = (Array.isArray(state.solarHourlyBins) && state.solarHourlyBins.length)
           ? state.solarHourlyBins
           : (state.solarDailyBins || []);
-        var usageHourlyBins = Array.isArray(state.solarUsageHourly) ? state.solarUsageHourly : [];
+        var usageChartBins = Array.isArray(state.solarDailyBins) && state.solarDailyBins.length ? state.solarDailyBins : (Array.isArray(state.solarUsageHourly) ? state.solarUsageHourly : []);
         var dawnQuarterBins = Array.isArray(state.solarDawnQuarterly) ? state.solarDawnQuarterly : [];
         var flowSummary = state.solarFlowSummary || {};
-        var binsHaveEnergy = hasAnySolarBinEnergy(bins) || hasAnySolarBinEnergy(usageHourlyBins) || hasAnySolarBinEnergy(dawnQuarterBins);
+        var binsHaveEnergy = hasAnySolarBinEnergy(bins) || hasAnySolarBinEnergy(usageChartBins) || hasAnySolarBinEnergy(dawnQuarterBins);
         var todayHasTotals = Number(todayRaw.generatedKwh || 0) > 0 || Number(todayRaw.importKwh || 0) > 0 || Number(todayRaw.exportKwh || 0) > 0;
         var chartsLoading = !binsHaveEnergy && (isSolarBackendPending(state.fronius || {}) || todayHasTotals);
         setSolarChartsLoading(chartsLoading);
-        var panelSigs = buildSolarPanelSignatures(usageHourlyBins, dawnQuarterBins, flowSummary, chartsLoading);
+        var panelSigs = buildSolarPanelSignatures(usageChartBins, dawnQuarterBins, flowSummary, chartsLoading);
         if (chartsLoading) {
           drawLoadingBars(usageBarCtx, usageBarCanvas, 'rgba(128, 213, 255, 0.56)', 'rgba(128, 213, 255, 0.18)', 0);
           drawLoadingBars(solarBarCtx, solarBarCanvas, 'rgba(126, 225, 160, 0.62)', 'rgba(126, 225, 160, 0.2)', 0.4);
@@ -3939,7 +3939,7 @@
           lastSolarDawnSig = panelSigs.dawn;
         } else {
           if (panelSigs.usage !== lastSolarUsageSig) {
-            drawUsageHourlyBars(usageBarCtx, usageBarCanvas, usageHourlyBins);
+            drawUsageHourlyBars(usageBarCtx, usageBarCanvas, usageChartBins);
             lastSolarUsageSig = panelSigs.usage;
           }
           if (panelSigs.dawn !== lastSolarDawnSig) {
