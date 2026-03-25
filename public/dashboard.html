@@ -2793,17 +2793,31 @@
 
       function buildGeneratedHistorySeries(solarHistory) {
         var source = Array.isArray(solarHistory) ? solarHistory : [];
-        return source
+        var latestDayKey = '';
+        var withDay = source
           .filter(function (item) {
             return item && Number.isFinite(Number(item.ts));
           })
           .map(function (item) {
             var ts = Number(item.ts);
             var d = new Date(ts);
+            var dayKey = [
+              d.getFullYear(),
+              String(d.getMonth() + 1).padStart(2, '0'),
+              String(d.getDate()).padStart(2, '0')
+            ].join('-');
+            if (dayKey > latestDayKey) {
+              latestDayKey = dayKey;
+            }
             return {
+              dayKey: dayKey,
               secOfDay: (d.getHours() * 3600) + (d.getMinutes() * 60) + d.getSeconds(),
               value: Math.max(0, Number(item.generatedW || 0))
             };
+          });
+        return withDay
+          .filter(function (item) {
+            return item.dayKey === latestDayKey;
           })
           .sort(function (a, b) { return a.secOfDay - b.secOfDay; });
       }

@@ -290,6 +290,8 @@ module.exports = async function run() {
   assert.ok(html.indexOf('var b = Math.max(0, Number(bin.importWh || 0)) / bucketHours;') > -1, 'import series should be converted from bucket energy back to average power');
   assert.ok(html.indexOf("ctx.fillStyle = 'rgba(112, 168, 255, 0.44)';") > -1, 'import bars should use a cooler translucent blue fill');
   assert.ok(html.indexOf('function buildGeneratedHistorySeries(') > -1, 'generated history helper missing for solar chart');
+  assert.ok(html.indexOf("var latestDayKey = '';") > -1, 'generated history helper should track the latest local day');
+  assert.ok(html.indexOf('if (dayKey > latestDayKey) {\n              latestDayKey = dayKey;\n            }') > -1, 'generated history helper should filter to the latest day before plotting');
   assert.ok(html.indexOf('function drawGeneratedLine(') > -1, 'generated line helper missing for hybrid chart');
   assert.strictEqual(html.indexOf('function smoothSeries('), -1, 'generated line should avoid averaging helper');
   assert.ok(html.indexOf("ctx.fillStyle = 'rgba(255, 226, 122, 0.42)';") > -1, 'generated series should render as a translucent yellow fill');
