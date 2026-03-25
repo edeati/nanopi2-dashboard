@@ -269,8 +269,12 @@ module.exports = async function run() {
   assert.ok(html.indexOf('var todayHasTotals = Number(todayRaw.generatedKwh || 0) > 0 || Number(todayRaw.importKwh || 0) > 0 || Number(todayRaw.exportKwh || 0) > 0;') > -1, 'solar chart loading should consider non-zero totals while bins are empty');
   assert.ok(html.indexOf('var chartsLoading = !binsHaveEnergy && (isSolarBackendPending(state.fronius || {}) || todayHasTotals);') > -1, 'solar charts should stay in loading mode until bins are populated');
   assert.ok(html.indexOf('function drawHourAxis(') > -1, 'solar chart hour axis helper missing');
+  assert.ok(html.indexOf('function drawPowerAxis(') > -1, 'solar chart power axis helper missing');
+  assert.ok(html.indexOf('for (var level = 2000; level <= topLevel; level += 2000)') > -1, 'solar chart should draw horizontal guides every 2kW');
+  assert.ok(html.indexOf("ctx.fillText(String(Math.round(level / 1000)) + 'kW', pad - 2, y);") > -1, 'solar chart should label horizontal guides in kW');
   assert.ok(html.indexOf('for (var hour = 0; hour <= 21; hour += 3)') > -1, 'solar chart should label hours every 3');
   assert.ok(html.indexOf('var slot = (hour / 24) * count;') > -1, 'solar hour ticks should map against rendered bar count');
+  assert.ok(html.indexOf('drawPowerAxis(ctx, w, h, pad, chartBottom, generatedLineMaxY);') > -1, 'solar usage chart should draw the Y-axis power guides');
   assert.ok(html.indexOf('drawHourAxis(ctx, w, h, pad, chartBottom, barsCount, barW);') > -1, 'solar hour axis should align to fixed bar geometry');
   assert.ok(html.indexOf("ctx.font = '14px ' + CANVAS_FONT_FAMILY;") > -1, 'solar chart hour labels should be larger for tablet readability');
   assert.ok(html.indexOf('function drawLoadingBars(') > -1, 'solar loading chart helper missing');
