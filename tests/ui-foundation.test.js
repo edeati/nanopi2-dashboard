@@ -25,7 +25,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('class="panel-title">Radar</span>') > -1, 'radar card title missing');
   assert.ok(html.indexOf('class="panel-title">Solar</span>') > -1, 'solar card title missing');
   assert.ok(html.indexOf('class="panel-title">Weather</span>') > -1, 'weather card title markup missing');
-  assert.ok(html.indexOf('#weatherCard .panel-corner-icon,\n    #weatherCard .panel-title {\n      display: none;') > -1, 'weather strip should hide panel header chrome');
+  assert.ok(html.indexOf('#weatherStripPanel .panel-corner-icon,\n    #weatherStripPanel .panel-title {\n      display: none;') > -1, 'weather strip should hide panel header chrome');
   assert.ok(html.indexOf('class="panel-title">Bins</span>') > -1, 'bins card title missing');
   assert.ok(html.indexOf('id="weatherBinsStripViewport"') > -1, 'combined weather/bins strip viewport missing');
   assert.ok(html.indexOf('id="weatherBinsStripTrack"') > -1, 'combined weather/bins strip track missing');
@@ -180,7 +180,8 @@ module.exports = async function run() {
   assert.ok(html.indexOf('font-size: clamp(13px, 2vh, 16px);') > -1, 'weather summary should remain readable while current temp grows');
   assert.ok(html.indexOf('font-size: clamp(38px, 5.7vh, 52px);') > -1, 'weather temperature should be larger for at-distance readability');
   assert.ok(html.indexOf('weather-temp-large') > -1, 'large weather temperature style missing');
-  assert.ok(html.indexOf('#weatherCard {') > -1 && html.indexOf('grid-template-rows: 1fr;') > -1, 'weather card should use full height without title row');
+  assert.ok(html.indexOf('#weatherStripPanel {') > -1 && html.indexOf('grid-template-rows: 1fr;') > -1, 'weather card should use full height without title row');
+  assert.ok(html.indexOf('#weatherBinsStripViewport {\n      position: relative;\n      min-height: 0;\n      height: 100%;\n      overflow: hidden;') > -1, 'weather strip viewport should remain as a plain overflow container');
   assert.ok(html.indexOf('grid-template-rows: repeat(5, minmax(0, 1fr));') > -1, 'forecast should reserve space for five rows');
   assert.ok(html.indexOf('#weatherForecast {\n      margin-top: 8px;') > -1, 'forecast should sit lower below the Outlook header');
   assert.ok(html.indexOf('padding: 4px 8px;') > -1, 'forecast rows should be tighter to fit five days');
@@ -284,6 +285,9 @@ module.exports = async function run() {
   assert.ok(html.indexOf('function drawUsageHourlyBars(') > -1, 'usage hourly draw helper missing');
   assert.ok(html.indexOf('var pad = 28;') > -1, 'solar usage chart should reserve a left gutter for Y-axis labels');
   assert.ok(html.indexOf('var barsCount = data.length;') > -1, 'solar usage chart should adapt bar count to the source resolution');
+  assert.ok(html.indexOf('var bucketHours = barsCount > 0 ? (24 / barsCount) : 1;') > -1, 'solar usage chart should infer bucket duration from the source resolution');
+  assert.ok(html.indexOf('var generatedWh = Math.max(0, Number(bin.generatedWh || 0)) / bucketHours;') > -1, 'solar generation should be converted from bucket energy back to average power');
+  assert.ok(html.indexOf('var b = Math.max(0, Number(bin.importWh || 0)) / bucketHours;') > -1, 'import series should be converted from bucket energy back to average power');
   assert.ok(html.indexOf("ctx.fillStyle = 'rgba(112, 168, 255, 0.44)';") > -1, 'import bars should use a cooler translucent blue fill');
   assert.ok(html.indexOf('function drawGeneratedLine(') > -1, 'generated line helper missing for hybrid chart');
   assert.strictEqual(html.indexOf('function smoothSeries('), -1, 'generated line should avoid averaging helper');
@@ -293,13 +297,14 @@ module.exports = async function run() {
   assert.ok(html.indexOf("ctx.lineCap = 'round';") > -1, 'generated hybrid line should use rounded caps');
   assert.strictEqual(html.indexOf('ctx.quadraticCurveTo('), -1, 'generated hybrid line should avoid curve interpolation');
   assert.ok(html.indexOf('var usagePeakWh = 1;') > -1, 'usage bars should track usage peak independently');
-  assert.ok(html.indexOf('usagePeakWh = Math.max(usagePeakWh, Math.max(Number(item.selfWh || 0) + Number(item.importWh || 0), Number(item.generatedWh || 0)));') > -1, 'usage bars should scale from the larger of the usage stack or generated output');
-  assert.ok(html.indexOf('var selfWh = generatedWh > 0 ? Math.min(generatedWh, Math.max(0, Number(bin.selfWh || 0))) : 0;') > -1, 'self-used bars should drop to zero when there is no generation');
+  assert.ok(html.indexOf('usagePeakWh = Math.max(usagePeakWh, Math.max((Number(item.selfWh || 0) + Number(item.importWh || 0)) / bucketHours, Number(item.generatedWh || 0) / bucketHours));') > -1, 'usage bars should scale from average power, not raw bucket energy');
+  assert.ok(html.indexOf('var selfWh = generatedWh > 0 ? Math.min(generatedWh, Math.max(0, Number(bin.selfWh || 0)) / bucketHours) : 0;') > -1, 'self-used bars should drop to zero when there is no generation');
   assert.ok(html.indexOf('if (bh > 0) {\n            ctx.fillStyle = \'rgba(112, 168, 255, 0.44)\';') > -1, 'import bars should not draw a baseline pixel when zero');
   assert.ok(html.indexOf('if (ah > 0) {\n            ctx.fillStyle = \'#8edb7c\';') > -1, 'self-used bars should not draw a baseline pixel when zero');
+  assert.ok(html.indexOf('var generatedSeries = data.map(function (item) {\n          return Math.max(0, Number((item || {}).generatedWh || 0)) / bucketHours;\n        });') > -1, 'generated series should convert bucket energy to average power');
   assert.ok(html.indexOf('var generatedLinePeakWh = generatedSeries.reduce(function (peak, value) { return Math.max(peak, Number(value || 0)); }, 0);') > -1, 'generated line scale should derive peak from raw values');
   assert.ok(html.indexOf('var generatedCapWh = Number(pricingConfig.inverterCapacityKw || 6.3) * 1000;') > -1, 'generated line scaling should use inverter capacity with a 6.3kW default');
-  assert.ok(html.indexOf('usagePeakWh = Math.max(usagePeakWh, Math.max(Number(item.selfWh || 0) + Number(item.importWh || 0), Number(item.generatedWh || 0)));') > -1, 'usage chart scale should consider generated output as well as usage stack');
+  assert.ok(html.indexOf('usagePeakWh = Math.max(usagePeakWh, Math.max((Number(item.selfWh || 0) + Number(item.importWh || 0)) / bucketHours, Number(item.generatedWh || 0) / bucketHours));') > -1, 'usage chart scale should consider generated output as well as usage stack');
   assert.ok(html.indexOf('var generatedLineMaxY = Math.max(usagePeakWh, generatedCapWh);') > -1, 'generated line should share the chart max with the adaptive usage scale');
   assert.ok(html.indexOf('.solar-gauge-usage.is-no-import') > -1, 'usage/import gauge should expose no-import state class');
   assert.ok(html.indexOf('.solar-gauge-usage.is-importing') > -1, 'usage/import gauge should expose importing state class');

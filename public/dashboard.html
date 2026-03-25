@@ -193,7 +193,7 @@
 
     #mainRadar .panel-corner-icon { color: #45a9ff; }
     #mainSolar .panel-corner-icon { color: #f2bb3c; }
-    #weatherCard .panel-corner-icon { color: #62bbff; }
+    #weatherStripPanel .panel-corner-icon { color: #62bbff; }
     #binCard .panel-corner-icon { color: #8edb7c; }
     #customCard .panel-corner-icon { color: #ffb577; }
     #globalRainIndicator .card-icon { color: #56aef8; width: 25px; height: 25px;}
@@ -669,8 +669,8 @@
       min-height: 0;
     }
 
-    #weatherCard, #binCard, #customCard { min-height: 0; }
-    #weatherCard {
+    #weatherStripPanel, #binCard, #customCard { min-height: 0; }
+    #weatherStripPanel {
       display: grid;
       grid-template-rows: 1fr;
       background:
@@ -680,12 +680,12 @@
       box-shadow: 0 12px 22px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(172, 220, 244, 0.12);
     }
 
-    #weatherCard .panel-corner-icon,
-    #weatherCard .panel-title {
+    #weatherStripPanel .panel-corner-icon,
+    #weatherStripPanel .panel-title {
       display: none;
     }
 
-    #weatherCard.panel-icon {
+    #weatherStripPanel.panel-icon {
       padding-top: 10px;
     }
     #binCard {
@@ -716,9 +716,6 @@
       min-height: 0;
       height: 100%;
       overflow: hidden;
-      border-radius: 12px;
-      border: 1px solid rgba(110, 165, 200, 0.2);
-      background: rgba(7, 20, 34, 0.26);
     }
 
     #weatherBinsStripTrack {
@@ -1893,7 +1890,7 @@
     </section>
 
     <div id="bottomRow">
-      <section id="weatherCard" class="panel panel-icon">
+      <section id="weatherStripPanel" class="panel panel-icon">
         <span class="panel-corner-icon"><svg><use href="#i-cloud"></use></svg></span>
         <span class="panel-title">Weather</span>
         <div id="weatherBinsStripViewport">
@@ -2747,19 +2744,20 @@
           drawHourAxis(ctx, w, h, pad, chartBottom, 24, (w - pad * 2) / 24);
           return;
         }
+        var bucketHours = barsCount > 0 ? (24 / barsCount) : 1;
         var usagePeakWh = 1;
         for (var i = 0; i < barsCount; i += 1) {
           var item = data[i] || {};
-          usagePeakWh = Math.max(usagePeakWh, Math.max(Number(item.selfWh || 0) + Number(item.importWh || 0), Number(item.generatedWh || 0)));
+          usagePeakWh = Math.max(usagePeakWh, Math.max((Number(item.selfWh || 0) + Number(item.importWh || 0)) / bucketHours, Number(item.generatedWh || 0) / bucketHours));
         }
 
         var barW = (w - pad * 2) / barsCount;
         for (var j = 0; j < barsCount; j += 1) {
           var bin = data[j] || {};
-          var generatedWh = Math.max(0, Number(bin.generatedWh || 0));
-          var selfWh = generatedWh > 0 ? Math.min(generatedWh, Math.max(0, Number(bin.selfWh || 0))) : 0;
+          var generatedWh = Math.max(0, Number(bin.generatedWh || 0)) / bucketHours;
+          var selfWh = generatedWh > 0 ? Math.min(generatedWh, Math.max(0, Number(bin.selfWh || 0)) / bucketHours) : 0;
           var a = selfWh;
-          var b = Math.max(0, Number(bin.importWh || 0));
+          var b = Math.max(0, Number(bin.importWh || 0)) / bucketHours;
           var ah = Math.floor((a / usagePeakWh) * (chartBottom - pad));
           var bh = Math.floor((b / usagePeakWh) * (chartBottom - pad));
           var x = Math.round(pad + (j * barW));
@@ -2777,7 +2775,7 @@
           }
         }
         var generatedSeries = data.map(function (item) {
-          return Math.max(0, Number((item || {}).generatedWh || 0));
+          return Math.max(0, Number((item || {}).generatedWh || 0)) / bucketHours;
         });
         var generatedLinePeakWh = generatedSeries.reduce(function (peak, value) { return Math.max(peak, Number(value || 0)); }, 0);
         var generatedCapWh = Number(pricingConfig.inverterCapacityKw || 6.3) * 1000;
