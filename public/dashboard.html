@@ -1664,6 +1664,14 @@
         --global-bar-side: 10px;
       }
 
+      .panel {
+        backdrop-filter: none;
+      }
+
+      #weatherBinsStripTrack {
+        will-change: auto;
+      }
+
       body { --global-bar-clearance: 62px; }
 
       .global-bar {
@@ -4100,6 +4108,21 @@
           .then(function () { stateFetchInFlight = false; });
       }
 
+      function fetchStartupState() {
+        fetch('/api/state/startup')
+          .then(function (res) { return res.json(); })
+          .then(function (state) {
+            latestState = state;
+            applyState(latestState);
+            requestAnimationFrame(function () {
+              fetchState();
+            });
+          })
+          .catch(function () {
+            fetchState();
+          });
+      }
+
       function fetchRealtimeState() {
         if (realtimeStateFetchInFlight) { return; }
         realtimeStateFetchInFlight = true;
@@ -4197,10 +4220,11 @@
       }
 
       resizeCanvas();
+      document.body.classList.remove('loading');
       window.addEventListener('resize', resizeCanvas);
       tickClock();
       setInterval(tickClock, 1000);
-      fetchState();
+      fetchStartupState();
       setInterval(fetchState, SLOW_STATE_REFRESH_MS);
       // Fetch full state more frequently during startup to populate charts faster
       var startupFetchTimer = setInterval(fetchState, 15000);

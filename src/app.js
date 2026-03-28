@@ -377,6 +377,72 @@ function createApp(options) {
   const getDebugConfig = options.getDebugConfig || function getDebugConfigDefault() { return {}; };
   const sessions = new Map();
 
+  function buildStatePayload(now, radarRenderMode, radarClientIframeUrl, includeHeavy) {
+    const externalState = getExternalState();
+    const radarState = getRadarState();
+    const gifMeta = getRadarGifMeta();
+    const bomMeta = getBomRadarMeta();
+    const gifWidth = gifMeta ? Number(gifMeta.width || 0) : 0;
+    const gifHeight = gifMeta ? Number(gifMeta.height || 0) : 0;
+    const gifPath = (gifWidth > 0 && gifHeight > 0)
+      ? '/api/radar/animation.gif'
+      : null;
+    const payload = {
+      server: {
+        host: dashboardConfig.host,
+        port: dashboardConfig.port
+      },
+      layout: {
+        mode: 'hybrid',
+        focus: {
+          widget: 'radar',
+          durationSeconds: dashboardConfig.rotation.focusSeconds,
+          intervalSeconds: dashboardConfig.rotation.intervalSeconds,
+          focusDurationSeconds: dashboardConfig.rotation.focusDurationSeconds,
+          views: dashboardConfig.rotation.focusViews,
+          rainOverrideEnabled: dashboardConfig.rotation.rainOverrideEnabled,
+          rainOverrideCooldownSeconds: dashboardConfig.rotation.rainOverrideCooldownSeconds,
+          rainLikely: isRainLikely(externalState.weather)
+        }
+      },
+      fronius: froniusState.getState(now),
+      pricing: dashboardConfig.pricing,
+      ui: dashboardConfig.ui,
+      weather: externalState.weather,
+      news: externalState.news,
+      bins: externalState.bins,
+      reminders: Array.isArray(externalState.reminders) ? externalState.reminders : [],
+      ha: externalState.ha || { cards: [], stale: true, error: 'ha_unavailable' },
+      radar: {
+        available: Array.isArray(radarState.frames) && radarState.frames.length > 0,
+        updatedAt: radarState.updatedAt,
+        renderMode: radarRenderMode,
+        iframeUrl: radarClientIframeUrl,
+        gifUpdatedAt: gifMeta && gifMeta.renderedAt ? gifMeta.renderedAt : null,
+        gifWidth: gifWidth > 0 ? gifWidth : null,
+        gifHeight: gifHeight > 0 ? gifHeight : null,
+        gifPath,
+        bomUpdatedAt: bomMeta && bomMeta.updatedAt ? bomMeta.updatedAt : null,
+        bomImagePath: '/api/radar/bom-image',
+        refreshSeconds: dashboardConfig.radar.refreshSeconds,
+        metaPath: '/api/radar/meta'
+      },
+      generatedAt: new Date(now).toISOString()
+    };
+    if (includeHeavy) {
+      payload.solarHistory = getSolarHistory();
+      payload.solarGeneratedHistory = getSolarGeneratedHistory();
+      payload.solarDailyBins = getSolarDailyBins();
+      payload.solarHourlyBins = getSolarHourlyBins();
+      payload.solarUsageHourly = getSolarUsageHourly();
+      payload.solarDawnQuarterly = getSolarDawnQuarterly();
+      payload.solarFlowSummary = getSolarFlowSummary();
+      payload.solarMeta = getSolarMeta();
+      payload.internet = getInternetState();
+    }
+    return payload;
+  }
+
   function requireAuth(req, res) {
     const cookies = parseCookies(req.headers.cookie);
     const session = sessions.get(cookies.sid);
@@ -437,66 +503,12 @@ function createApp(options) {
 
     if (req.method === 'GET' && urlPath === '/api/state') {
       const now = Date.now();
-      const externalState = getExternalState();
-      const radarState = getRadarState();
-      const gifMeta = getRadarGifMeta();
-      const bomMeta = getBomRadarMeta();
-      const gifWidth = gifMeta ? Number(gifMeta.width || 0) : 0;
-      const gifHeight = gifMeta ? Number(gifMeta.height || 0) : 0;
-      const gifPath = (gifWidth > 0 && gifHeight > 0)
-        ? '/api/radar/animation.gif'
-        : null;
-      return sendJson(res, 200, {
-        server: {
-          host: dashboardConfig.host,
-          port: dashboardConfig.port
-        },
-        layout: {
-          mode: 'hybrid',
-          focus: {
-            widget: 'radar',
-            durationSeconds: dashboardConfig.rotation.focusSeconds,
-            intervalSeconds: dashboardConfig.rotation.intervalSeconds,
-            focusDurationSeconds: dashboardConfig.rotation.focusDurationSeconds,
-            views: dashboardConfig.rotation.focusViews,
-            rainOverrideEnabled: dashboardConfig.rotation.rainOverrideEnabled,
-            rainOverrideCooldownSeconds: dashboardConfig.rotation.rainOverrideCooldownSeconds,
-            rainLikely: isRainLikely(externalState.weather)
-          }
-        },
-        fronius: froniusState.getState(now),
-        pricing: dashboardConfig.pricing,
-        ui: dashboardConfig.ui,
-        weather: externalState.weather,
-        news: externalState.news,
-        bins: externalState.bins,
-        reminders: Array.isArray(externalState.reminders) ? externalState.reminders : [],
-        ha: externalState.ha || { cards: [], stale: true, error: 'ha_unavailable' },
-        solarHistory: getSolarHistory(),
-        solarGeneratedHistory: getSolarGeneratedHistory(),
-        solarDailyBins: getSolarDailyBins(),
-        solarHourlyBins: getSolarHourlyBins(),
-        solarUsageHourly: getSolarUsageHourly(),
-        solarDawnQuarterly: getSolarDawnQuarterly(),
-        solarFlowSummary: getSolarFlowSummary(),
-        solarMeta: getSolarMeta(),
-        internet: getInternetState(),
-        radar: {
-          available: Array.isArray(radarState.frames) && radarState.frames.length > 0,
-          updatedAt: radarState.updatedAt,
-          renderMode: radarRenderMode,
-          iframeUrl: radarClientIframeUrl,
-          gifUpdatedAt: gifMeta && gifMeta.renderedAt ? gifMeta.renderedAt : null,
-          gifWidth: gifWidth > 0 ? gifWidth : null,
-          gifHeight: gifHeight > 0 ? gifHeight : null,
-          gifPath,
-          bomUpdatedAt: bomMeta && bomMeta.updatedAt ? bomMeta.updatedAt : null,
-          bomImagePath: '/api/radar/bom-image',
-          refreshSeconds: dashboardConfig.radar.refreshSeconds,
-          metaPath: '/api/radar/meta'
-        },
-        generatedAt: new Date(now).toISOString()
-      });
+      return sendJson(res, 200, buildStatePayload(now, radarRenderMode, radarClientIframeUrl, true));
+    }
+
+    if (req.method === 'GET' && urlPath === '/api/state/startup') {
+      const now = Date.now();
+      return sendJson(res, 200, buildStatePayload(now, radarRenderMode, radarClientIframeUrl, false));
     }
 
     if (req.method === 'GET' && urlPath === '/api/radar/status') {

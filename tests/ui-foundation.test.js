@@ -352,6 +352,9 @@ module.exports = async function run() {
   assert.strictEqual(html.indexOf('function reduceBinsForChart('), -1, 'legacy chart reduction helper should be removed');
   assert.ok(html.indexOf('var stateFetchInFlight = false;') > -1, 'state fetch overlap guard missing');
   assert.ok(html.indexOf('if (stateFetchInFlight) { return; }') > -1, 'state fetch throttle branch missing');
+  assert.ok(html.indexOf('function fetchStartupState() {') > -1, 'startup state fetch helper missing');
+  assert.ok(html.indexOf("fetch('/api/state/startup')") > -1, 'startup should fetch the lightweight startup payload first');
+  assert.ok(html.indexOf("requestAnimationFrame(function () {\n              fetchState();\n            });") > -1, 'startup should defer heavy state hydration until after first paint');
   assert.ok(html.indexOf('var radarLoopStarted = false;') > -1, 'deferred radar startup flag missing');
   assert.ok(html.indexOf('if (radarLoopStarted || !firstDataApplied) {') > -1, 'deferred radar startup guard missing');
   assert.ok(html.indexOf('requestAnimationFrame(animateRadar);\n        initRadarGifMode();') === -1, 'startup should not kick off png tile animation loop');

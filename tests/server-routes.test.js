@@ -215,6 +215,19 @@ module.exports = async function run() {
     assert.ok(Array.isArray(statePayload.reminders), 'state payload should expose reminders');
     assert.strictEqual(statePayload.reminders[0].title, 'Lita Nexgard');
 
+    const startupState = await request(server, { path: '/api/state/startup' });
+    assert.strictEqual(startupState.statusCode, 200);
+    const startupPayload = JSON.parse(startupState.body);
+    assert.strictEqual(startupPayload.weather.summary, 'Cloudy');
+    assert.strictEqual(startupPayload.radar.available, true);
+    assert.ok(startupPayload.fronius && startupPayload.fronius.realtime, 'startup payload should expose realtime fronius data');
+    assert.ok(startupPayload.fronius && startupPayload.fronius.today, 'startup payload should expose today fronius totals');
+    assert.ok(Array.isArray(startupPayload.ha.cards), 'startup payload should expose HA cards');
+    assert.ok(Array.isArray(startupPayload.reminders), 'startup payload should expose reminders');
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(startupPayload, 'solarHistory'), false, 'startup payload should omit heavy solar history');
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(startupPayload, 'solarDailyBins'), false, 'startup payload should omit heavy solar bins');
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(startupPayload, 'internet'), false, 'startup payload should omit internet history');
+
     const realtimeState = await request(server, { path: '/api/state/realtime' });
     assert.strictEqual(realtimeState.statusCode, 200);
     const realtimePayload = JSON.parse(realtimeState.body);
