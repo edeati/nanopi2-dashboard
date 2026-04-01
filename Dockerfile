@@ -1,4 +1,4 @@
-FROM node:lts-bookworm-slim
+FROM node:22-bookworm-slim
 
 # 1. Install system dependencies
 RUN set -eux; \
