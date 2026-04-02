@@ -41,6 +41,10 @@ module.exports = async function run() {
   assert.ok(html.indexOf('.strip-card.strip-card-bin {\n      width: 220px;') > -1, 'bin strip cards should be narrower to avoid truncation');
   assert.ok(html.indexOf(".strip-card.strip-card-bin.strip-tone-yellow {\n      background: linear-gradient(180deg, rgba(255, 243, 176, 0.16), rgba(255, 243, 176, 0.05)), rgba(34, 28, 10, 0.84);") > -1, 'recycle bin cards should use a yellow-tinted background');
   assert.ok(html.indexOf(".strip-card.strip-card-bin.strip-tone-blue {\n      background: linear-gradient(180deg, rgba(160, 214, 255, 0.16), rgba(160, 214, 255, 0.05)), rgba(11, 21, 34, 0.84);") > -1, 'other bin cards should use a blue-tinted background');
+  assert.ok(html.indexOf('.strip-card.strip-card-bin.strip-tone-yellow .strip-card-title,\n    .strip-card.strip-card-bin.strip-tone-yellow .strip-card-copy,\n    .strip-card.strip-card-bin.strip-tone-yellow .strip-card-bin-day {\n      color: #f2d44b;') > -1, 'recycle bin cards should use yellow text');
+  assert.ok(html.indexOf('.strip-card.strip-card-bin.strip-tone-green .strip-card-title,\n    .strip-card.strip-card-bin.strip-tone-green .strip-card-copy,\n    .strip-card.strip-card-bin.strip-tone-green .strip-card-bin-day {\n      color: #8edb7c;') > -1, 'organic bin cards should use green text');
+  assert.ok(html.indexOf('.strip-card.strip-card-bin.strip-tone-yellow .strip-card-bg-icon {\n      color: #f2d44b;') > -1, 'recycle bin icon should be yellow');
+  assert.ok(html.indexOf('.strip-card.strip-card-bin .strip-card-bg-icon.is-hero {\n      opacity: 0.34;') > -1, 'bin hero background icon should be more visible');
   assert.ok(html.indexOf('grid-template-rows: auto 1fr auto auto auto 1fr;') > -1, 'bin strip cards should keep the kicker at the top and center the main content');
   assert.ok(html.indexOf('.strip-card-bg-icon.is-hero {\n      opacity: 0.16;') > -1, 'hero background icons should use the same transparency as other cards');
   assert.ok(html.indexOf('font-size: 18px;') > -1, 'strip titles should be reduced further to fit the card height');
