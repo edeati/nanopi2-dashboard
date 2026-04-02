@@ -820,27 +820,27 @@
     }
 
     .strip-card.strip-card-bin.strip-tone-green {
-      background: linear-gradient(180deg, rgba(206, 246, 200, 0.42), rgba(206, 246, 200, 0.14)), rgba(26, 43, 23, 0.9);
+      background: linear-gradient(180deg, rgba(122, 190, 112, 0.24), rgba(122, 190, 112, 0.08)), rgba(18, 36, 18, 0.9);
     }
 
     .strip-card.strip-card-bin.strip-tone-yellow {
-      background: linear-gradient(180deg, rgba(255, 249, 222, 0.48), rgba(255, 249, 222, 0.18)), rgba(54, 42, 16, 0.9);
+      background: linear-gradient(180deg, rgba(214, 175, 54, 0.22), rgba(214, 175, 54, 0.08)), rgba(32, 26, 12, 0.9);
     }
 
     .strip-card.strip-card-bin.strip-tone-blue {
-      background: linear-gradient(180deg, rgba(220, 236, 248, 0.42), rgba(220, 236, 248, 0.14)), rgba(19, 31, 42, 0.9);
+      background: linear-gradient(180deg, rgba(120, 170, 214, 0.22), rgba(120, 170, 214, 0.08)), rgba(16, 28, 40, 0.9);
     }
 
     .strip-card.strip-card-bin.strip-tone-yellow .strip-card-title,
     .strip-card.strip-card-bin.strip-tone-yellow .strip-card-copy,
     .strip-card.strip-card-bin.strip-tone-yellow .strip-card-bin-day {
-      color: #d7a500;
+      color: #f2d44b;
     }
 
     .strip-card.strip-card-bin.strip-tone-green .strip-card-title,
     .strip-card.strip-card-bin.strip-tone-green .strip-card-copy,
     .strip-card.strip-card-bin.strip-tone-green .strip-card-bin-day {
-      color: #4fa443;
+      color: #8edb7c;
     }
 
     .strip-card.strip-card-bin.strip-tone-blue .strip-card-title,
@@ -856,11 +856,11 @@
     }
 
     .strip-card.strip-card-bin.strip-tone-yellow .strip-card-bg-icon {
-      color: #b8860b;
+      color: #f2d44b;
     }
 
     .strip-card.strip-card-bin.strip-tone-green .strip-card-bg-icon {
-      color: #4fa443;
+      color: #8edb7c;
     }
 
     .strip-card.strip-card-bin.strip-tone-blue .strip-card-bg-icon {
@@ -2829,6 +2829,7 @@
         var pad = 28;
         var padBottom = 16;
         var chartBottom = h - padBottom;
+        var solarChartMaxW = Math.max(2000, Number(pricingConfig.inverterCapacityKw || 6.3) * 1000);
         ctx.clearRect(0, 0, w, h);
         var data = Array.isArray(bins) ? bins.slice() : [];
         var barsCount = data.length;
@@ -2876,9 +2877,8 @@
           });
         }
         var generatedLinePeakWh = generatedSeries.reduce(function (peak, point) { return Math.max(peak, Number((point && point.value) || 0)); }, 0);
-        var generatedCapWh = Number(pricingConfig.inverterCapacityKw || 6.3) * 1000;
-        var generatedLineMaxY = Math.max(usagePeakWh, generatedCapWh, generatedLinePeakWh);
-        drawPowerAxis(ctx, w, h, pad, chartBottom, generatedLineMaxY);
+        var generatedLineMaxY = Math.max(usagePeakWh, solarChartMaxW, generatedLinePeakWh);
+        drawPowerAxis(ctx, w, h, pad, chartBottom, solarChartMaxW);
         drawGeneratedLine(ctx, generatedSeries, w, pad, chartBottom, generatedLineMaxY);
         drawHourAxis(ctx, w, h, pad, chartBottom, barsCount, barW);
       }
@@ -2932,6 +2932,7 @@
         var pad = 6;
         var padBottom = 16;
         var chartBottom = h - padBottom;
+        var solarChartMaxW = Math.max(2000, Number(pricingConfig.inverterCapacityKw || 6.3) * 1000);
         var data = Array.isArray(bins) ? bins.slice(0, 12) : [];
         var barsCount = 12;
         ctx.clearRect(0, 0, w, h);
@@ -2939,7 +2940,7 @@
           drawHourAxis(ctx, w, h, pad, chartBottom, barsCount, (w - pad * 2) / barsCount);
           return;
         }
-        var maxY = 1;
+        var maxY = solarChartMaxW;
         for (var i = 0; i < barsCount; i += 1) {
           var item = data[i] || {};
           maxY = Math.max(maxY, Number(item.selfWh || 0) + Number(item.exportWh || 0));
@@ -2961,6 +2962,7 @@
           ctx.fillStyle = '#f2bb3c';
           ctx.fillRect(x, yA, drawW, Math.max(1, ah));
         }
+        drawPowerAxis(ctx, w, h, pad, chartBottom, solarChartMaxW);
         drawHourAxis(ctx, w, h, pad, chartBottom, barsCount, barW);
       }
 
@@ -3305,7 +3307,7 @@
         var kind = String(source.kind || '').toLowerCase();
         var label = String(source.label || '').toLowerCase();
         if (kind === 'recycle' || label.indexOf('recycle') > -1) {
-          return '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-recycle"></use></svg>';
+          return '♲';
         }
         return escapeHtml(isFocus ? focusBinIconGlyph(source) : (source.icon || '🗑'));
       }

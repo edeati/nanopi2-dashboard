@@ -39,8 +39,8 @@ module.exports = async function run() {
   assert.ok(html.indexOf('.strip-card.strip-card-weather-now {\n      align-content: stretch;\n      grid-template-rows: auto auto minmax(0, 1fr);') > -1, 'weather now cards should keep the header and summary at the top with the value centered below');
   assert.ok(html.indexOf('.strip-card.strip-card-weather-now .strip-card-value {\n      align-self: center;\n      justify-self: center;') > -1, 'weather now temperature should sit on the vertical midline and center on the icon');
   assert.ok(html.indexOf('.strip-card.strip-card-bin {\n      width: 220px;') > -1, 'bin strip cards should be narrower to avoid truncation');
-  assert.ok(html.indexOf(".strip-card.strip-card-bin.strip-tone-yellow {\n      background: linear-gradient(180deg, rgba(255, 249, 222, 0.48), rgba(255, 249, 222, 0.18)), rgba(54, 42, 16, 0.9);") > -1, 'recycle bin cards should use a lighter yellow background');
-  assert.ok(html.indexOf(".strip-card.strip-card-bin.strip-tone-blue {\n      background: linear-gradient(180deg, rgba(220, 236, 248, 0.42), rgba(220, 236, 248, 0.14)), rgba(19, 31, 42, 0.9);") > -1, 'other bin cards should use a lighter blue background');
+  assert.ok(html.indexOf(".strip-card.strip-card-bin.strip-tone-yellow {\n      background: linear-gradient(180deg, rgba(214, 175, 54, 0.22), rgba(214, 175, 54, 0.08)), rgba(32, 26, 12, 0.9);") > -1, 'recycle bin cards should use a darker yellow background');
+  assert.ok(html.indexOf(".strip-card.strip-card-bin.strip-tone-blue {\n      background: linear-gradient(180deg, rgba(120, 170, 214, 0.22), rgba(120, 170, 214, 0.08)), rgba(16, 28, 40, 0.9);") > -1, 'other bin cards should use a darker blue background');
   assert.ok(html.indexOf('.strip-card.strip-card-bin.strip-tone-yellow .strip-card-title,\n    .strip-card.strip-card-bin.strip-tone-yellow .strip-card-copy,\n    .strip-card.strip-card-bin.strip-tone-yellow .strip-card-bin-day {\n      color: #d7a500;') > -1, 'recycle bin cards should use yellow text');
   assert.ok(html.indexOf('.strip-card.strip-card-bin.strip-tone-green .strip-card-title,\n    .strip-card.strip-card-bin.strip-tone-green .strip-card-copy,\n    .strip-card.strip-card-bin.strip-tone-green .strip-card-bin-day {\n      color: #4fa443;') > -1, 'organic bin cards should use green text');
   assert.ok(html.indexOf('.strip-card.strip-card-bin.strip-tone-yellow .strip-card-bg-icon {\n      color: #b8860b;') > -1, 'recycle bin icon should be darker yellow');
@@ -49,7 +49,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('.strip-card-bg-icon.is-hero {\n      opacity: 0.16;') > -1, 'hero background icons should use the same transparency as other cards');
   assert.ok(html.indexOf('font-size: 18px;') > -1, 'strip titles should be reduced further to fit the card height');
   assert.ok(html.indexOf('font-size: 28px;') > -1, 'strip value text should be reduced further to fit the card height');
-  assert.ok(html.indexOf('symbol id="i-recycle"') > -1, 'recycle svg symbol missing');
+  assert.ok(html.indexOf("return '♲';") > -1, 'recycle strip card should use the classic recycle glyph');
   assert.ok(html.indexOf('class="panel-title">Clock</span>') > -1, 'clock card title missing');
   assert.ok(html.indexOf('body.takeover-radar #mainRadar .panel-title') > -1, 'radar takeover title hide rule missing');
   assert.ok(html.indexOf('id="weatherForecast"') > -1, 'weather forecast section missing');
@@ -279,7 +279,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf("ctx.fillText(String(Math.round(level / 1000)) + 'kW', pad - 2, y);") > -1, 'solar chart should label horizontal guides in kW');
   assert.ok(html.indexOf('for (var hour = 0; hour <= 21; hour += 3)') > -1, 'solar chart should label hours every 3');
   assert.ok(html.indexOf('var slot = (hour / 24) * count;') > -1, 'solar hour ticks should map against rendered bar count');
-  assert.ok(html.indexOf('drawPowerAxis(ctx, w, h, pad, chartBottom, generatedLineMaxY);') > -1, 'solar usage chart should draw the Y-axis power guides');
+  assert.ok(html.indexOf('drawPowerAxis(ctx, w, h, pad, chartBottom, solarChartMaxW);') > -1, 'solar charts should draw the Y-axis power guides from the fixed ceiling');
   assert.ok(html.indexOf('drawHourAxis(ctx, w, h, pad, chartBottom, barsCount, barW);') > -1, 'solar hour axis should align to fixed bar geometry');
   assert.ok(html.indexOf("ctx.font = '14px ' + CANVAS_FONT_FAMILY;") > -1, 'solar chart hour labels should be larger for tablet readability');
   assert.ok(html.indexOf('function drawLoadingBars(') > -1, 'solar loading chart helper missing');
@@ -310,9 +310,9 @@ module.exports = async function run() {
   assert.ok(html.indexOf('if (ah > 0) {\n            ctx.fillStyle = \'#8edb7c\';') > -1, 'self-used bars should not draw a baseline pixel when zero');
   assert.ok(html.indexOf('var generatedSeries = Array.isArray(solarGeneratedSeries) ? solarGeneratedSeries.slice() : [];') > -1, 'generated series should come from server-prepared history data');
   assert.ok(html.indexOf('var generatedLinePeakWh = generatedSeries.reduce(function (peak, point) { return Math.max(peak, Number((point && point.value) || 0)); }, 0);') > -1, 'generated line scale should derive peak from raw values');
-  assert.ok(html.indexOf('var generatedCapWh = Number(pricingConfig.inverterCapacityKw || 6.3) * 1000;') > -1, 'generated line scaling should use inverter capacity with a 6.3kW default');
+  assert.ok(html.indexOf('var solarChartMaxW = Math.max(2000, Number(pricingConfig.inverterCapacityKw || 6.3) * 1000);') > -1, 'generated line scaling should use inverter capacity with a 6.3kW default');
   assert.ok(html.indexOf('usagePeakWh = Math.max(usagePeakWh, Math.max((Number(item.selfWh || 0) + Number(item.importWh || 0)) / bucketHours, Number(item.generatedWh || 0) / bucketHours));') > -1, 'usage chart scale should consider generated output as well as usage stack');
-  assert.ok(html.indexOf('var generatedLineMaxY = Math.max(usagePeakWh, generatedCapWh, generatedLinePeakWh);') > -1, 'generated line should expand the chart max if archive power exceeds the configured ceiling');
+  assert.ok(html.indexOf('var generatedLineMaxY = Math.max(usagePeakWh, solarChartMaxW, generatedLinePeakWh);') > -1, 'generated line should expand the chart max if archive power exceeds the configured ceiling');
   assert.ok(html.indexOf('.solar-gauge-usage.is-no-import') > -1, 'usage/import gauge should expose no-import state class');
   assert.ok(html.indexOf('.solar-gauge-usage.is-importing') > -1, 'usage/import gauge should expose importing state class');
   assert.ok(html.indexOf('.solar-gauge-generation.is-inactive') > -1, 'generation gauge should expose inactive solar state class');
@@ -334,6 +334,9 @@ module.exports = async function run() {
   assert.ok(html.indexOf("ctx.fillStyle = 'rgba(112, 168, 255, 0.44)';") > -1, 'import bars should be more transparent and cooler');
   assert.ok(html.indexOf("ctx.fillStyle = 'rgba(255, 226, 122, 0.42)';") > -1, 'generated area should use a brighter gold tone');
   assert.ok(html.indexOf('function drawDawnQuarterBars(') > -1, 'dawn quarter draw helper missing');
+  assert.ok(html.indexOf('var solarChartMaxW = Math.max(2000, Number(pricingConfig.inverterCapacityKw || 6.3) * 1000);') > -1, 'solar charts should use a fixed inverter ceiling');
+  assert.ok(html.indexOf('var generatedLineMaxY = Math.max(usagePeakWh, solarChartMaxW, generatedLinePeakWh);') > -1, 'main solar chart should keep the fixed ceiling in its scale');
+  assert.ok(html.indexOf('drawPowerAxis(ctx, w, h, pad, chartBottom, solarChartMaxW);') > -1, 'dawn inset should use the same fixed ceiling as the main chart');
   assert.ok(html.indexOf('function buildSolarPanelSignatures(') > -1, 'solar panel signature helper missing');
   assert.ok(html.indexOf('.strip-card-head.has-divider::after,') > -1, 'scrolling cards should support a divider under header rows');
   assert.ok(html.indexOf('.strip-card-title.has-divider::after {') > -1, 'scrolling cards should support a divider under title rows');
