@@ -439,6 +439,7 @@ function createRadarGifRenderer(options) {
 
   // Guard against concurrent renders
   let renderInProgress = false;
+  let renderPromise = null;
 
   function errorSummary(error) {
     if (!error) {
@@ -492,6 +493,23 @@ function createRadarGifRenderer(options) {
     } catch (_err) {
       logGif('warn', 'radar_gif_cache_dir_create_failed', { cacheDir: gifCacheDir });
       return false;
+    }
+  }
+
+  async function waitForFrames() {
+    const waitMs = toInteger(radarConfig.startupRenderWaitMs, 1500, 0, 10000);
+    const pollMs = toInteger(radarConfig.startupRenderPollMs, 100, 20, 1000);
+    if (!(waitMs > 0)) {
+      return;
+    }
+    const deadline = Date.now() + waitMs;
+    while (Date.now() < deadline) {
+      const radarState = getRadarState();
+      const frames = Array.isArray(radarState && radarState.frames) ? radarState.frames : [];
+      if (frames.length) {
+        return;
+      }
+      await new Promise(function (resolve) { setTimeout(resolve, pollMs); });
     }
   }
 
@@ -850,6 +868,10 @@ function createRadarGifRenderer(options) {
    * Returns {contentType, body, isFallback}.
    */
   async function renderOnce(params) {
+    if (renderPromise) {
+      return renderPromise;
+    }
+
     if (!canRender()) {
       const error = new Error('gif_renderer_unavailable');
       error.code = 'gif_renderer_unavailable';
@@ -860,40 +882,48 @@ function createRadarGifRenderer(options) {
       throw error;
     }
 
-    logGif('info', 'radar_gif_render_start', { cacheDir: gifCacheDir });
-    try {
-      const plan = resolveRenderPlan(params);
-      const gifBuffer = await renderOnceFfmpeg(plan);
+    renderInProgress = true;
+    renderPromise = (async function runRender() {
+      logGif('info', 'radar_gif_render_start', { cacheDir: gifCacheDir });
+      try {
+        await waitForFrames();
+        const plan = resolveRenderPlan(params);
+        const gifBuffer = await renderOnceFfmpeg(plan);
 
-      // Write atomically: temp file then rename
-      ensureCacheDir();
-      const tmpPath = path.join(gifCacheDir, GIF_TMP_FILENAME);
-      const finalPath = path.join(gifCacheDir, GIF_FILENAME);
-      const metaTmpPath = path.join(gifCacheDir, GIF_META_TMP_FILENAME);
-      const metaPath = path.join(gifCacheDir, GIF_META_FILENAME);
-      fs.writeFileSync(tmpPath, gifBuffer);
-      fs.renameSync(tmpPath, finalPath);
-      fs.writeFileSync(metaTmpPath, JSON.stringify({
-        width: plan.outputWidth,
-        height: plan.outputHeight,
-        renderedAt: new Date().toISOString()
-      }));
-      fs.renameSync(metaTmpPath, metaPath);
+        // Write atomically: temp file then rename
+        ensureCacheDir();
+        const tmpPath = path.join(gifCacheDir, GIF_TMP_FILENAME);
+        const finalPath = path.join(gifCacheDir, GIF_FILENAME);
+        const metaTmpPath = path.join(gifCacheDir, GIF_META_TMP_FILENAME);
+        const metaPath = path.join(gifCacheDir, GIF_META_FILENAME);
+        fs.writeFileSync(tmpPath, gifBuffer);
+        fs.renameSync(tmpPath, finalPath);
+        fs.writeFileSync(metaTmpPath, JSON.stringify({
+          width: plan.outputWidth,
+          height: plan.outputHeight,
+          renderedAt: new Date().toISOString()
+        }));
+        fs.renameSync(metaTmpPath, metaPath);
 
-      logGif('info', 'radar_gif_render_success', {
-        bytes: gifBuffer.length,
-        width: plan.outputWidth,
-        height: plan.outputHeight
-      });
-      return {
-        contentType: 'image/gif',
-        body: gifBuffer,
-        isFallback: false
-      };
-    } catch (error) {
-      logGif('warn', 'radar_gif_render_failed', errorSummary(error));
-      throw error;
-    }
+        logGif('info', 'radar_gif_render_success', {
+          bytes: gifBuffer.length,
+          width: plan.outputWidth,
+          height: plan.outputHeight
+        });
+        return {
+          contentType: 'image/gif',
+          body: gifBuffer,
+          isFallback: false
+        };
+      } catch (error) {
+        logGif('warn', 'radar_gif_render_failed', errorSummary(error));
+        throw error;
+      } finally {
+        renderInProgress = false;
+        renderPromise = null;
+      }
+    })();
+    return renderPromise;
   }
 
   /**
@@ -958,12 +988,10 @@ function createRadarGifRenderer(options) {
       return false;
     }
 
-    renderInProgress = true;
     logGif('debug', 'radar_gif_warm_start', { frames: frames.length });
     renderOnce(params).catch(function (error) {
       logGif('warn', 'radar_gif_warm_render_failed', errorSummary(error));
     }).then(function () {
-      renderInProgress = false;
       logGif('debug', 'radar_gif_warm_finish');
     });
 

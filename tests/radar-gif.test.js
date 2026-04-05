@@ -444,6 +444,96 @@ module.exports = async function run() {
     }
 
     // -------------------------------------------------------------------
+    // Test 11a: renderOnce should tolerate startup frame races
+    // -------------------------------------------------------------------
+    {
+      let currentFrames = [];
+      setTimeout(function () {
+        currentFrames = [
+          { time: 1000, path: '/path/0' },
+          { time: 2000, path: '/path/1' }
+        ];
+      }, 50);
+      const startupRaceRenderer = createRadarGifRenderer({
+        fetchMapTile: async function () { return { contentType: 'image/png', body: fakeTilePng }; },
+        fetchRadarTile: async function () { return { contentType: 'image/png', body: fakeRadarTilePng }; },
+        getRadarState: function () {
+          return {
+            frames: currentFrames,
+            updatedAt: currentFrames.length ? new Date().toISOString() : null
+          };
+        },
+        config: {
+          radar: {
+            zoom: 6,
+            providerMaxZoom: 6,
+            lat: -27.47,
+            lon: 153.02,
+            gifMaxFrames: 2,
+            gifExtraTiles: 0,
+            gifFrameDelayMs: 100,
+            color: 3,
+            options: '1_1'
+          }
+        },
+        gifCacheDir: path.join(tempDir, 'startup-race-test')
+      });
+
+      const out = await startupRaceRenderer.renderOnce({ width: 100, height: 80 });
+      assert.ok(out && Buffer.isBuffer(out.body) && out.body.length > 0, 'renderOnce should wait briefly for startup frames');
+    }
+
+    // -------------------------------------------------------------------
+    // Test 11b: scheduled and warm renders should not overlap
+    // -------------------------------------------------------------------
+    {
+      let activeFetches = 0;
+      let maxActiveFetches = 0;
+      const overlapRenderer = createRadarGifRenderer({
+        fetchMapTile: async function () { return { contentType: 'image/png', body: fakeTilePng }; },
+        fetchRadarTile: async function () {
+          activeFetches += 1;
+          if (activeFetches > maxActiveFetches) {
+            maxActiveFetches = activeFetches;
+          }
+          await new Promise(function (resolve) { setTimeout(resolve, 30); });
+          activeFetches -= 1;
+          return { contentType: 'image/png', body: fakeRadarTilePng };
+        },
+        getRadarState: function () {
+          return {
+            frames: [
+              { time: 1000, path: '/path/0' },
+              { time: 2000, path: '/path/1' }
+            ]
+          };
+        },
+        config: {
+          radar: {
+            zoom: 6,
+            providerMaxZoom: 6,
+            lat: -27.47,
+            lon: 153.02,
+            gifMaxFrames: 2,
+            gifExtraTiles: 0,
+            gifFrameDelayMs: 100,
+            color: 3,
+            options: '1_1'
+          }
+        },
+        gifCacheDir: path.join(tempDir, 'overlap-test')
+      });
+
+      const stop = overlapRenderer.startSchedule({ width: 100, height: 80, intervalMs: 60000 });
+      await new Promise(function (resolve) { setTimeout(resolve, 20); });
+      assert.strictEqual(overlapRenderer.warmGif({ width: 100, height: 80 }), true, 'warmGif should treat scheduled render as already in progress');
+      await new Promise(function (resolve) { setTimeout(resolve, 3000); });
+      stop();
+
+      assert.strictEqual(maxActiveFetches, 1, 'scheduled and warm renders should be serialized');
+    }
+
+    // -------------------------------------------------------------------
     // Test 12: ffmpeg rendering uses overscan crop when configured
     // -------------------------------------------------------------------
     {
