@@ -2135,7 +2135,7 @@
       var takeoverUntilMs = 0;
       var currentViewMode = 'main';
       var takeoverNextAtMs = 0;
-      var takeoverReloadInFlight = false;
+      var takeoverTransitionInFlight = false;
       var lastRainOverrideMs = 0;
       var TAKEOVER_BLACKOUT_MS = 220;
 
@@ -2165,72 +2165,40 @@
         return '';
       }
 
-      function parseMsParam(value) {
-        var n = Number(value || 0);
-        if (!Number.isFinite(n) || n <= 0) {
-          return 0;
+      function applyViewMode(viewMode, untilMs, nextAtMs) {
+        currentViewMode = normalizeViewMode(viewMode);
+        takeoverUntilMs = Number(untilMs || 0) > 0 ? Math.floor(Number(untilMs || 0)) : 0;
+        takeoverNextAtMs = Number(nextAtMs || 0) > 0 ? Math.floor(Number(nextAtMs || 0)) : 0;
+        takeoverActive = currentViewMode === 'radar' || currentViewMode === 'solar';
+        document.body.classList.remove('takeover-radar', 'takeover-solar');
+        if (currentViewMode === 'radar') {
+          document.body.classList.add('takeover-radar');
+        } else if (currentViewMode === 'solar') {
+          document.body.classList.add('takeover-solar');
         }
-        return Math.floor(n);
-      }
-
-      function buildViewUrl(viewMode, untilMs, nextAtMs) {
-        var url = new URL(window.location.href);
-        var mode = normalizeViewMode(viewMode);
-        url.searchParams.set('view', mode);
-        if (lastFocusMode) {
-          url.searchParams.set('lastfocus', lastFocusMode);
-        } else {
-          url.searchParams.delete('lastfocus');
-        }
-        if (untilMs > 0) {
-          url.searchParams.set('until', String(Math.floor(untilMs)));
-        } else {
-          url.searchParams.delete('until');
-        }
-        if (nextAtMs > 0) {
-          url.searchParams.set('next', String(Math.floor(nextAtMs)));
-        } else {
-          url.searchParams.delete('next');
-        }
-        return url.toString();
-      }
-
-      function reloadToView(viewMode, untilMs, nextAtMs) {
-        window.location.replace(buildViewUrl(viewMode, untilMs, nextAtMs));
-      }
-
-      function transitionReloadToView(viewMode, untilMs, nextAtMs) {
-        if (takeoverReloadInFlight) {
-          return;
-        }
-        takeoverReloadInFlight = true;
-        document.body.classList.add('blackout');
-        setTimeout(function () {
-          reloadToView(viewMode, untilMs, nextAtMs);
-        }, TAKEOVER_BLACKOUT_MS);
-      }
-
-      function applyInitialViewFromUrl() {
-        var search = new URL(window.location.href).searchParams;
-        currentViewMode = normalizeViewMode(search.get('view'));
-        lastFocusMode = normalizeFocusMode(search.get('lastfocus'));
-        takeoverUntilMs = parseMsParam(search.get('until'));
-        takeoverNextAtMs = parseMsParam(search.get('next'));
-        if (takeoverNextAtMs > Date.now()) {
+        if (currentViewMode === 'main' && takeoverNextAtMs > Date.now()) {
           nextTakeoverAtMs = takeoverNextAtMs;
         }
-
-        if (currentViewMode === 'radar' || currentViewMode === 'solar') {
-          takeoverActive = true;
-          document.body.classList.remove('takeover-radar', 'takeover-solar', 'blackout');
-          document.body.classList.add(currentViewMode === 'radar' ? 'takeover-radar' : 'takeover-solar');
-          if (takeoverUntilMs <= 0) {
-            takeoverUntilMs = Date.now() + 1000;
+        requestAnimationFrame(function () {
+          resizeCanvas();
+          if (currentViewMode === 'radar') {
+            maybeStartRadarLoop();
           }
-        }
+          document.body.classList.remove('blackout');
+          takeoverTransitionInFlight = false;
+        });
       }
 
-      applyInitialViewFromUrl();
+      function transitionToView(viewMode, untilMs, nextAtMs) {
+        if (takeoverTransitionInFlight) {
+          return;
+        }
+        takeoverTransitionInFlight = true;
+        document.body.classList.add('blackout');
+        setTimeout(function () {
+          applyViewMode(viewMode, untilMs, nextAtMs);
+        }, TAKEOVER_BLACKOUT_MS);
+      }
 
       radarGifImage.onload = function () {
         radarGifLoading = false;
@@ -4248,20 +4216,20 @@
       }
 
       function beginTakeover(mode) {
-        if (takeoverReloadInFlight) { return; }
+        if (takeoverTransitionInFlight) { return; }
         var now = Date.now();
         var durationMs = Math.max(5, Number(rotationConfig.focusDurationSeconds || 30)) * 1000;
         var intervalMs = Math.max(30, Number(rotationConfig.intervalSeconds || 180)) * 1000;
         var nextAtMs = now + intervalMs;
         lastFocusMode = mode;
-        transitionReloadToView(mode === 'radar' ? 'radar' : 'solar', now + durationMs, nextAtMs);
+        transitionToView(mode === 'radar' ? 'radar' : 'solar', now + durationMs, nextAtMs);
       }
 
       function endTakeover() {
-        if (takeoverReloadInFlight) { return; }
+        if (takeoverTransitionInFlight) { return; }
         var intervalMs = Math.max(30, Number(rotationConfig.intervalSeconds || 180)) * 1000;
         var nextAtMs = takeoverNextAtMs > Date.now() ? takeoverNextAtMs : (Date.now() + intervalMs);
-        transitionReloadToView('main', 0, nextAtMs);
+        transitionToView('main', 0, nextAtMs);
       }
 
       function uiLoop() {
