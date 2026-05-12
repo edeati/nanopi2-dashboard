@@ -1139,6 +1139,9 @@ function createBomGifRenderer(options) {
     const bomLon = bomState.lon !== null && bomState.lon !== undefined ? bomState.lon : lon;
     const rangeKm = Number(bomState.rangeKm) || 256;
 
+    // Pixels to crop from top of the 512px BOM image (removes copyright bar)
+    const bomCropTopPx = toInteger(radarConfig.bomCropTopPx, 18, 0, 64);
+
     // Scale BOM 512×512 image to match map pixels at current zoom
     const latRad = bomLat * Math.PI / 180;
     const metersPerPx = (40075016.686 * Math.cos(latRad)) / (Math.pow(2, z) * 256);
@@ -1149,9 +1152,12 @@ function createBomGifRenderer(options) {
     const bomTile = latLonToTile(bomLat, bomLon, z);
     const bomCenterX = Math.round(renderWidth / 2 + (bomTile.x - viewTile.x) * TILE_SIZE);
     const bomCenterY = Math.round(renderHeight / 2 + (bomTile.y - viewTile.y) * TILE_SIZE);
-    // Top-left of overlay in canvas (includes overscan offset)
+    // After cropping bomCropTopPx from top of 512px image and scaling to overlaySize,
+    // the radar center (originally at 256px from top) shifts up by bomCropTopPx/2 scaled pixels.
+    const cropCenterShift = Math.round((bomCropTopPx / 2) * overlaySize / 512);
+    // Top-left of overlay in canvas (includes overscan offset and crop compensation)
     const bomX = bomCenterX - Math.round(overlaySize / 2) + overscanPx;
-    const bomY = bomCenterY - Math.round(overlaySize / 2) + overscanPx;
+    const bomY = bomCenterY - Math.round(overlaySize / 2) + overscanPx - cropCenterShift;
 
     const rawFramesSubset = framePaths.slice(-gifMaxFrames);
     const framesSubset = rawFramesSubset.map(function (framePath) {
@@ -1168,6 +1174,7 @@ function createBomGifRenderer(options) {
       gifFrameDelayMs,
       framesSubset,
       overlaySize,
+      bomCropTopPx,
       bomX,
       bomY,
       generatedLabel: 'Generated: ' + formatGeneratedTimestamp(nowMs, dashboardTimeZone),
@@ -1251,7 +1258,10 @@ function createBomGifRenderer(options) {
         if (bomFilePath) {
           const bomInputIdx = mapAssets.length + 1;
           const mapBase = mapAssets.length > 0 ? '[vmapout]' : '[0:v]';
-          const scaleFilter = '[' + bomInputIdx + ':v]scale=' + plan.overlaySize + ':' + plan.overlaySize + '[boms]';
+          const bomCrop = plan.bomCropTopPx > 0
+            ? 'crop=in_w:in_h-' + plan.bomCropTopPx + ':0:' + plan.bomCropTopPx + ','
+            : '';
+          const scaleFilter = '[' + bomInputIdx + ':v]' + bomCrop + 'scale=' + plan.overlaySize + ':' + plan.overlaySize + '[boms]';
           const bomOverlay = mapBase + '[boms]overlay=' + plan.bomX + ':' + plan.bomY + '[vout]';
           overlayFilter = (overlayFilter ? overlayFilter + ';' : '') + scaleFilter + ';' + bomOverlay;
         }
