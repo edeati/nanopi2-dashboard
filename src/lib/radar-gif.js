@@ -1008,8 +1008,441 @@ function createRadarGifRenderer(options) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// BOM radar GIF renderer
+// ---------------------------------------------------------------------------
+
+function parseBomFrameTimestamp(framePath) {
+  const m = /\.T\.(\d{12})\.png$/i.exec(String(framePath || ''));
+  if (!m) return 0;
+  const s = m[1];
+  return Date.UTC(
+    parseInt(s.slice(0, 4), 10),
+    parseInt(s.slice(4, 6), 10) - 1,
+    parseInt(s.slice(6, 8), 10),
+    parseInt(s.slice(8, 10), 10),
+    parseInt(s.slice(10, 12), 10),
+    0
+  );
+}
+
+function createBomGifRenderer(options) {
+  const opts = options || {};
+  const ffmpegBinary = String(opts.ffmpegBinary || 'ffmpeg');
+  const ffmpegAvailable = probeFfmpegAvailability(ffmpegBinary);
+  const execFileImpl = opts.execFileImpl;
+  const fetchMapTile = opts.fetchMapTile;
+  const bomClient = opts.bomClient;
+  const config = opts.config || {};
+  const logger = opts.logger || config.logger || null;
+  const gifCacheDir = opts.gifCacheDir || path.join(os.tmpdir(), 'nanopi2-dashboard-radar-gifs');
+  const radarConfig = config.radar || {};
+  const refreshSeconds = toInteger(radarConfig.refreshSeconds, 120, 30, 3600);
+  const gifMaxAgeSeconds = toInteger(
+    radarConfig.gifMaxAgeSeconds,
+    Math.max(180, refreshSeconds * 3),
+    60,
+    86400
+  );
+
+  const GIF_FILENAME = 'radar-latest.gif';
+  const GIF_TMP_FILENAME = 'radar-latest.gif.tmp';
+  const GIF_META_FILENAME = 'radar-latest.meta.json';
+  const GIF_META_TMP_FILENAME = 'radar-latest.meta.json.tmp';
+
+  const rendererBackend = ffmpegAvailable ? 'ffmpeg' : null;
+
+  let renderInProgress = false;
+  let renderPromise = null;
+
+  function errorSummary(error) {
+    if (!error) return { code: null, message: null, stderrTail: null };
+    const stderrTail = error.stderr
+      ? String(error.stderr).trim().split('\n').slice(-3).join(' | ')
+      : null;
+    return { code: error.code || null, message: error.message || null, stderrTail: stderrTail || null };
+  }
+
+  function shouldEmitGifDebug() {
+    if (!logger) return false;
+    if (typeof logger.isGifDebugEnabled === 'function') return !!logger.isGifDebugEnabled();
+    return !!logger.debugGif;
+  }
+
+  function logGif(level, event, fields) {
+    if (!logger) return;
+    const normalizedLevel = String(level || 'info').toLowerCase();
+    const isVerbose = normalizedLevel === 'debug' || normalizedLevel === 'trace' || normalizedLevel === 'info';
+    if (isVerbose && !shouldEmitGifDebug()) return;
+    const payload = Object.assign({ backend: rendererBackend || 'none' }, fields || {});
+    if (typeof logger[normalizedLevel] === 'function') {
+      logger[normalizedLevel](event, payload);
+      return;
+    }
+    if (typeof logger.log === 'function') logger.log(normalizedLevel, event, payload);
+  }
+
+  function ensureCacheDir() {
+    try {
+      fs.mkdirSync(gifCacheDir, { recursive: true });
+      return true;
+    } catch (_err) {
+      logGif('warn', 'bom_gif_cache_dir_create_failed', { cacheDir: gifCacheDir });
+      return false;
+    }
+  }
+
+  async function waitForBomFrames() {
+    const waitMs = toInteger(radarConfig.startupRenderWaitMs, 1500, 0, 10000);
+    const pollMs = toInteger(radarConfig.startupRenderPollMs, 100, 20, 1000);
+    if (!(waitMs > 0)) return;
+    const deadline = Date.now() + waitMs;
+    while (Date.now() < deadline) {
+      const s = bomClient.getState();
+      if (Array.isArray(s.frames) && s.frames.length) return;
+      await new Promise(function (resolve) { setTimeout(resolve, pollMs); });
+    }
+  }
+
+  function resolveRenderPlan() {
+    const outputWidth = toInteger(radarConfig.gifWidth, 800, 64, 1920);
+    const outputHeight = toInteger(radarConfig.gifHeight, 480, 64, 1920);
+    const z = Math.min(
+      toInteger(radarConfig.zoom, 6, 1, 12),
+      toInteger(radarConfig.providerMaxZoom, 12, 1, 12)
+    );
+    const lat = Number(radarConfig.lat) || -27.47;
+    const lon = Number(radarConfig.lon) || 153.02;
+    const extraTiles = toInteger(radarConfig.gifExtraTiles, 1, 0, 6);
+    const gifMaxFrames = toInteger(radarConfig.gifMaxFrames, 8, 1, 30);
+    const gifFrameDelayMs = toInteger(radarConfig.gifFrameDelayMs, 500, 50, 5000);
+    const overscanPx = toInteger(radarConfig.gifCropOverscanPx, 24, 0, 512);
+    const renderWidth = Math.min(1920, outputWidth + overscanPx * 2);
+    const renderHeight = Math.min(1920, outputHeight + overscanPx * 2);
+    const nowMs = Date.now();
+    const dashboardTimeZone = config.timeZone || (config.ui && config.ui.timeZone) || process.env.TZ || '';
+    const frameTimestampMaxAgeMinutes = toInteger(radarConfig.frameTimestampMaxAgeMinutes, 180, 5, 24 * 60);
+    const configuredFontFile = String(radarConfig.gifFontFile || '').trim();
+    const defaultFontFile = '/usr/share/fonts/TTF/DejaVuSans.ttf';
+    const fontFilePath = configuredFontFile || defaultFontFile;
+    const drawTextFontFile = fs.existsSync(fontFilePath) ? fontFilePath : '';
+
+    const bomState = bomClient.getState();
+    const framePaths = Array.isArray(bomState.frames) ? bomState.frames : [];
+    if (!framePaths.length) {
+      const error = new Error('radar_unavailable');
+      error.code = 'radar_unavailable';
+      throw error;
+    }
+
+    const bomLat = bomState.lat !== null && bomState.lat !== undefined ? bomState.lat : lat;
+    const bomLon = bomState.lon !== null && bomState.lon !== undefined ? bomState.lon : lon;
+    const rangeKm = Number(bomState.rangeKm) || 256;
+
+    // Scale BOM 512×512 image to match map pixels at current zoom
+    const latRad = bomLat * Math.PI / 180;
+    const metersPerPx = (40075016.686 * Math.cos(latRad)) / (Math.pow(2, z) * 256);
+    const overlaySize = Math.round((rangeKm * 2 * 1000) / metersPerPx);
+
+    // BOM center pixel offset from viewport center (both in fractional tile coords at zoom z)
+    const viewTile = latLonToTile(lat, lon, z);
+    const bomTile = latLonToTile(bomLat, bomLon, z);
+    const bomCenterX = Math.round(renderWidth / 2 + (bomTile.x - viewTile.x) * TILE_SIZE);
+    const bomCenterY = Math.round(renderHeight / 2 + (bomTile.y - viewTile.y) * TILE_SIZE);
+    // Top-left of overlay in canvas (includes overscan offset)
+    const bomX = bomCenterX - Math.round(overlaySize / 2) + overscanPx;
+    const bomY = bomCenterY - Math.round(overlaySize / 2) + overscanPx;
+
+    const rawFramesSubset = framePaths.slice(-gifMaxFrames);
+    const framesSubset = rawFramesSubset.map(function (framePath) {
+      return { time: parseBomFrameTimestamp(framePath), path: String(framePath) };
+    });
+
+    return {
+      outputWidth,
+      outputHeight,
+      renderWidth,
+      renderHeight,
+      overscanPx,
+      z,
+      gifFrameDelayMs,
+      framesSubset,
+      overlaySize,
+      bomX,
+      bomY,
+      generatedLabel: 'Generated: ' + formatGeneratedTimestamp(nowMs, dashboardTimeZone),
+      frameLabels: buildFrameLabels(framesSubset, dashboardTimeZone, nowMs, frameTimestampMaxAgeMinutes * 60 * 1000),
+      drawTextFontFile,
+      tiles: computeVisibleTiles({ lat, lon, z, width: renderWidth, height: renderHeight, extraTiles })
+    };
+  }
+
+  async function renderOnceFfmpeg(plan) {
+    logGif('debug', 'bom_gif_ffmpeg_render_start', {
+      frames: plan.framesSubset.length,
+      tiles: plan.tiles.length,
+      overlaySize: plan.overlaySize
+    });
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanopi2-bom-gif-'));
+    try {
+      // Fetch all map tiles once — shared across frames
+      const mapAssets = [];
+      for (let t = 0; t < plan.tiles.length; t += 1) {
+        const tile = plan.tiles[t];
+        const norm = normalizeTileCoords(plan.z, tile.tx, tile.ty);
+        try {
+          const result = await fetchMapTile({ z: plan.z, x: norm.x, y: norm.y });
+          if (!result || !Buffer.isBuffer(result.body) || !isPngBuffer(result.body)) {
+            const e = new Error('map_tiles_unavailable');
+            e.code = 'map_tiles_unavailable';
+            throw e;
+          }
+          const filePath = path.join(tempDir, 'map-' + String(t).padStart(3, '0') + '.png');
+          fs.writeFileSync(filePath, result.body);
+          mapAssets.push({ filePath, x: tile.drawX, y: tile.drawY });
+        } catch (err) {
+          const e = new Error('map_tiles_unavailable');
+          e.code = 'map_tiles_unavailable';
+          throw e;
+        }
+      }
+
+      for (let i = 0; i < plan.framesSubset.length; i += 1) {
+        const frameRef = plan.framesSubset[i];
+
+        // Attempt to fetch BOM frame PNG
+        let bomFilePath = null;
+        try {
+          const result = await bomClient.fetchFrame(frameRef.path);
+          if (result && Buffer.isBuffer(result.body) && isPngBuffer(result.body)) {
+            bomFilePath = path.join(tempDir, 'bom-' + String(i).padStart(3, '0') + '.png');
+            fs.writeFileSync(bomFilePath, result.body);
+          }
+        } catch (_err) {
+          // Render map-only frame when BOM fetch fails
+        }
+
+        const framePath = path.join(tempDir, 'frame-' + String(i).padStart(3, '0') + '.png');
+
+        const composeArgs = [
+          '-y', '-hide_banner', '-loglevel', 'error',
+          '-f', 'lavfi',
+          '-i', 'color=c=0x121820:s=' + plan.renderWidth + 'x' + plan.renderHeight + ':d=1'
+        ];
+        mapAssets.forEach(function (item) { composeArgs.push('-i', item.filePath); });
+        if (bomFilePath) composeArgs.push('-i', bomFilePath);
+
+        // Build map tile overlay chain
+        const mapFinalLabel = bomFilePath ? '[vmapout]' : '[vout]';
+        const mapParts = [];
+        let prev = '[0:v]';
+        for (let t = 0; t < mapAssets.length; t += 1) {
+          const idx = t + 1;
+          const isLast = t === mapAssets.length - 1;
+          const out = isLast ? mapFinalLabel : ('[v' + idx + ']');
+          mapParts.push(prev + '[' + idx + ':v]overlay=' +
+            Math.round(mapAssets[t].x + plan.overscanPx) + ':' +
+            Math.round(mapAssets[t].y + plan.overscanPx) + out);
+          prev = out;
+        }
+
+        let overlayFilter = mapParts.join(';');
+
+        if (bomFilePath) {
+          const bomInputIdx = mapAssets.length + 1;
+          const mapBase = mapAssets.length > 0 ? '[vmapout]' : '[0:v]';
+          const scaleFilter = '[' + bomInputIdx + ':v]scale=' + plan.overlaySize + ':' + plan.overlaySize + '[boms]';
+          const bomOverlay = mapBase + '[boms]overlay=' + plan.bomX + ':' + plan.bomY + '[vout]';
+          overlayFilter = (overlayFilter ? overlayFilter + ';' : '') + scaleFilter + ';' + bomOverlay;
+        }
+
+        const cropInput = overlayFilter ? '[vout]' : '[0:v]';
+        const cropFilter = cropInput +
+          'crop=' + plan.outputWidth + ':' + plan.outputHeight + ':' + plan.overscanPx + ':' + plan.overscanPx +
+          '[vcrop]';
+        const tsLabel = escapeFfmpegDrawtext(plan.frameLabels[i] || '');
+        const markerFilter = '[vcrop]' +
+          'drawbox=x=(w/2)-1:y=(h/2)-8:w=2:h=16:color=white@0.95:t=fill,' +
+          'drawbox=x=(w/2)-8:y=(h/2)-1:w=16:h=2:color=white@0.95:t=fill,' +
+          'drawbox=x=(w/2)-2:y=(h/2)-2:w=4:h=4:color=black@0.85:t=fill' +
+          '[vmark]';
+        const timestampFilter = '[vmark]' +
+          'drawtext=text=\'' + tsLabel + '\'' +
+          (plan.drawTextFontFile ? (':fontfile=' + escapeFfmpegDrawtext(plan.drawTextFontFile)) : '') +
+          ':fontcolor=black:fontsize=24:borderw=1:bordercolor=white:x=(w-text_w)/2:y=h-th-34' +
+          '[vtxt]';
+        const generatedFilter = '[vtxt]' +
+          'drawtext=text=\'' + escapeFfmpegDrawtext(plan.generatedLabel || '') + '\'' +
+          (plan.drawTextFontFile ? (':fontfile=' + escapeFfmpegDrawtext(plan.drawTextFontFile)) : '') +
+          ':fontcolor=black:fontsize=14:borderw=1:bordercolor=white:x=(w-text_w)/2:y=h-th-8' +
+          '[vouttxt]';
+
+        composeArgs.push(
+          '-filter_complex',
+          (overlayFilter ? overlayFilter + ';' : '') + cropFilter + ';' + markerFilter + ';' + timestampFilter + ';' + generatedFilter,
+          '-map', '[vouttxt]',
+          '-frames:v', '1', framePath
+        );
+
+        await execFileAsync(ffmpegBinary, composeArgs, { maxBuffer: 16 * 1024 * 1024 }, execFileImpl);
+      }
+
+      const fps = Math.max(0.2, 1000 / Math.max(50, plan.gifFrameDelayMs));
+      const gifPath = path.join(tempDir, 'radar.gif');
+      await execFileAsync(ffmpegBinary, [
+        '-y', '-hide_banner', '-loglevel', 'error',
+        '-framerate', String(fps),
+        '-i', path.join(tempDir, 'frame-%03d.png'),
+        '-filter_complex', 'split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3',
+        '-loop', '0', gifPath
+      ], { maxBuffer: 16 * 1024 * 1024 }, execFileImpl);
+
+      logGif('debug', 'bom_gif_ffmpeg_render_complete', { frames: plan.framesSubset.length });
+      return fs.readFileSync(gifPath);
+    } catch (error) {
+      const stderr = String((error && error.stderr) || '');
+      if (stderr.toLowerCase().indexOf('cannot find a valid font') > -1) {
+        error.code = 'ffmpeg_font_unavailable';
+      }
+      if (!error.code) error.code = 'ffmpeg_render_failed';
+      logGif('warn', 'bom_gif_ffmpeg_render_failed', errorSummary(error));
+      throw error;
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  }
+
+  function canRender() {
+    return rendererBackend === 'ffmpeg';
+  }
+
+  function getLatestGif() {
+    const filePath = path.join(gifCacheDir, GIF_FILENAME);
+    const metaPath = path.join(gifCacheDir, GIF_META_FILENAME);
+    let metaWidth = 0;
+    let metaHeight = 0;
+    let metaRenderedAt = '';
+    try {
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      metaWidth = Number(meta.width || 0);
+      metaHeight = Number(meta.height || 0);
+      metaRenderedAt = String(meta.renderedAt || '');
+    } catch (_err) {
+      return null;
+    }
+    if (metaWidth <= 0 || metaHeight <= 0) return null;
+    const renderedMs = Date.parse(metaRenderedAt);
+    if (!Number.isFinite(renderedMs)) return null;
+    const ageMs = Date.now() - renderedMs;
+    if (ageMs > (gifMaxAgeSeconds * 1000)) return null;
+    try {
+      const body = fs.readFileSync(filePath);
+      return { contentType: 'image/gif', body, isFallback: false };
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function getLatestMeta() {
+    const metaPath = path.join(gifCacheDir, GIF_META_FILENAME);
+    try {
+      const parsed = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+      return { width: Number(parsed.width || 0), height: Number(parsed.height || 0), renderedAt: parsed.renderedAt || null };
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  async function renderOnce() {
+    if (renderPromise) return renderPromise;
+    if (!canRender()) {
+      const error = new Error('gif_renderer_unavailable');
+      error.code = 'gif_renderer_unavailable';
+      logGif('warn', 'bom_gif_render_unavailable', errorSummary(error));
+      throw error;
+    }
+
+    renderInProgress = true;
+    renderPromise = (async function runRender() {
+      logGif('info', 'bom_gif_render_start', { cacheDir: gifCacheDir });
+      try {
+        await waitForBomFrames();
+        const plan = resolveRenderPlan();
+        const gifBuffer = await renderOnceFfmpeg(plan);
+
+        ensureCacheDir();
+        const tmpPath = path.join(gifCacheDir, GIF_TMP_FILENAME);
+        const finalPath = path.join(gifCacheDir, GIF_FILENAME);
+        const metaTmpPath = path.join(gifCacheDir, GIF_META_TMP_FILENAME);
+        const metaPath = path.join(gifCacheDir, GIF_META_FILENAME);
+        fs.writeFileSync(tmpPath, gifBuffer);
+        fs.renameSync(tmpPath, finalPath);
+        fs.writeFileSync(metaTmpPath, JSON.stringify({
+          width: plan.outputWidth,
+          height: plan.outputHeight,
+          renderedAt: new Date().toISOString()
+        }));
+        fs.renameSync(metaTmpPath, metaPath);
+
+        logGif('info', 'bom_gif_render_success', { bytes: gifBuffer.length });
+        return { contentType: 'image/gif', body: gifBuffer, isFallback: false };
+      } catch (error) {
+        logGif('warn', 'bom_gif_render_failed', errorSummary(error));
+        throw error;
+      } finally {
+        renderInProgress = false;
+        renderPromise = null;
+      }
+    })();
+    return renderPromise;
+  }
+
+  function startSchedule(params) {
+    if (!canRender()) {
+      logGif('warn', 'bom_gif_schedule_disabled', { reason: 'renderer_unavailable' });
+      return function stopNoop() {};
+    }
+    const intervalMs = toInteger(params && params.intervalMs, 120000, 5000, 600000);
+    let stopped = false;
+    let timer = null;
+
+    function tick() {
+      if (stopped) return;
+      renderOnce().catch(function (error) {
+        logGif('warn', 'bom_gif_schedule_render_failed', errorSummary(error));
+      }).then(function () {
+        if (!stopped) timer = setTimeout(tick, intervalMs);
+      });
+    }
+
+    tick();
+    return function stop() {
+      stopped = true;
+      if (timer !== null) { clearTimeout(timer); timer = null; }
+    };
+  }
+
+  function warmGif(params) {
+    if (!canRender()) return false;
+    if (renderInProgress) return true;
+    const s = bomClient.getState();
+    if (!Array.isArray(s.frames) || !s.frames.length) {
+      logGif('warn', 'bom_gif_warm_skip', { reason: 'no_frames' });
+      return false;
+    }
+    renderOnce(params).catch(function (error) {
+      logGif('warn', 'bom_gif_warm_render_failed', errorSummary(error));
+    });
+    return true;
+  }
+
+  return { canRender, getLatestGif, getLatestMeta, renderOnce, startSchedule, warmGif };
+}
+
 module.exports = {
   createRadarGifRenderer,
+  createBomGifRenderer,
+  parseBomFrameTimestamp,
   compositeMapBackground,
   compositeRadarFrame,
   computeVisibleTiles,

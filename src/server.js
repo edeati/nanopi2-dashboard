@@ -10,8 +10,9 @@ const { createFroniusClient } = require('./lib/fronius-client');
 const { createGitSyncService } = require('./lib/git-sync');
 const { createExternalSources } = require('./lib/external-sources');
 const { createRainViewerClient } = require('./lib/rainviewer');
+const { createBomRadarClient } = require('./lib/bom-radar');
 const { createMapTileClient } = require('./lib/map-tiles');
-const { createRadarGifRenderer } = require('./lib/radar-gif');
+const { createRadarGifRenderer, createBomGifRenderer } = require('./lib/radar-gif');
 const { createInternetProbeService } = require('./lib/internet-probe');
 const { createLogger, readDebugConfig } = require('./lib/logger');
 const { createDebugEventStore } = require('./lib/debug-events');
@@ -1052,7 +1053,11 @@ function createServer(options) {
   const startupMs = Date.now();
 
   const sharedConfig = Object.assign({}, dashboardConfig, { logger });
+  const renderMode = String((dashboardConfig.radar && dashboardConfig.radar.renderMode) || 'server_gif').toLowerCase();
   const radarClient = (options && options.radarClient) || createRainViewerClient(sharedConfig);
+  const bomGifClient = (renderMode === 'bom_gif')
+    ? ((options && options.bomGifClient) || createBomRadarClient(sharedConfig))
+    : null;
   const radarTileCache = new Map();
   const mapTileCache = new Map();
   const mapClient = (options && options.mapClient) || createMapTileClient(sharedConfig);
@@ -1249,6 +1254,14 @@ function createServer(options) {
       startSchedule: function startSchedule() { return function stop() {}; },
       warmGif: function warmGifNoop() { return false; }
     }
+    : (renderMode === 'bom_gif' && bomGifClient)
+    ? createBomGifRenderer({
+      config: dashboardConfig,
+      logger,
+      fetchMapTile,
+      bomClient: bomGifClient,
+      gifCacheDir: options && options.radarGifCacheDir
+    })
     : createRadarGifRenderer({
       config: dashboardConfig,
       logger,
@@ -1426,28 +1439,38 @@ function createServer(options) {
     stoppers.push(scheduleExternalPolling(sources, externalState, dashboardConfig, timers));
     stoppers.push(scheduleInternetPolling(internetProbe, dashboardConfig.internet || {}, timers));
 
-    stoppers.push(scheduleRadarPolling(
-      radarClient,
-      radarState,
-      dashboardConfig.radar,
-      timers,
-      (options && typeof options.onRadarFramesAvailable === 'function')
-        ? options.onRadarFramesAvailable
-        : function onRadarFramesAvailableDefault() {
-          warmRadarAnimation();
-        }
-    ));
+    if (renderMode === 'bom_gif' && bomGifClient) {
+      // Poll BOM loop page to keep frame list fresh; GIF schedule triggers renders
+      const bomLoopRefreshMs = Math.max(60, Number(dashboardConfig.radar.refreshSeconds || 180)) * 1000;
+      const bomLoopTick = async function bomLoopTick() {
+        try { await bomGifClient.refresh(); } catch (_err) {}
+      };
+      bomLoopTick();
+      const bomLoopTimer = timers.setInterval(bomLoopTick, bomLoopRefreshMs);
+      stoppers.push(function stopBomLoop() { timers.clearInterval(bomLoopTimer); });
+    } else {
+      stoppers.push(scheduleRadarPolling(
+        radarClient,
+        radarState,
+        dashboardConfig.radar,
+        timers,
+        (options && typeof options.onRadarFramesAvailable === 'function')
+          ? options.onRadarFramesAvailable
+          : function onRadarFramesAvailableDefault() {
+            warmRadarAnimation();
+          }
+      ));
+    }
 
     // Start periodic GIF rendering (fires first render immediately)
-    if (String((dashboardConfig.radar && dashboardConfig.radar.renderMode) || 'server_gif').toLowerCase() === 'server_gif' &&
-      canRenderRadarGif()) {
+    if ((renderMode === 'server_gif' || renderMode === 'bom_gif') && canRenderRadarGif()) {
       const gifStop = radarAnimationRenderer.startSchedule({
         intervalMs: Math.max(30, Number(dashboardConfig.radar.refreshSeconds || 120)) * 1000
       });
       stoppers.push(gifStop);
     }
 
-    if (String((dashboardConfig.radar && dashboardConfig.radar.renderMode) || '').toLowerCase() === 'bom_static') {
+    if (renderMode === 'bom_static') {
       const bomRefreshMs = Math.max(30, Number(dashboardConfig.radar.refreshSeconds || 120)) * 1000;
       const bomTick = async function bomTick() {
         try {
