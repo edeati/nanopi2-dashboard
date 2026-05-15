@@ -112,6 +112,7 @@ function normalizeDashboardConfig(input) {
     bomTileStepMinutes: 5,
     bomTileLagMinutes: 5,
     bomTileFrameCount: 7,
+    radarTileFilter: '',
     sourceUrl: '',
     refreshSeconds: 120,
     startupRetrySeconds: 5,
@@ -217,6 +218,7 @@ function validateDashboardConfig(config) {
     ['server_gif', 'rainviewer_iframe', 'local_tiles', 'bom_static', 'bom_gif'].indexOf(config.radar.renderMode) > -1 &&
     typeof config.radar.iframeUrl === 'string' &&
     typeof config.radar.tileUrlTemplate === 'string' &&
+    typeof config.radar.radarTileFilter === 'string' &&
     typeof config.radar.sourceUrl === 'string' &&
     typeof config.radar.gifFontFile === 'string';
 

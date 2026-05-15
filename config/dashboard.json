@@ -144,6 +144,7 @@
     "bomTileStepMinutes": 5,
     "bomTileLagMinutes": 5,
     "bomTileFrameCount": 7,
+    "radarTileFilter": "format=rgba,eq=saturation=2.35:contrast=1.35:brightness=0.02",
     "sourceUrl": "https://www.bom.gov.au/products/IDR66A.loop.shtml",
     "bomRangeKm": 256,
     "bomCropTopPx": 18,

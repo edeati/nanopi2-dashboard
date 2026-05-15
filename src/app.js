@@ -416,6 +416,7 @@ function createApp(options) {
       radar: {
         available: Array.isArray(radarState.frames) && radarState.frames.length > 0,
         updatedAt: radarState.updatedAt,
+        provider: dashboardConfig.radar.provider,
         renderMode: radarRenderMode,
         iframeUrl: radarClientIframeUrl,
         gifUpdatedAt: gifMeta && gifMeta.renderedAt ? gifMeta.renderedAt : null,
@@ -488,6 +489,7 @@ function createApp(options) {
           realtime: froniusState.getState(now).realtime
         },
         radar: {
+          provider: dashboardConfig.radar.provider,
           renderMode: radarRenderMode,
           iframeUrl: radarClientIframeUrl,
           gifUpdatedAt: gifMeta && gifMeta.renderedAt ? gifMeta.renderedAt : null,
@@ -525,6 +527,7 @@ function createApp(options) {
       return sendJson(res, 200, {
         available: Array.isArray(radarState.frames) && radarState.frames.length > 0,
         updatedAt: radarState.updatedAt,
+        provider: dashboardConfig.radar.provider,
         frames: radarState.frames || [],
         lat: dashboardConfig.radar.lat,
         lon: dashboardConfig.radar.lon,

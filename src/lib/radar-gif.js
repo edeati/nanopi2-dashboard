@@ -399,6 +399,31 @@ function buildOverlayFilter(inputs) {
   return parts.join(';');
 }
 
+function buildOverlayFilterWithInputFilters(inputs) {
+  if (!Array.isArray(inputs) || inputs.length === 0) {
+    return null;
+  }
+  const parts = [];
+  let prev = '[0:v]';
+  for (let i = 0; i < inputs.length; i += 1) {
+    const inputIndex = i + 1;
+    const inputFilter = String(inputs[i].filter || '').trim();
+    const inputLabel = inputFilter ? ('[input' + inputIndex + ']') : ('[' + inputIndex + ':v]');
+    const out = (i === inputs.length - 1) ? '[vout]' : '[v' + inputIndex + ']';
+    if (inputFilter) {
+      parts.push('[' + inputIndex + ':v]' + inputFilter + inputLabel);
+    }
+    parts.push(
+      prev +
+      inputLabel +
+      'overlay=' + Math.round(Number(inputs[i].x || 0)) + ':' + Math.round(Number(inputs[i].y || 0)) +
+      out
+    );
+    prev = out;
+  }
+  return parts.join(';');
+}
+
 // ---------------------------------------------------------------------------
 // Main factory
 // ---------------------------------------------------------------------------
@@ -533,6 +558,11 @@ function createRadarGifRenderer(options) {
     const renderHeight = Math.min(1920, outputHeight + (overscanPx * 2));
     const colorSetting = toInteger(radarConfig.color, 3, 0, 10);
     const optionsSetting = radarConfig.options || '1_1';
+    const provider = String(radarConfig.provider || '').toLowerCase();
+    const radarTileFilter = String(
+      radarConfig.radarTileFilter ||
+      (provider === 'bom_tiles' ? 'format=rgba,eq=saturation=2.35:contrast=1.35:brightness=0.02' : '')
+    ).trim();
     const nowMs = Date.now();
     const dashboardTimeZone = config.timeZone || (config.ui && config.ui.timeZone) || process.env.TZ || '';
     const frameTimestampMaxAgeMinutes = toInteger(radarConfig.frameTimestampMaxAgeMinutes, 180, 5, 24 * 60);
@@ -566,6 +596,7 @@ function createRadarGifRenderer(options) {
       z,
       colorSetting,
       optionsSetting,
+      radarTileFilter,
       gifFrameDelayMs,
       framesSubset,
       generatedLabel: 'Generated: ' + formatGeneratedTimestamp(nowMs, dashboardTimeZone),
@@ -660,7 +691,7 @@ function createRadarGifRenderer(options) {
           }
 
           if (filePath) {
-            radarAssets.push({ filePath, x: tile.drawX, y: tile.drawY });
+            radarAssets.push({ filePath, x: tile.drawX, y: tile.drawY, isRadar: true });
           }
         }
 
@@ -679,9 +710,10 @@ function createRadarGifRenderer(options) {
         overlays.forEach((item) => {
           composeArgs.push('-i', item.filePath);
         });
-        const overlayFilter = buildOverlayFilter(overlays.map((item) => ({
+        const overlayFilter = buildOverlayFilterWithInputFilters(overlays.map((item) => ({
           x: item.x + plan.overscanPx,
-          y: item.y + plan.overscanPx
+          y: item.y + plan.overscanPx,
+          filter: item.isRadar ? plan.radarTileFilter : ''
         })));
         const cropX = plan.overscanPx;
         const cropY = plan.overscanPx;
