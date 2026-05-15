@@ -11,6 +11,7 @@ const { createGitSyncService } = require('./lib/git-sync');
 const { createExternalSources } = require('./lib/external-sources');
 const { createRainViewerClient } = require('./lib/rainviewer');
 const { createBomRadarClient } = require('./lib/bom-radar');
+const { createBomTilesClient } = require('./lib/bom-tiles');
 const { createMapTileClient } = require('./lib/map-tiles');
 const { createRadarGifRenderer, createBomGifRenderer } = require('./lib/radar-gif');
 const { createInternetProbeService } = require('./lib/internet-probe');
@@ -1054,7 +1055,11 @@ function createServer(options) {
 
   const sharedConfig = Object.assign({}, dashboardConfig, { logger });
   const renderMode = String((dashboardConfig.radar && dashboardConfig.radar.renderMode) || 'server_gif').toLowerCase();
-  const radarClient = (options && options.radarClient) || createRainViewerClient(sharedConfig);
+  const radarProvider = String((dashboardConfig.radar && dashboardConfig.radar.provider) || 'rainviewer').toLowerCase();
+  const radarClient = (options && options.radarClient) ||
+    (radarProvider === 'bom_tiles' || radarProvider === 'bom-tile' || radarProvider === 'bom_tiles_aus'
+      ? createBomTilesClient(sharedConfig)
+      : createRainViewerClient(sharedConfig));
   const bomGifClient = (renderMode === 'bom_gif')
     ? ((options && options.bomGifClient) || createBomRadarClient(sharedConfig))
     : null;

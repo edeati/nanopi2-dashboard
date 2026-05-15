@@ -33,6 +33,9 @@ Node 14-compatible dashboard server and admin UI for NanoPi2, designed to replac
   - smooth transitions controlled by `radar.frameHoldMs` and `radar.transitionMs`
   - refresh interval controlled by `radar.refreshSeconds`
   - map provider template configured in `map.tileUrlTemplate`
+- BOM tiled radar provider:
+  - set `radar.provider` to `bom_tiles` to use BOM Web Mercator radar tiles (`radar.tileUrlTemplate`)
+  - server synthesizes recent 5-minute frame timestamps and renders them through the existing server GIF path
 - Solar focus visuals:
   - canvas current-generation gauge
   - canvas daily ring summary

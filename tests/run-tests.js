@@ -8,6 +8,7 @@ const testModules = [
   './http-debug.test.js',
   './internet-probe.test.js',
   './rainviewer.test.js',
+  './bom-tiles.test.js',
   './radar-startup-retry.test.js',
   './radar-animation-cache.test.js',
   './radar-gif.test.js',

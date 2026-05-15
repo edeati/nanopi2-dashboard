@@ -108,6 +108,10 @@ function normalizeDashboardConfig(input) {
   config.radar = Object.assign({
     provider: 'rainviewer',
     apiUrl: 'https://api.rainviewer.com/public/weather-maps.json',
+    tileUrlTemplate: 'https://radar-tiles.service.bom.gov.au/tiles/{time}/{z}/{x}/{y}.png',
+    bomTileStepMinutes: 5,
+    bomTileLagMinutes: 5,
+    bomTileFrameCount: 7,
     sourceUrl: '',
     refreshSeconds: 120,
     startupRetrySeconds: 5,
@@ -212,6 +216,7 @@ function validateDashboardConfig(config) {
     typeof config.radar.renderMode === 'string' &&
     ['server_gif', 'rainviewer_iframe', 'local_tiles', 'bom_static', 'bom_gif'].indexOf(config.radar.renderMode) > -1 &&
     typeof config.radar.iframeUrl === 'string' &&
+    typeof config.radar.tileUrlTemplate === 'string' &&
     typeof config.radar.sourceUrl === 'string' &&
     typeof config.radar.gifFontFile === 'string';
 

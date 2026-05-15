@@ -66,6 +66,7 @@ module.exports = async function run() {
     assert.strictEqual(config.internet.offlineFailureThreshold, 3);
     assert.strictEqual(config.radar.renderMode, 'server_gif');
     assert.strictEqual(config.radar.iframeUrl, 'https://www.rainviewer.com/map.html');
+    assert.strictEqual(config.radar.tileUrlTemplate, 'https://radar-tiles.service.bom.gov.au/tiles/{time}/{z}/{x}/{y}.png');
     assert.strictEqual(config.radar.sourceUrl, '');
     assert.ok(Array.isArray(config.reminders));
     assert.deepStrictEqual(config.reminders, []);
