@@ -76,14 +76,11 @@ Debug events are buffered in memory and available after admin login:
 - `GET /api/admin/debug/events?limit=200`
 - `POST /api/admin/debug/clear`
 
-## Radar GIF backends (`sharp` and `ffmpeg`)
+## Radar GIF backend
 
-Server-side radar GIF rendering now supports backend fallback:
+Server-side radar GIF rendering uses `ffmpeg` for tile compositing and GIF encoding.
 
-- primary: `sharp` + `gif-encoder-2`
-- fallback: `ffmpeg` compositing/encoding (when `sharp` is unavailable or unsafe)
-
-If neither backend is available, the server still starts normally and falls back to PNG radar mode (`/api/radar/meta` + `/api/radar/tile/...`) instead of crashing.
+If `ffmpeg` is unavailable, the server still starts normally and falls back to PNG radar mode (`/api/radar/meta` + `/api/radar/tile/...`) instead of crashing.
 
 You can force a backend with config:
 
@@ -93,12 +90,12 @@ You can force a backend with config:
 }
 ```
 
-Supported values: `auto` (default), `sharp`, `ffmpeg`.
+Supported values: `auto` (default) and `ffmpeg`. `sharp` is intentionally not a production dependency because its native binaries can crash on older CPUs without SSE4.2.
 
-To ensure GIF mode in runtime images, install dependencies/tools in the runtime image/workdir:
+To ensure GIF mode in runtime images, install `ffmpeg` in the runtime image:
 
 ```bash
-npm install
+apt-get install ffmpeg
 ```
 
 ## Repository layout

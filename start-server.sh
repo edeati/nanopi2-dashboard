@@ -6,4 +6,4 @@ export NODE_OPTIONS="--dns-result-order=ipv4first --no-network-family-autoselect
 lsof -tiTCP:8090 -sTCP:LISTEN | xargs -r kill || true
 
 # Foreground process (do NOT nohup or &)
-exec npm start
+exec node src/server.js

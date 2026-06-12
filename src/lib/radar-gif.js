@@ -137,6 +137,16 @@ function probeSharpAvailability() {
     return sharpProbeState;
   }
 
+  try {
+    const cpuInfo = fs.readFileSync('/proc/cpuinfo', 'utf8').toLowerCase();
+    if (cpuInfo && cpuInfo.indexOf('sse4_2') === -1) {
+      sharpProbeState = { available: false, reason: 'cpu_missing_sse4_2' };
+      return sharpProbeState;
+    }
+  } catch (_error) {
+    // Non-Linux platforms or restricted environments can still use the runtime probe below.
+  }
+
   const probe = spawnSync(
     process.execPath,
     ['-e', 'require("sharp")'],
@@ -430,7 +440,6 @@ function buildOverlayFilterWithInputFilters(inputs) {
 
 function createRadarGifRenderer(options) {
   const opts = options || {};
-  const sharpImpl = Object.prototype.hasOwnProperty.call(opts, 'sharp') ? opts.sharp : loadSharpIfSafe();
   const ffmpegBinary = String((opts && opts.ffmpegBinary) || 'ffmpeg');
   const ffmpegAvailable = probeFfmpegAvailability(ffmpegBinary);
   const execFileImpl = opts.execFileImpl;
@@ -542,9 +551,10 @@ function createRadarGifRenderer(options) {
     // Keep rendering dimension stable and independent from request query params.
     const outputWidth = toInteger(radarConfig.gifWidth, 800, 64, 1920);
     const outputHeight = toInteger(radarConfig.gifHeight, 480, 64, 1920);
+    const providerMaxZoom = toInteger(radarConfig.providerMaxZoom, 6, 1, 12);
     const z = Math.min(
       toInteger(radarConfig.zoom, 6, 1, 12),
-      toInteger(radarConfig.providerMaxZoom, 6, 1, 12)
+      providerMaxZoom
     );
     const lat = Number(radarConfig.lat) || -27.47;
     const lon = Number(radarConfig.lon) || 153.02;
@@ -559,6 +569,15 @@ function createRadarGifRenderer(options) {
     const colorSetting = toInteger(radarConfig.color, 3, 0, 10);
     const optionsSetting = radarConfig.options || '1_1';
     const provider = String(radarConfig.provider || '').toLowerCase();
+    const defaultRadarTileZoomOffset = provider === 'bom_reflectivity' ? 1 : 0;
+    const radarTileZoomOffset = toInteger(
+      radarConfig.radarTileZoomOffset,
+      defaultRadarTileZoomOffset,
+      0,
+      3
+    );
+    const radarZ = Math.min(providerMaxZoom, z + radarTileZoomOffset);
+    const radarScale = Math.pow(2, Math.max(0, radarZ - z));
     const radarTileFilter = String(
       radarConfig.radarTileFilter ||
       (provider === 'bom_tiles' ? 'format=rgba,eq=saturation=2.35:contrast=1.35:brightness=0.02' : '')
@@ -570,7 +589,6 @@ function createRadarGifRenderer(options) {
     const defaultFontFile = '/usr/share/fonts/TTF/DejaVuSans.ttf';
     const fontFilePath = configuredFontFile || defaultFontFile;
     const drawTextFontFile = fs.existsSync(fontFilePath) ? fontFilePath : '';
-
     const radarState = getRadarState();
     const frames = Array.isArray(radarState && radarState.frames) ? radarState.frames : [];
     if (!frames.length) {
@@ -594,6 +612,8 @@ function createRadarGifRenderer(options) {
       overscanPx,
       rightTrimPx,
       z,
+      radarZ,
+      radarScale,
       colorSetting,
       optionsSetting,
       radarTileFilter,
@@ -613,6 +633,14 @@ function createRadarGifRenderer(options) {
         z,
         width: renderWidth,
         height: renderHeight,
+        extraTiles
+      }),
+      radarTiles: computeVisibleTiles({
+        lat,
+        lon,
+        z: radarZ,
+        width: renderWidth * radarScale,
+        height: renderHeight * radarScale,
         extraTiles
       })
     };
@@ -656,15 +684,15 @@ function createRadarGifRenderer(options) {
       for (let i = 0; i < plan.framesSubset.length; i += 1) {
         const frameRef = plan.framesSubset[i] || {};
         const radarAssets = [];
-        for (let t = 0; t < plan.tiles.length; t += 1) {
-          const tile = plan.tiles[t];
-          const norm = normalizeTileCoords(plan.z, tile.tx, tile.ty);
+        for (let t = 0; t < plan.radarTiles.length; t += 1) {
+          const tile = plan.radarTiles[t];
+          const norm = normalizeTileCoords(plan.radarZ, tile.tx, tile.ty);
           let filePath = '';
           try {
             const result = await fetchRadarTile({
               frameIndex: Number.isInteger(frameRef.index) ? frameRef.index : i,
               framePath: frameRef.path || '',
-              z: plan.z,
+              z: plan.radarZ,
               x: norm.x,
               y: norm.y,
               color: plan.colorSetting,
@@ -691,7 +719,12 @@ function createRadarGifRenderer(options) {
           }
 
           if (filePath) {
-            radarAssets.push({ filePath, x: tile.drawX, y: tile.drawY, isRadar: true });
+            radarAssets.push({
+              filePath,
+              x: tile.drawX / plan.radarScale,
+              y: tile.drawY / plan.radarScale,
+              isRadar: true
+            });
           }
         }
 
@@ -713,7 +746,14 @@ function createRadarGifRenderer(options) {
         const overlayFilter = buildOverlayFilterWithInputFilters(overlays.map((item) => ({
           x: item.x + plan.overscanPx,
           y: item.y + plan.overscanPx,
-          filter: item.isRadar ? plan.radarTileFilter : ''
+          filter: item.isRadar
+            ? [
+                plan.radarScale > 1
+                  ? ('scale=' + Math.round(TILE_SIZE / plan.radarScale) + ':' + Math.round(TILE_SIZE / plan.radarScale) + ':flags=neighbor')
+                  : '',
+                plan.radarTileFilter
+              ].filter(Boolean).join(',')
+            : ''
         })));
         const cropX = plan.overscanPx;
         const cropY = plan.overscanPx;
@@ -907,9 +947,6 @@ function createRadarGifRenderer(options) {
     if (!canRender()) {
       const error = new Error('gif_renderer_unavailable');
       error.code = 'gif_renderer_unavailable';
-      if (!sharpImpl && sharpLoadError) {
-        error.cause = sharpLoadError;
-      }
       logGif('warn', 'radar_gif_render_unavailable', errorSummary(error));
       throw error;
     }
@@ -1158,6 +1195,11 @@ function createBomGifRenderer(options) {
     const defaultFontFile = '/usr/share/fonts/TTF/DejaVuSans.ttf';
     const fontFilePath = configuredFontFile || defaultFontFile;
     const drawTextFontFile = fs.existsSync(fontFilePath) ? fontFilePath : '';
+    const bomImageFilter = String(
+      radarConfig.bomImageFilter ||
+      radarConfig.radarTileFilter ||
+      'format=rgba'
+    ).trim();
 
     const bomState = bomClient.getState();
     const framePaths = Array.isArray(bomState.frames) ? bomState.frames : [];
@@ -1207,6 +1249,7 @@ function createBomGifRenderer(options) {
       framesSubset,
       overlaySize,
       bomCropTopPx,
+      bomImageFilter,
       bomX,
       bomY,
       generatedLabel: 'Generated: ' + formatGeneratedTimestamp(nowMs, dashboardTimeZone),
@@ -1293,7 +1336,8 @@ function createBomGifRenderer(options) {
           const bomCrop = plan.bomCropTopPx > 0
             ? 'crop=in_w:in_h-' + plan.bomCropTopPx + ':0:' + plan.bomCropTopPx + ','
             : '';
-          const scaleFilter = '[' + bomInputIdx + ':v]' + bomCrop + 'scale=' + plan.overlaySize + ':' + plan.overlaySize + '[boms]';
+          const bomImageFilter = plan.bomImageFilter ? (plan.bomImageFilter + ',') : '';
+          const scaleFilter = '[' + bomInputIdx + ':v]' + bomCrop + bomImageFilter + 'scale=' + plan.overlaySize + ':' + plan.overlaySize + ':flags=neighbor[boms]';
           const bomOverlay = mapBase + '[boms]overlay=' + plan.bomX + ':' + plan.bomY + '[vout]';
           overlayFilter = (overlayFilter ? overlayFilter + ';' : '') + scaleFilter + ';' + bomOverlay;
         }

@@ -12,6 +12,7 @@ const { createExternalSources } = require('./lib/external-sources');
 const { createRainViewerClient } = require('./lib/rainviewer');
 const { createBomRadarClient } = require('./lib/bom-radar');
 const { createBomTilesClient } = require('./lib/bom-tiles');
+const { createBomReflectivityClient } = require('./lib/bom-reflectivity');
 const { createMapTileClient } = require('./lib/map-tiles');
 const { createRadarGifRenderer, createBomGifRenderer } = require('./lib/radar-gif');
 const { createInternetProbeService } = require('./lib/internet-probe');
@@ -1057,7 +1058,9 @@ function createServer(options) {
   const renderMode = String((dashboardConfig.radar && dashboardConfig.radar.renderMode) || 'server_gif').toLowerCase();
   const radarProvider = String((dashboardConfig.radar && dashboardConfig.radar.provider) || 'rainviewer').toLowerCase();
   const radarClient = (options && options.radarClient) ||
-    (radarProvider === 'bom_tiles' || radarProvider === 'bom-tile' || radarProvider === 'bom_tiles_aus'
+    (radarProvider === 'bom_reflectivity' || radarProvider === 'bom-reflectivity' || radarProvider === 'bom_dbz'
+      ? createBomReflectivityClient(sharedConfig)
+      : radarProvider === 'bom_tiles' || radarProvider === 'bom-tile' || radarProvider === 'bom_tiles_aus'
       ? createBomTilesClient(sharedConfig)
       : createRainViewerClient(sharedConfig));
   const bomGifClient = (renderMode === 'bom_gif')
