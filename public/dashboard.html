@@ -195,6 +195,7 @@
     #mainSolar .panel-corner-icon { color: #f2bb3c; }
     #weatherStripPanel .panel-corner-icon { color: #62bbff; }
     #binCard .panel-corner-icon { color: #8edb7c; }
+    #poolCleanerCard .panel-corner-icon { color: #62bbff; }
     #customCard .panel-corner-icon { color: #ffb577; }
     #globalRainIndicator .card-icon { color: #56aef8; width: 25px; height: 25px;}
     #globalRainIndicator .card-icon svg { width: 25px; height: 25px; }
@@ -664,12 +665,12 @@
       grid-column: 1 / span 2;
       grid-row: 2;
       display: grid;
-      grid-template-columns: minmax(0, 2.35fr) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 630px) minmax(210px, 0.9fr) minmax(170px, 0.72fr);
       gap: 8px;
       min-height: 0;
     }
 
-    #weatherStripPanel, #binCard, #customCard { min-height: 0; }
+    #weatherStripPanel, #binCard, #poolCleanerCard, #customCard { min-height: 0; }
     #weatherStripPanel {
       display: grid;
       grid-template-rows: 1fr;
@@ -692,6 +693,14 @@
       display: none;
       position: relative;
       overflow: hidden;
+    }
+    #poolCleanerCard {
+      display: grid;
+      align-content: stretch;
+      background:
+        linear-gradient(160deg, rgba(37, 118, 150, 0.28), rgba(10, 24, 35, 0.78)),
+        var(--bg-panel);
+      border-color: rgba(98, 187, 255, 0.28);
     }
     #customCard {
       display: flex;
@@ -1620,7 +1629,7 @@
 
     #timeBig {
       font-family: var(--font-time);
-      font-size: 52px;
+      font-size: 46px;
       letter-spacing: 0.02em;
       font-weight: 700;
       line-height: 1;
@@ -1790,7 +1799,7 @@
       }
 
       #bottomRow {
-        grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
+        grid-template-columns: minmax(0, 630px) minmax(210px, 0.9fr) minmax(160px, 0.68fr);
       }
 
       #weatherBinsStripTrack {
@@ -1842,11 +1851,11 @@
       }
 
       #timeBig {
-        font-size: 66px;
+        font-size: 58px;
       }
 
       #dateBig {
-        font-size: 22px;
+        font-size: 20px;
       }
 
       .g-label {
@@ -1888,6 +1897,13 @@
     }
     /* ── Beatbot pool cleaner card ─────────────────────────── */
     .pool-cleaner-card { display: flex; flex-direction: column; gap: 10px; height: 100%; }
+    #poolCleanerStatic {
+      height: 100%;
+      min-height: 0;
+    }
+    #poolCleanerStatic .pool-cleaner-card {
+      justify-content: space-between;
+    }
     .pool-cleaner-header { display: flex; align-items: center; gap: 10px; }
     .pool-cleaner-name { flex: 1; font-weight: 700; font-size: 17px; letter-spacing: 0.01em; }
     .pool-cleaner-badge {
@@ -1931,6 +1947,14 @@
     .pool-cleaner-btn.btn-start { border-color: rgba(142,219,124,0.35); color: var(--green); }
     .pool-cleaner-btn.btn-pause { border-color: rgba(242,187,60,0.35); color: var(--yellow); }
     .pool-cleaner-btn.btn-return { border-color: rgba(45,156,255,0.35); color: var(--blue); }
+    .pool-cleaner-empty {
+      display: grid;
+      place-items: center;
+      height: 100%;
+      color: var(--muted);
+      font-size: 15px;
+      text-align: center;
+    }
     /* Strip card variant */
     .strip-card-pool { min-width: 196px; }
     .strip-pool-status { font-size: 18px; font-weight: 700; margin-top: 2px; }
@@ -2073,6 +2097,12 @@
         </div>
       </section>
 
+      <section id="poolCleanerCard" class="panel panel-icon">
+        <span class="panel-corner-icon"><svg><use href="#i-rain"></use></svg></span>
+        <span class="panel-title">Pool Cleaner</span>
+        <div id="poolCleanerStatic" class="pool-cleaner-empty">Pool cleaner unavailable</div>
+      </section>
+
       <section id="customCard" class="panel panel-icon">
         <span class="panel-corner-icon"><svg><use href="#i-clock"></use></svg></span>
         <span class="panel-title">Clock</span>
@@ -2110,6 +2140,7 @@
       var solarBarCtx = solarBarCanvas.getContext('2d');
       var newsTickerNode = document.getElementById('newsTicker');
       var weatherBinsStripTrackNode = document.getElementById('weatherBinsStripTrack');
+      var poolCleanerStaticNode = document.getElementById('poolCleanerStatic');
       var binCardNode = document.getElementById('binCard');
       var binRowsNode = document.getElementById('binRows');
       var binFocusPageNode = document.getElementById('binFocusPage');
@@ -2156,6 +2187,7 @@
       var weatherRotatorQueuedIndex = -1;
       var lastWeatherRotatorSig = '';
       var lastCombinedStripSig = '';
+      var lastPoolCleanerSig = '';
       var firstDataApplied = false;
       var radarLoopStarted = false;
       var stateFetchInFlight = false;
@@ -3578,20 +3610,6 @@
               label: item.label || 'Batteries',
               items: Array.isArray(item.items) ? item.items : []
             });
-          } else if (item.type === 'pool_cleaner') {
-            cards.push({
-              kind: 'pool_cleaner',
-              id: item.id || '',
-              label: item.label || 'Pool Cleaner',
-              online: !!item.online,
-              battery: item.battery,
-              status: item.status || null,
-              statusLabel: item.statusLabel || item.status || '--',
-              workMode: item.workMode || null,
-              availableWorkModes: Array.isArray(item.availableWorkModes) ? item.availableWorkModes : [],
-              errors: Array.isArray(item.errors) ? item.errors : [],
-              supportedActions: Array.isArray(item.supportedActions) ? item.supportedActions : []
-            });
           }
         }
         if (state.internet) {
@@ -3613,23 +3631,6 @@
             downloadMbps: downNow,
             uploadMbps: upNow,
             history: history
-          });
-        }
-        var beatbotDevices = (state.beatbot && Array.isArray(state.beatbot.devices)) ? state.beatbot.devices : [];
-        for (var bi = 0; bi < beatbotDevices.length; bi += 1) {
-          var bd = beatbotDevices[bi] || {};
-          cards.push({
-            kind: 'pool_cleaner',
-            id: bd.id || '',
-            label: bd.name || 'Pool Cleaner',
-            online: !!bd.online,
-            battery: bd.battery,
-            status: bd.status || null,
-            statusLabel: bd.statusLabel || bd.status || '--',
-            workMode: bd.workMode || null,
-            availableWorkModes: Array.isArray(bd.availableWorkModes) ? bd.availableWorkModes : [],
-            errors: Array.isArray(bd.errors) ? bd.errors : [],
-            supportedActions: Array.isArray(bd.supportedActions) ? bd.supportedActions : []
           });
         }
         return cards;
@@ -3671,6 +3672,161 @@
           }
           return String(card.kind || 'unknown');
         }).join('||');
+      }
+
+      function buildPoolCleanerCard(state) {
+        var beatbotDevices = (state.beatbot && Array.isArray(state.beatbot.devices)) ? state.beatbot.devices : [];
+        if (!beatbotDevices.length) {
+          return null;
+        }
+        var bd = beatbotDevices[0] || {};
+        return {
+          kind: 'pool_cleaner',
+          id: bd.id || '',
+          label: bd.name || 'Pool Cleaner',
+          online: !!bd.online,
+          battery: bd.battery,
+          status: bd.status || null,
+          statusLabel: bd.statusLabel || bd.status || '--',
+          workMode: bd.workMode || null,
+          availableWorkModes: Array.isArray(bd.availableWorkModes) ? bd.availableWorkModes : [],
+          errors: Array.isArray(bd.errors) ? bd.errors : [],
+          supportedActions: Array.isArray(bd.supportedActions) ? bd.supportedActions : [],
+          stale: !!(state.beatbot && state.beatbot.stale),
+          error: (state.beatbot && state.beatbot.error) || null
+        };
+      }
+
+      function poolCleanerSignature(card, beatbotState) {
+        if (!card) {
+          var reason = beatbotState && beatbotState.error ? String(beatbotState.error) : '';
+          return ['pool_cleaner_empty', String(!!(beatbotState && beatbotState.stale)), reason].join('|');
+        }
+        return [
+          'pool_cleaner',
+          card.id || '',
+          String(!!card.online),
+          String(card.battery),
+          card.status || '',
+          card.workMode || '',
+          card.errors.join(','),
+          card.supportedActions.join(',')
+        ].join('|');
+      }
+
+      function attachPoolCleanerControls(root) {
+        if (!root) {
+          return;
+        }
+        var pcBtnEls = root.querySelectorAll('[data-pc-action]');
+        for (var pci = 0; pci < pcBtnEls.length; pci += 1) {
+          (function (btn) {
+            btn.addEventListener('click', function () {
+              if (btn.disabled || btn.classList.contains('is-busy')) { return; }
+              var action = btn.getAttribute('data-pc-action');
+              var id = btn.getAttribute('data-pc-id');
+              btn.classList.add('is-busy');
+              btn.disabled = true;
+              fetch('/api/beatbot/devices/' + encodeURIComponent(id) + '/actions/' + action, { method: 'POST' })
+                .then(function (r) { return r.json(); })
+                .catch(function () {})
+                .finally(function () {
+                  setTimeout(function () {
+                    btn.classList.remove('is-busy');
+                    btn.disabled = false;
+                  }, 4000);
+                });
+            });
+          }(pcBtnEls[pci]));
+        }
+
+        var pcModeEl = root.querySelector('[data-pc-mode-id]');
+        if (pcModeEl) {
+          pcModeEl.addEventListener('change', function () {
+            var id = pcModeEl.getAttribute('data-pc-mode-id');
+            var mode = pcModeEl.value;
+            pcModeEl.disabled = true;
+            fetch('/api/beatbot/devices/' + encodeURIComponent(id) + '/work-mode', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mode: mode })
+            }).catch(function () {}).finally(function () {
+              setTimeout(function () { pcModeEl.disabled = false; }, 4000);
+            });
+          });
+        }
+      }
+
+      function renderPoolCleanerStatic(card, beatbotState) {
+        if (!poolCleanerStaticNode) {
+          return;
+        }
+        if (!card) {
+          var message = beatbotState && beatbotState.error
+            ? 'Pool cleaner error: ' + beatbotState.error
+            : 'Pool cleaner unavailable';
+          poolCleanerStaticNode.className = 'pool-cleaner-empty';
+          poolCleanerStaticNode.textContent = message;
+          return;
+        }
+
+        var pcBatteryVal = Number.isFinite(Number(card.battery)) ? Number(card.battery) : null;
+        var pcBatText = pcBatteryVal !== null ? (pcBatteryVal.toFixed(0) + '%') : '--';
+        var pcBatClass = pcBatteryVal === null ? '' : (pcBatteryVal >= 50 ? 'bat-ok' : pcBatteryVal >= 20 ? 'bat-warn' : 'bat-low');
+        var pcOfflineAttr = card.online ? '' : ' disabled';
+        var pcActions = Array.isArray(card.supportedActions) ? card.supportedActions : [];
+        var pcModes = Array.isArray(card.availableWorkModes) ? card.availableWorkModes : [];
+        var pcErrors = Array.isArray(card.errors) ? card.errors : [];
+        var pcId = String(card.id || '');
+
+        var pcBtns = '';
+        if (pcActions.indexOf('start') > -1) {
+          pcBtns += '<button class=\"pool-cleaner-btn btn-start\" data-pc-action=\"start\" data-pc-id=\"' + escapeHtml(pcId) + '\"' + pcOfflineAttr + '>▶ Start</button>';
+        }
+        if (pcActions.indexOf('pause') > -1) {
+          pcBtns += '<button class=\"pool-cleaner-btn btn-pause\" data-pc-action=\"pause\" data-pc-id=\"' + escapeHtml(pcId) + '\"' + pcOfflineAttr + '>⏸ Pause</button>';
+        }
+        if (pcActions.indexOf('return') > -1) {
+          pcBtns += '<button class=\"pool-cleaner-btn btn-return\" data-pc-action=\"return\" data-pc-id=\"' + escapeHtml(pcId) + '\"' + pcOfflineAttr + '>⏎ Return</button>';
+        }
+
+        var pcModeHtml = '';
+        if (pcModes.length) {
+          var pcModeOptions = pcModes.map(function (m) {
+            var sel = m === card.workMode ? ' selected' : '';
+            return '<option value=\"' + escapeHtml(m) + '\"' + sel + '>' + escapeHtml(m) + '</option>';
+          }).join('');
+          pcModeHtml = '<hr class=\"pool-cleaner-divider\">' +
+            '<div class=\"pool-cleaner-mode-row\">' +
+            '<span class=\"pool-cleaner-mode-label\">Mode</span>' +
+            '<select class=\"pool-cleaner-mode-select\" data-pc-mode-id=\"' + escapeHtml(pcId) + '\"' + pcOfflineAttr + '>' + pcModeOptions + '</select>' +
+            '</div>';
+        }
+
+        var pcErrorHtml = '';
+        if (pcErrors.length) {
+          var pcIsFault = pcErrors.some(function (e) { return e.toLowerCase().indexOf('notice') === -1; });
+          pcErrorHtml = '<div class=\"pool-cleaner-errors' + (pcIsFault ? ' has-fault' : '') + '\">⚠ ' + escapeHtml(pcErrors.join(' · ')) + '</div>';
+        }
+
+        poolCleanerStaticNode.className = '';
+        poolCleanerStaticNode.innerHTML =
+          '<div class=\"pool-cleaner-card\">' +
+          '<div class=\"pool-cleaner-header\">' +
+          '<span class=\"pool-cleaner-name\">' + escapeHtml(card.label || 'Pool Cleaner') + '</span>' +
+          '<span class=\"pool-cleaner-badge ' + (card.online ? 'is-online' : 'is-offline') + '\">' +
+          '<span class=\"pool-cleaner-badge-dot\"></span>' + (card.online ? 'Online' : 'Offline') +
+          '</span>' +
+          '</div>' +
+          '<div class=\"pool-cleaner-status-row\">' +
+          '<div class=\"pool-cleaner-status\">' + escapeHtml(card.statusLabel || '--') + '</div>' +
+          '<div class=\"pool-cleaner-battery ' + pcBatClass + '\">🔋 ' + pcBatText + '</div>' +
+          '</div>' +
+          pcErrorHtml +
+          pcModeHtml +
+          (pcBtns ? '<hr class=\"pool-cleaner-divider\"><div class=\"pool-cleaner-actions\">' + pcBtns + '</div>' : '') +
+          '</div>';
+        attachPoolCleanerControls(poolCleanerStaticNode);
       }
 
       function reminderIconGlyph(icon) {
@@ -4130,6 +4286,12 @@
         if (combinedStripSig !== lastCombinedStripSig) {
           lastCombinedStripSig = combinedStripSig;
           renderCombinedStrip(combinedStripCards);
+        }
+        var nextPoolCleanerCard = buildPoolCleanerCard(state);
+        var nextPoolCleanerSig = poolCleanerSignature(nextPoolCleanerCard, state.beatbot || {});
+        if (nextPoolCleanerSig !== lastPoolCleanerSig) {
+          lastPoolCleanerSig = nextPoolCleanerSig;
+          renderPoolCleanerStatic(nextPoolCleanerCard, state.beatbot || {});
         }
         var newsHeadlines = Array.isArray(state.news.headlines) ? state.news.headlines : [];
         setNewsTickerText(newsHeadlines.join('   |   ') || 'No headlines currently available');
