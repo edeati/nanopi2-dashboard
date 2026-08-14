@@ -1916,9 +1916,10 @@
     .pool-cleaner-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
     .pool-cleaner-status { font-size: 22px; font-weight: 700; color: var(--text); }
     .pool-cleaner-battery {
-      font-size: 14px; font-family: var(--font-data);
+      font-size: 16px; font-family: var(--font-data);
       display: flex; align-items: center; gap: 5px; color: var(--muted);
     }
+    .pool-cleaner-battery strong { font-size: 19px; color: currentColor; }
     .pool-cleaner-battery.bat-ok { color: var(--green); }
     .pool-cleaner-battery.bat-warn { color: var(--yellow); }
     .pool-cleaner-battery.bat-low { color: var(--red); }
@@ -1958,7 +1959,7 @@
     /* Strip card variant */
     .strip-card-pool { min-width: 196px; }
     .strip-pool-status { font-size: 18px; font-weight: 700; margin-top: 2px; }
-    .strip-pool-battery { font-size: 13px; color: var(--muted); }
+    .strip-pool-battery { font-size: 14px; color: var(--muted); }
 
   </style>
 </head>
@@ -3697,6 +3698,20 @@
         };
       }
 
+      function poolCleanerModeLabel(mode) {
+        var key = String(mode || '').toLowerCase();
+        var labels = {
+          fast: 'Floor',
+          standard: 'Floor + Wall',
+          cec: 'Eco',
+          wall: 'Waterline'
+        };
+        if (labels[key]) {
+          return labels[key];
+        }
+        return key ? key.replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); }) : '';
+      }
+
       function poolCleanerSignature(card, beatbotState) {
         if (!card) {
           var reason = beatbotState && beatbotState.error ? String(beatbotState.error) : '';
@@ -3794,7 +3809,7 @@
         if (pcModes.length) {
           var pcModeOptions = pcModes.map(function (m) {
             var sel = m === card.workMode ? ' selected' : '';
-            return '<option value=\"' + escapeHtml(m) + '\"' + sel + '>' + escapeHtml(m) + '</option>';
+            return '<option value=\"' + escapeHtml(m) + '\"' + sel + '>' + escapeHtml(poolCleanerModeLabel(m)) + '</option>';
           }).join('');
           pcModeHtml = '<hr class=\"pool-cleaner-divider\">' +
             '<div class=\"pool-cleaner-mode-row\">' +
@@ -3820,8 +3835,9 @@
           '</div>' +
           '<div class=\"pool-cleaner-status-row\">' +
           '<div class=\"pool-cleaner-status\">' + escapeHtml(card.statusLabel || '--') + '</div>' +
-          '<div class=\"pool-cleaner-battery ' + pcBatClass + '\">🔋 ' + pcBatText + '</div>' +
+          '<div class=\"pool-cleaner-battery ' + pcBatClass + '\">Battery <strong>' + pcBatText + '</strong></div>' +
           '</div>' +
+          (card.workMode ? '<div class=\"pool-cleaner-battery\">Mode <strong>' + escapeHtml(poolCleanerModeLabel(card.workMode)) + '</strong></div>' : '') +
           pcErrorHtml +
           pcModeHtml +
           (pcBtns ? '<hr class=\"pool-cleaner-divider\"><div class=\"pool-cleaner-actions\">' + pcBtns + '</div>' : '') +
@@ -3964,7 +3980,7 @@
             '<div class="strip-card-head"><div class="strip-card-kicker">Pool Cleaner</div><div class="strip-card-tag">' + pcOnline + '</div></div>' +
             '<div class="strip-card-title has-divider">' + escapeHtml(card.label || 'Pool Cleaner') + '</div>' +
             '<div class="strip-pool-status">' + escapeHtml(card.statusLabel || '--') + '</div>' +
-            '<div class="strip-pool-battery">🔋 ' + pcBat + (card.workMode ? ' · ' + escapeHtml(card.workMode) : '') + '</div>' +
+            '<div class="strip-pool-battery">Battery ' + pcBat + (card.workMode ? ' · ' + escapeHtml(poolCleanerModeLabel(card.workMode)) : '') + '</div>' +
             '</article>';
         }
         if (card.kind === 'bin_feature') {
@@ -4105,7 +4121,7 @@
           if (pcModes.length) {
             var pcModeOptions = pcModes.map(function (m) {
               var sel = m === card.workMode ? ' selected' : '';
-              return '<option value=\"' + escapeHtml(m) + '\"' + sel + '>' + escapeHtml(m) + '</option>';
+              return '<option value=\"' + escapeHtml(m) + '\"' + sel + '>' + escapeHtml(poolCleanerModeLabel(m)) + '</option>';
             }).join('');
             pcModeHtml = '<hr class=\"pool-cleaner-divider\">' +
               '<div class=\"pool-cleaner-mode-row\">' +
@@ -4131,8 +4147,9 @@
             '</div>' +
             '<div class=\"pool-cleaner-status-row\">' +
             '<div class=\"pool-cleaner-status\">' + escapeHtml(card.statusLabel || '--') + '</div>' +
-            '<div class=\"pool-cleaner-battery ' + pcBatClass + '\">🔋 ' + pcBatText + '</div>' +
+            '<div class=\"pool-cleaner-battery ' + pcBatClass + '\">Battery <strong>' + pcBatText + '</strong></div>' +
             '</div>' +
+            (card.workMode ? '<div class=\"pool-cleaner-battery\">Mode <strong>' + escapeHtml(poolCleanerModeLabel(card.workMode)) + '</strong></div>' : '') +
             pcErrorHtml +
             pcModeHtml +
             (pcBtns ? '<hr class=\"pool-cleaner-divider\"><div class=\"pool-cleaner-actions\">' + pcBtns + '</div>' : '') +
