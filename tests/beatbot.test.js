@@ -10,7 +10,7 @@ const {
   INTERFACES, STATUS_MAP, ERROR_BITS
 } = require('../src/lib/beatbot/protocol');
 const {
-  buildAuthUrl, decodeAccessToken, loadTokens, saveTokens
+  DEFAULT_REDIRECT_URI, buildAuthUrl, decodeAccessToken, loadTokens, saveTokens
 } = require('../src/lib/beatbot/auth');
 const { BeatbotClient } = require('../src/lib/beatbot/client');
 const { normalizeDevice, applyEvent, applyState } = require('../src/lib/beatbot/service');
@@ -123,14 +123,18 @@ function testErrorDecoding() {
 // ── Auth: PKCE + JWT decode ───────────────────────────────────────────────────
 
 function testAuthUrl() {
-  const { url, state } = buildAuthUrl('http://localhost:8090/api/beatbot/auth/callback');
+  const { url, state } = buildAuthUrl();
   assert.ok(url.startsWith('https://oauth.beatbot.com/oauth2/authorize'), 'wrong base URL');
   assert.ok(url.includes('code_challenge_method=S256'), 'missing S256');
   assert.ok(url.includes('client_id=home-assistant'), 'wrong client_id');
   assert.ok(url.includes('scope=device%3Ainfo') || url.includes('scope=device:info'), 'wrong scope');
-  assert.ok(url.includes('redirect_uri='), 'missing redirect_uri');
+  assert.ok(url.includes('redirect_uri=' + encodeURIComponent(DEFAULT_REDIRECT_URI)), 'wrong default redirect_uri');
   assert.ok(url.includes('code_challenge='), 'missing code_challenge');
   assert.ok(state && state.length > 0, 'missing state');
+
+  const localRedirect = 'http://localhost:8090/api/beatbot/auth/callback';
+  const local = buildAuthUrl(localRedirect);
+  assert.ok(local.url.includes('redirect_uri=' + encodeURIComponent(localRedirect)), 'explicit redirect_uri should be retained');
 
   // Two calls must produce different state values
   const r2 = buildAuthUrl('http://localhost/callback');

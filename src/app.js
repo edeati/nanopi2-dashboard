@@ -7,7 +7,7 @@ const { URL } = require('url');
 const querystring = require('querystring');
 const { verifyPassword } = require('./lib/auth');
 const { saveDashboardConfig } = require('./lib/config-loader');
-const { buildAuthUrl, exchangeCode } = require('./lib/beatbot/auth');
+const { DEFAULT_REDIRECT_URI, buildAuthUrl, exchangeCode } = require('./lib/beatbot/auth');
 
 const TRANSPARENT_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO9Wn2kAAAAASUVORK5CYII=',
@@ -378,6 +378,9 @@ function createApp(options) {
   const getDebugConfig = options.getDebugConfig || function getDebugConfigDefault() { return {}; };
   const beatbotService = options.beatbotService || null;
   const beatbotTokensPath = options.beatbotTokensPath || null;
+  const beatbotOAuthRedirectUri = String(
+    (options.beatbotOAuthRedirectUri || DEFAULT_REDIRECT_URI)
+  );
   const sessions = new Map();
 
   function buildStatePayload(now, radarRenderMode, radarClientIframeUrl, includeHeavy) {
@@ -921,14 +924,14 @@ function createApp(options) {
       if (!beatbotTokensPath) {
         return sendJson(res, 503, { error: 'beatbot_disabled' });
       }
-      const proto = String(req.headers['x-forwarded-proto'] || 'http');
-      const host = String(req.headers.host || 'localhost');
-      const redirectUri = proto + '://' + host + '/api/beatbot/auth/callback';
-      const { url } = buildAuthUrl(redirectUri);
+      const { url } = buildAuthUrl(beatbotOAuthRedirectUri);
       return redirect(res, url);
     }
 
-    if (req.method === 'GET' && urlPath === '/api/beatbot/auth/callback') {
+    if (
+      req.method === 'GET' &&
+      (urlPath === '/api/beatbot/auth/callback' || urlPath === '/auth/external/callback')
+    ) {
       if (!beatbotTokensPath) {
         return sendJson(res, 503, { error: 'beatbot_disabled' });
       }
@@ -942,11 +945,8 @@ function createApp(options) {
         return sendJson(res, 400, { error: 'missing_code_or_state' });
       }
       try {
-        const proto = String(req.headers['x-forwarded-proto'] || 'http');
-        const host = String(req.headers.host || 'localhost');
-        const redirectUri = proto + '://' + host + '/api/beatbot/auth/callback';
         const { saveTokens } = require('./lib/beatbot/auth');
-        const tokens = await exchangeCode(code, state, redirectUri);
+        const tokens = await exchangeCode(code, state, beatbotOAuthRedirectUri);
         saveTokens(beatbotTokensPath, tokens);
         // Kick the service to (re)start with fresh credentials
         if (beatbotService) {

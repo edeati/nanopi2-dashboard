@@ -10,6 +10,7 @@ const AUTHORIZE_URL = 'https://oauth.beatbot.com/oauth2/authorize';
 const TOKEN_URL = 'https://oauth.beatbot.com/oauth2/token';
 const CLIENT_ID = 'home-assistant';
 const SCOPE = 'device:info';
+const DEFAULT_REDIRECT_URI = 'https://my.home-assistant.io/redirect/oauth';
 
 // In-memory PKCE state store keyed by `state` param. Cleared after use.
 const pendingPkce = new Map();
@@ -40,9 +41,10 @@ function generateState() {
  * @returns {{ url: string, state: string }}
  */
 function buildAuthUrl(redirectUri) {
+  const callbackUri = String(redirectUri || DEFAULT_REDIRECT_URI);
   const { verifier, challenge } = generatePkce();
   const state = generateState();
-  pendingPkce.set(state, { verifier, ts: Date.now() });
+  pendingPkce.set(state, { verifier, redirectUri: callbackUri, ts: Date.now() });
 
   // Evict any pending states older than 30 minutes
   const cutoff = Date.now() - 30 * 60 * 1000;
@@ -55,7 +57,7 @@ function buildAuthUrl(redirectUri) {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: CLIENT_ID,
-    redirect_uri: redirectUri,
+    redirect_uri: callbackUri,
     scope: SCOPE,
     code_challenge: challenge,
     code_challenge_method: 'S256',
@@ -143,7 +145,7 @@ async function exchangeCode(code, state, redirectUri) {
   const json = await postForm(TOKEN_URL, {
     grant_type: 'authorization_code',
     code,
-    redirect_uri: redirectUri,
+    redirect_uri: pending.redirectUri || redirectUri || DEFAULT_REDIRECT_URI,
     client_id: CLIENT_ID,
     code_verifier: pending.verifier
   });
@@ -254,6 +256,7 @@ async function getValidAccessToken(tokensPath) {
 }
 
 module.exports = {
+  DEFAULT_REDIRECT_URI,
   buildAuthUrl,
   exchangeCode,
   refreshAccessToken,

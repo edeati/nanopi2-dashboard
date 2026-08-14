@@ -1404,7 +1404,8 @@ function createServer(options) {
     },
     publicDir: path.join(baseDir, 'public'),
     beatbotService,
-    beatbotTokensPath
+    beatbotTokensPath,
+    beatbotOAuthRedirectUri: beatbotConfig.oauthRedirectUri
   });
 
   const server = http.createServer(function onRequest(req, res) {
