@@ -7,6 +7,7 @@ const { URL } = require('url');
 const querystring = require('querystring');
 const { verifyPassword } = require('./lib/auth');
 const { saveDashboardConfig } = require('./lib/config-loader');
+const { buildAuthUrl, exchangeCode } = require('./lib/beatbot/auth');
 
 const TRANSPARENT_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO9Wn2kAAAAASUVORK5CYII=',
@@ -375,6 +376,8 @@ function createApp(options) {
   const getDebugEvents = options.getDebugEvents || function getDebugEventsDefault() { return []; };
   const clearDebugEvents = options.clearDebugEvents || function clearDebugEventsDefault() { return 0; };
   const getDebugConfig = options.getDebugConfig || function getDebugConfigDefault() { return {}; };
+  const beatbotService = options.beatbotService || null;
+  const beatbotTokensPath = options.beatbotTokensPath || null;
   const sessions = new Map();
 
   function buildStatePayload(now, radarRenderMode, radarClientIframeUrl, includeHeavy) {
@@ -413,6 +416,7 @@ function createApp(options) {
       bins: externalState.bins,
       reminders: Array.isArray(externalState.reminders) ? externalState.reminders : [],
       ha: externalState.ha || { cards: [], stale: true, error: 'ha_unavailable' },
+      beatbot: externalState.beatbot || { devices: [], stale: true, error: null },
       radar: {
         available: Array.isArray(radarState.frames) && radarState.frames.length > 0,
         updatedAt: radarState.updatedAt,
@@ -907,6 +911,210 @@ function createApp(options) {
         cleared: clearDebugEvents()
       });
     }
+
+    // ── Beatbot OAuth ───────────────────────────────────────────────────────
+
+    if (req.method === 'GET' && urlPath === '/api/beatbot/auth/start') {
+      if (!requireAuth(req, res)) {
+        return;
+      }
+      if (!beatbotTokensPath) {
+        return sendJson(res, 503, { error: 'beatbot_disabled' });
+      }
+      const proto = String(req.headers['x-forwarded-proto'] || 'http');
+      const host = String(req.headers.host || 'localhost');
+      const redirectUri = proto + '://' + host + '/api/beatbot/auth/callback';
+      const { url } = buildAuthUrl(redirectUri);
+      return redirect(res, url);
+    }
+
+    if (req.method === 'GET' && urlPath === '/api/beatbot/auth/callback') {
+      if (!beatbotTokensPath) {
+        return sendJson(res, 503, { error: 'beatbot_disabled' });
+      }
+      const code = requestUrl.searchParams.get('code');
+      const state = requestUrl.searchParams.get('state');
+      const errorParam = requestUrl.searchParams.get('error');
+      if (errorParam) {
+        return sendHtml(res, 400, '<h1>Beatbot OAuth error: ' + String(errorParam).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</h1>');
+      }
+      if (!code || !state) {
+        return sendJson(res, 400, { error: 'missing_code_or_state' });
+      }
+      try {
+        const proto = String(req.headers['x-forwarded-proto'] || 'http');
+        const host = String(req.headers.host || 'localhost');
+        const redirectUri = proto + '://' + host + '/api/beatbot/auth/callback';
+        const { saveTokens } = require('./lib/beatbot/auth');
+        const tokens = await exchangeCode(code, state, redirectUri);
+        saveTokens(beatbotTokensPath, tokens);
+        // Kick the service to (re)start with fresh credentials
+        if (beatbotService) {
+          beatbotService.reconcileNow().catch(function () {});
+        }
+        return sendHtml(res, 200,
+          '<h1>Beatbot connected</h1>' +
+          '<p>Authentication successful. Region: ' + String(tokens.region).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</p>' +
+          '<p><a href="/">Back to dashboard</a></p>'
+        );
+      } catch (err) {
+        return sendJson(res, 400, { error: 'token_exchange_failed', detail: err && err.message });
+      }
+    }
+
+    // ── Beatbot device state ────────────────────────────────────────────────
+
+    if (req.method === 'GET' && urlPath === '/api/beatbot/devices') {
+      if (!beatbotService) {
+        return sendJson(res, 503, { error: 'beatbot_disabled' });
+      }
+      return sendJson(res, 200, { devices: beatbotService.getDevices() });
+    }
+
+    if (req.method === 'GET' && urlPath.startsWith('/api/beatbot/devices/')) {
+      if (!beatbotService) {
+        return sendJson(res, 503, { error: 'beatbot_disabled' });
+      }
+      const deviceId = decodeURIComponent(urlPath.slice('/api/beatbot/devices/'.length).split('/')[0]);
+      const device = beatbotService.getDevice(deviceId);
+      if (!device) {
+        return sendJson(res, 404, { error: 'device_not_found' });
+      }
+      return sendJson(res, 200, device);
+    }
+
+    // ── Beatbot commands (auth-gated) ───────────────────────────────────────
+
+    if (req.method === 'POST' && urlPath.startsWith('/api/beatbot/devices/')) {
+      if (!requireAuth(req, res)) {
+        return;
+      }
+      if (!beatbotService) {
+        return sendJson(res, 503, { error: 'beatbot_disabled' });
+      }
+      const afterDevices = urlPath.slice('/api/beatbot/devices/'.length);
+      const parts = afterDevices.split('/');
+      const deviceId = decodeURIComponent(parts[0]);
+      const action = parts[2]; // /api/beatbot/devices/:id/actions/:action
+      if (parts[1] !== 'actions' || !action) {
+        return sendJson(res, 404, { error: 'not_found' });
+      }
+      try {
+        if (action === 'start') {
+          await beatbotService.sendStart(deviceId);
+        } else if (action === 'pause') {
+          await beatbotService.sendPause(deviceId);
+        } else if (action === 'return') {
+          await beatbotService.sendReturn(deviceId);
+        } else {
+          return sendJson(res, 400, { error: 'unknown_action', action });
+        }
+        return sendJson(res, 202, { ok: true, action });
+      } catch (err) {
+        if (err && err.message && err.message.indexOf('not found') > -1) {
+          return sendJson(res, 404, { error: 'device_not_found' });
+        }
+        if (err && err.message && (err.message.indexOf('not support') > -1 || err.message.indexOf('not controllable') > -1)) {
+          return sendJson(res, 422, { error: 'capability_not_supported', detail: err.message });
+        }
+        return sendJson(res, 500, { error: 'command_failed', detail: err && err.message });
+      }
+    }
+
+    if (req.method === 'PUT' && urlPath.startsWith('/api/beatbot/devices/')) {
+      if (!requireAuth(req, res)) {
+        return;
+      }
+      if (!beatbotService) {
+        return sendJson(res, 503, { error: 'beatbot_disabled' });
+      }
+      const afterDevices = urlPath.slice('/api/beatbot/devices/'.length);
+      const parts = afterDevices.split('/');
+      const deviceId = decodeURIComponent(parts[0]);
+      let body;
+      try {
+        body = await readJsonBody(req);
+      } catch (_err) {
+        return sendJson(res, 400, { error: 'invalid_json' });
+      }
+      try {
+        if (parts[1] === 'work-mode') {
+          const mode = String(body.mode || '');
+          if (!mode) {
+            return sendJson(res, 400, { error: 'missing_mode' });
+          }
+          await beatbotService.setWorkMode(deviceId, mode);
+          return sendJson(res, 202, { ok: true });
+        }
+        if (parts[1] === 'settings') {
+          const setting = parts[2];
+          const value = body.value === 'on' || body.value === true;
+          if (setting === 'child-lock') {
+            await beatbotService.setChildLock(deviceId, value);
+          } else if (setting === 'voice-disturb') {
+            await beatbotService.setVoiceDisturb(deviceId, value);
+          } else {
+            return sendJson(res, 400, { error: 'unknown_setting', setting });
+          }
+          return sendJson(res, 202, { ok: true });
+        }
+        return sendJson(res, 404, { error: 'not_found' });
+      } catch (err) {
+        if (err && err.message && err.message.indexOf('not found') > -1) {
+          return sendJson(res, 404, { error: 'device_not_found' });
+        }
+        if (err && err.message && (err.message.indexOf('not support') > -1 || err.message.indexOf('not controllable') > -1 || err.message.indexOf('not available') > -1)) {
+          return sendJson(res, 422, { error: 'capability_not_supported', detail: err.message });
+        }
+        return sendJson(res, 500, { error: 'command_failed', detail: err && err.message });
+      }
+    }
+
+    // ── Beatbot admin utility routes ────────────────────────────────────────
+
+    if (req.method === 'GET' && urlPath === '/api/beatbot/status') {
+      if (!beatbotService || !beatbotTokensPath) {
+        return sendJson(res, 503, { error: 'beatbot_disabled' });
+      }
+      const tokens = require('./lib/beatbot/auth').loadTokens(beatbotTokensPath);
+      if (!tokens) {
+        return sendJson(res, 200, { authenticated: false });
+      }
+      return sendJson(res, 200, {
+        authenticated: true,
+        region: tokens.region,
+        devices: beatbotService.getDevices()
+      });
+    }
+
+    if (req.method === 'POST' && urlPath === '/api/beatbot/disconnect') {
+      if (!requireAuth(req, res)) {
+        return;
+      }
+      if (!beatbotTokensPath) {
+        return sendJson(res, 503, { error: 'beatbot_disabled' });
+      }
+      try {
+        require('fs').unlinkSync(beatbotTokensPath);
+      } catch (_err) {}
+      if (beatbotService) {
+        beatbotService.stop();
+      }
+      return sendJson(res, 200, { ok: true });
+    }
+
+    if (req.method === 'POST' && urlPath === '/api/beatbot/reconcile') {
+      if (!requireAuth(req, res)) {
+        return;
+      }
+      if (!beatbotService) {
+        return sendJson(res, 503, { error: 'beatbot_disabled' });
+      }
+      beatbotService.reconcileNow().catch(function () {});
+      return sendJson(res, 202, { ok: true });
+    }
+
+
 
     if (req.method === 'GET' && urlPath === '/') {
       return sendHtml(res, 200, readFile(path.join(publicDir, 'dashboard.html')));

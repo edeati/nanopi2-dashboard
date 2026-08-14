@@ -102,7 +102,22 @@ function isoTimeToEpochSeconds(value) {
   return Number.isFinite(ms) ? Math.floor(ms / 1000) : 0;
 }
 
-function slippyToBomMatrixTile(z, x, y, matrix) {
+function filterReflectivityTimes(times, options) {
+  const opts = options || {};
+  const maxFrames = Math.max(1, Number(opts.maxFrames || 9));
+  const lagMinutes = Math.max(0, Number(opts.lagMinutes || 0));
+  const nowMs = Number.isFinite(Number(opts.nowMs)) ? Number(opts.nowMs) : Date.now();
+  const cutoffSeconds = lagMinutes > 0
+    ? Math.floor((nowMs - lagMinutes * 60 * 1000) / 1000)
+    : Infinity;
+  return (Array.isArray(times) ? times : [])
+    .filter(function withinConfiguredLag(time) {
+      return isoTimeToEpochSeconds(time) <= cutoffSeconds;
+    })
+    .slice(-maxFrames);
+}
+
+function translateSlippyToBomMatrixTile(z, x, y, matrix) {
   const zoom = Number(z);
   const col = Number(x);
   const row = Number(y);
@@ -129,7 +144,19 @@ function slippyToBomMatrixTile(z, x, y, matrix) {
     throw error;
   }
 
-  return { tileCol, tileRow };
+  const bomTileXMin = matrix.topLeftX + tileCol * span;
+  const bomTileYMax = matrix.topLeftY - tileRow * span;
+  return {
+    tileCol,
+    tileRow,
+    offsetXPx: ((bomTileXMin - xMin) / span) * Number(matrix.tileWidth || 256),
+    offsetYPx: ((yMax - bomTileYMax) / span) * Number(matrix.tileHeight || 256)
+  };
+}
+
+function slippyToBomMatrixTile(z, x, y, matrix) {
+  const translated = translateSlippyToBomMatrixTile(z, x, y, matrix);
+  return { tileCol: translated.tileCol, tileRow: translated.tileRow };
 }
 
 function buildBomReflectivityTileUrl(template, params) {
@@ -165,6 +192,7 @@ function createBomReflectivityClient(config) {
   const layer = String(radarConfig.bomReflectivityLayer || DEFAULT_LAYER);
   const preferredMatrixSet = String(radarConfig.bomReflectivityMatrixSet || DEFAULT_MATRIX_SET);
   const maxFrames = Math.max(1, Number(radarConfig.bomReflectivityFrameCount || radarConfig.gifMaxFrames || 9));
+  const lagMinutes = Math.max(0, Number(radarConfig.bomReflectivityLagMinutes || 0));
   const userAgent = String(radarConfig.bomReflectivityUserAgent || DEFAULT_USER_AGENT);
 
   const state = {
@@ -201,7 +229,10 @@ function createBomReflectivityClient(config) {
         layer,
         matrixSet: preferredMatrixSet
       });
-      const times = parsed.times.length ? parsed.times : [parsed.defaultTime].filter(Boolean);
+      const times = filterReflectivityTimes(
+        parsed.times.length ? parsed.times : [parsed.defaultTime].filter(Boolean),
+        { maxFrames, lagMinutes }
+      );
       state.frames = times.slice(-maxFrames).map(function mapTime(time) {
         return { time: isoTimeToEpochSeconds(time), path: time };
       });
@@ -218,7 +249,7 @@ function createBomReflectivityClient(config) {
   async function fetchTileByPath(framePath, z, x, y) {
     const time = String(framePath || '');
     const matrix = state.matrices[String(z)];
-    const translated = slippyToBomMatrixTile(z, x, y, matrix);
+    const translated = translateSlippyToBomMatrixTile(z, x, y, matrix);
     const tileUrl = buildBomReflectivityTileUrl(state.template, {
       wmtsBaseUrl: wmtsUrl,
       layer,
@@ -228,7 +259,10 @@ function createBomReflectivityClient(config) {
       tileRow: translated.tileRow,
       tileCol: translated.tileCol
     });
-    return requestWithDebug(requestOptions(tileUrl, 'external.bom.reflectivity.tile'));
+    const result = await requestWithDebug(requestOptions(tileUrl, 'external.bom.reflectivity.tile'));
+    result.tileOffsetXPx = translated.offsetXPx;
+    result.tileOffsetYPx = translated.offsetYPx;
+    return result;
   }
 
   async function fetchTile(frameIndex, z, x, y) {
@@ -262,6 +296,8 @@ module.exports = {
   DEFAULT_WMTS_URL,
   buildBomReflectivityTileUrl,
   createBomReflectivityClient,
+  filterReflectivityTimes,
   parseBomReflectivityCapabilities,
-  slippyToBomMatrixTile
+  slippyToBomMatrixTile,
+  translateSlippyToBomMatrixTile
 };

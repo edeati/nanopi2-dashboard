@@ -70,6 +70,19 @@
       </div>
       <pre id="status">Loading...</pre>
     </section>
+
+    <section class="card" id="beatbotCard">
+      <h2>Beatbot Pool Cleaner</h2>
+      <p id="beatbotStatus" style="margin:0 0 10px">Checking...</p>
+      <div class="row" id="beatbotActions">
+        <a id="beatbotConnectBtn" href="/api/beatbot/auth/start" style="display:none">
+          <button type="button">Connect Beatbot account</button>
+        </a>
+        <button type="button" id="beatbotDisconnectBtn" style="display:none;background:#c0392b;color:#fff">Disconnect</button>
+        <button type="button" id="beatbotRefreshBtn" style="display:none">Force reconcile</button>
+      </div>
+      <div id="beatbotDevices" style="margin-top:10px"></div>
+    </section>
   </main>
 
   <script>
@@ -131,6 +144,71 @@
 
       refresh();
       setInterval(refresh, 10000);
+    })();
+  </script>
+  <script>
+    (function () {
+      var statusEl = document.getElementById('beatbotStatus');
+      var connectBtn = document.getElementById('beatbotConnectBtn');
+      var disconnectBtn = document.getElementById('beatbotDisconnectBtn');
+      var refreshBtn = document.getElementById('beatbotRefreshBtn');
+      var devicesEl = document.getElementById('beatbotDevices');
+
+      function renderDevices(devices) {
+        if (!devices || !devices.length) {
+          devicesEl.textContent = '';
+          return;
+        }
+        devicesEl.innerHTML = devices.map(function (d) {
+          return '<div style="margin-top:8px;padding:8px;background:#081018;border-radius:6px">' +
+            '<strong>' + (d.name || 'Pool Cleaner') + '</strong> · ' + (d.model || '') +
+            ' · <span style="color:' + (d.online ? '#2ec4b6' : '#c0392b') + '">' + (d.online ? 'Online' : 'Offline') + '</span>' +
+            (d.battery !== null && d.battery !== undefined ? ' · 🔋 ' + d.battery + '%' : '') +
+            (d.statusLabel ? ' · ' + d.statusLabel : '') +
+            '</div>';
+        }).join('');
+      }
+
+      function refreshBeatbot() {
+        fetch('/api/beatbot/status').then(function (res) { return res.json(); }).then(function (data) {
+          if (data.authenticated) {
+            statusEl.innerHTML = '<span style="color:#2ec4b6">&#10003; Connected</span>' +
+              (data.region ? ' · Region: <strong>' + data.region + '</strong>' : '');
+            connectBtn.style.display = 'none';
+            disconnectBtn.style.display = '';
+            refreshBtn.style.display = '';
+            renderDevices(data.devices);
+          } else {
+            statusEl.innerHTML = '<span style="color:#f39c12">&#9675; Not connected</span> — ' +
+              'open this page on your phone or laptop (not the kiosk) and click Connect.';
+            connectBtn.style.display = '';
+            disconnectBtn.style.display = 'none';
+            refreshBtn.style.display = 'none';
+            devicesEl.textContent = '';
+          }
+        }).catch(function () {
+          statusEl.textContent = 'Beatbot not enabled in dashboard.json';
+          connectBtn.style.display = 'none';
+        });
+      }
+
+      disconnectBtn.addEventListener('click', function () {
+        if (!confirm('Disconnect Beatbot? The pool cleaner card will disappear from the dashboard.')) { return; }
+        fetch('/api/beatbot/disconnect', { method: 'POST' })
+          .then(function () { refreshBeatbot(); })
+          .catch(function () {});
+      });
+
+      refreshBtn.addEventListener('click', function () {
+        refreshBtn.disabled = true;
+        fetch('/api/beatbot/reconcile', { method: 'POST' })
+          .then(function () { setTimeout(refreshBeatbot, 1500); })
+          .catch(function () {})
+          .finally(function () { setTimeout(function () { refreshBtn.disabled = false; }, 3000); });
+      });
+
+      refreshBeatbot();
+      setInterval(refreshBeatbot, 15000);
     })();
   </script>
 </body>

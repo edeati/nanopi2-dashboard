@@ -4,8 +4,10 @@ const assert = require('assert');
 
 const {
   buildBomReflectivityTileUrl,
+  filterReflectivityTimes,
   parseBomReflectivityCapabilities,
-  slippyToBomMatrixTile
+  slippyToBomMatrixTile,
+  translateSlippyToBomMatrixTile
 } = require('../src/lib/bom-reflectivity');
 
 module.exports = async function run() {
@@ -61,6 +63,44 @@ module.exports = async function run() {
   assert.deepStrictEqual(
     slippyToBomMatrixTile(7, 118, 77, parsed.matrices['7']),
     { tileCol: 16, tileRow: 11 }
+  );
+
+  {
+    const translated = translateSlippyToBomMatrixTile(7, 118, 77, parsed.matrices['7']);
+    assert.strictEqual(translated.tileCol, 16);
+    assert.strictEqual(translated.tileRow, 11);
+    assert.ok(Math.abs(translated.offsetXPx + 255.37) < 0.1, 'BOM tile x offset should be retained');
+    assert.ok(Math.abs(translated.offsetYPx + 34.84) < 0.1, 'BOM tile y offset should be retained');
+  }
+
+  assert.deepStrictEqual(
+    filterReflectivityTimes(
+      [
+        '2026-06-12T00:00:00Z',
+        '2026-06-12T00:05:00Z',
+        '2026-06-12T00:10:00Z',
+        '2026-06-12T00:15:00Z',
+        '2026-06-12T00:20:00Z',
+        '2026-06-12T00:25:00Z',
+        '2026-06-12T00:30:00Z',
+        '2026-06-12T00:35:00Z',
+        '2026-06-12T00:40:00Z'
+      ],
+      {
+        maxFrames: 7,
+        lagMinutes: 0,
+        nowMs: Date.parse('2026-06-12T00:46:27Z')
+      }
+    ),
+    [
+      '2026-06-12T00:10:00Z',
+      '2026-06-12T00:15:00Z',
+      '2026-06-12T00:20:00Z',
+      '2026-06-12T00:25:00Z',
+      '2026-06-12T00:30:00Z',
+      '2026-06-12T00:35:00Z',
+      '2026-06-12T00:40:00Z'
+    ]
   );
 
   assert.throws(

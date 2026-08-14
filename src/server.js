@@ -19,6 +19,7 @@ const { createInternetProbeService } = require('./lib/internet-probe');
 const { createLogger, readDebugConfig } = require('./lib/logger');
 const { createDebugEventStore } = require('./lib/debug-events');
 const { requestWithDebug } = require('./lib/http-debug');
+const { createBeatbotService } = require('./lib/beatbot/service');
 
 const formatterCache = new Map();
 
@@ -1025,8 +1026,19 @@ function createServer(options) {
     news: { headlines: [] },
     bins: { nextType: 'Unknown', nextDate: null },
     reminders: [],
-    ha: { cards: [], stale: true, error: null }
+    ha: { cards: [], stale: true, error: null },
+    beatbot: { devices: [], stale: true, error: null }
   }, (options && options.initialExternalState) || {});
+
+  const beatbotTokensPath = path.join(configDir, 'beatbot-tokens.json');
+  const beatbotConfig = dashboardConfig.beatbot || {};
+  const beatbotEnabled = !!beatbotConfig.enabled;
+  const beatbotService = (options && options.beatbotService) ||
+    (beatbotEnabled ? createBeatbotService({
+      tokensPath: beatbotTokensPath,
+      reconcileMs: Number(beatbotConfig.pollIntervalSeconds || 600) * 1000,
+      logger
+    }) : null);
 
   const radarState = Object.assign({
     host: 'https://tilecache.rainviewer.com',
@@ -1390,7 +1402,9 @@ function createServer(options) {
         bodyMaxBytes: typeof logger.getBodyMaxBytes === 'function' ? logger.getBodyMaxBytes() : debugConfig.bodyMaxBytes
       };
     },
-    publicDir: path.join(baseDir, 'public')
+    publicDir: path.join(baseDir, 'public'),
+    beatbotService,
+    beatbotTokensPath
   });
 
   const server = http.createServer(function onRequest(req, res) {
@@ -1445,6 +1459,35 @@ function createServer(options) {
 
     const sources = (options && options.externalSources) || createExternalSources(Object.assign({}, dashboardConfig, { logger }));
     stoppers.push(scheduleExternalPolling(sources, externalState, dashboardConfig, timers));
+
+    if (beatbotService && beatbotEnabled) {
+      // Beatbot state bridge: after each reconcile the service cache is the
+      // source of truth; expose it via externalState so /api/state picks it up.
+      function syncBeatbotState() {
+        try {
+          externalState.beatbot = {
+            devices: beatbotService.getDevices(),
+            stale: false,
+            error: null
+          };
+        } catch (err) {
+          externalState.beatbot = {
+            devices: Array.isArray(externalState.beatbot && externalState.beatbot.devices)
+              ? externalState.beatbot.devices : [],
+            stale: true,
+            error: err && err.message ? err.message : 'beatbot_error'
+          };
+        }
+      }
+      // Periodic sync tick (every 5s) so dashboard state reflects WS events promptly
+      const beatbotSyncTimer = timers.setInterval(syncBeatbotState, 5000);
+      stoppers.push(function stopBeatbotSync() { timers.clearInterval(beatbotSyncTimer); });
+      stoppers.push(function stopBeatbot() { beatbotService.stop(); });
+      beatbotService.start().then(syncBeatbotState).catch(function (err) {
+        logger.warn('[beatbot] service start failed: ' + (err && err.message));
+        externalState.beatbot = { devices: [], stale: true, error: err && err.message };
+      });
+    }
     stoppers.push(scheduleInternetPolling(internetProbe, dashboardConfig.internet || {}, timers));
 
     if (renderMode === 'bom_gif' && bomGifClient) {

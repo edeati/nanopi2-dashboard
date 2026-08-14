@@ -20,7 +20,8 @@ const testModules = [
   './server-routes.test.js',
   './admin-api.test.js',
   './git-autosync.test.js',
-  './ui-foundation.test.js'
+  './ui-foundation.test.js',
+  './beatbot.test.js'
 ];
 
 async function main() {

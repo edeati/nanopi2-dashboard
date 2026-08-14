@@ -582,6 +582,9 @@ function createRadarGifRenderer(options) {
       radarConfig.radarTileFilter ||
       (provider === 'bom_tiles' ? 'format=rgba,eq=saturation=2.35:contrast=1.35:brightness=0.02' : '')
     ).trim();
+    const mapTileFilter = String(radarConfig.mapTileFilter || '').trim();
+    const radarOffsetXPx = Number(radarConfig.radarOffsetXPx || 0);
+    const radarOffsetYPx = Number(radarConfig.radarOffsetYPx || 0);
     const nowMs = Date.now();
     const dashboardTimeZone = config.timeZone || (config.ui && config.ui.timeZone) || process.env.TZ || '';
     const frameTimestampMaxAgeMinutes = toInteger(radarConfig.frameTimestampMaxAgeMinutes, 180, 5, 24 * 60);
@@ -616,7 +619,10 @@ function createRadarGifRenderer(options) {
       radarScale,
       colorSetting,
       optionsSetting,
+      mapTileFilter,
       radarTileFilter,
+      radarOffsetXPx,
+      radarOffsetYPx,
       gifFrameDelayMs,
       framesSubset,
       generatedLabel: 'Generated: ' + formatGeneratedTimestamp(nowMs, dashboardTimeZone),
@@ -688,6 +694,8 @@ function createRadarGifRenderer(options) {
           const tile = plan.radarTiles[t];
           const norm = normalizeTileCoords(plan.radarZ, tile.tx, tile.ty);
           let filePath = '';
+          let tileOffsetXPx = 0;
+          let tileOffsetYPx = 0;
           try {
             const result = await fetchRadarTile({
               frameIndex: Number.isInteger(frameRef.index) ? frameRef.index : i,
@@ -708,6 +716,8 @@ function createRadarGifRenderer(options) {
               'radar-' + String(i).padStart(3, '0') + '-' + String(t).padStart(3, '0') + '.png'
             );
             fs.writeFileSync(filePath, result.body);
+            tileOffsetXPx = Number(result.tileOffsetXPx || 0);
+            tileOffsetYPx = Number(result.tileOffsetYPx || 0);
           } catch (error) {
             if (Number(error && error.statusCode) === 404) {
               // RainViewer may return 404 for "no radar data" tiles; treat as transparent.
@@ -721,8 +731,8 @@ function createRadarGifRenderer(options) {
           if (filePath) {
             radarAssets.push({
               filePath,
-              x: tile.drawX / plan.radarScale,
-              y: tile.drawY / plan.radarScale,
+              x: ((tile.drawX + tileOffsetXPx) / plan.radarScale) + plan.radarOffsetXPx,
+              y: ((tile.drawY + tileOffsetYPx) / plan.radarScale) + plan.radarOffsetYPx,
               isRadar: true
             });
           }
@@ -753,7 +763,7 @@ function createRadarGifRenderer(options) {
                   : '',
                 plan.radarTileFilter
               ].filter(Boolean).join(',')
-            : ''
+            : plan.mapTileFilter
         })));
         const cropX = plan.overscanPx;
         const cropY = plan.overscanPx;

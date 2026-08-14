@@ -128,7 +128,7 @@
     "renderMode": "server_gif",
     "gifBackend": "ffmpeg",
     "gifExtraTiles": 0,
-    "gifMaxFrames": 6,
+    "gifMaxFrames": 7,
     "gifWidth": 640,
     "gifHeight": 360,
     "refreshSeconds": 180,
@@ -149,6 +149,10 @@
     "bomReflectivityLayer": "atm_surf_air_precip_reflectivity_dbz",
     "bomReflectivityMatrixSet": "GoogleMapsCompatible_BoM",
     "bomReflectivityFrameCount": 9,
+    "bomReflectivityLagMinutes": 0,
+    "radarOffsetXPx": -10,
+    "radarOffsetYPx": 0,
+    "mapTileFilter": "format=rgba,eq=saturation=0.65:contrast=0.82:brightness=0.06",
     "radarTileFilter": "",
     "bomImageFilter": "format=rgba,geq=r='if(between(r(X,Y),80,170)*between(b(X,Y),220,255)*between(g(X,Y),245,255),185,if(between(r(X,Y),80,170)*between(b(X,Y),220,255)*between(g(X,Y),215,244),255,if(between(r(X,Y),70,180)*between(b(X,Y),160,255)*between(g(X,Y),140,214),255,r(X,Y))))':g='if(between(r(X,Y),80,170)*between(b(X,Y),220,255)*between(g(X,Y),245,255),185,if(between(r(X,Y),80,170)*between(b(X,Y),220,255)*between(g(X,Y),215,244),215,if(between(r(X,Y),70,180)*between(b(X,Y),160,255)*between(g(X,Y),140,214),120,g(X,Y))))':b='if(between(r(X,Y),80,170)*between(b(X,Y),220,255)*between(g(X,Y),245,255),248,if(between(r(X,Y),80,170)*between(b(X,Y),220,255)*between(g(X,Y),215,244),0,if(between(r(X,Y),70,180)*between(b(X,Y),160,255)*between(g(X,Y),140,214),0,b(X,Y))))':a='alpha(X,Y)'",
     "sourceUrl": "https://www.bom.gov.au/products/IDR66A.loop.shtml",
@@ -166,5 +170,10 @@
       "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
     ],
     "userAgent": "NanoPi2-Dashboard/1.0 (+https://local.nanopi2)"
+  },
+  "beatbot": {
+    "enabled": false,
+    "label": "Pool Cleaner",
+    "pollIntervalSeconds": 600
   }
 }

@@ -116,8 +116,12 @@ function normalizeDashboardConfig(input) {
     bomReflectivityLayer: 'atm_surf_air_precip_reflectivity_dbz',
     bomReflectivityMatrixSet: 'GoogleMapsCompatible_BoM',
     bomReflectivityFrameCount: 9,
+    bomReflectivityLagMinutes: 0,
     bomReflectivityUserAgent: '',
     radarTileZoomOffset: 0,
+    radarOffsetXPx: 0,
+    radarOffsetYPx: 0,
+    mapTileFilter: '',
     radarTileFilter: '',
     bomImageFilter: '',
     sourceUrl: '',
@@ -229,8 +233,12 @@ function validateDashboardConfig(config) {
     typeof config.radar.bomReflectivityLayer === 'string' &&
     typeof config.radar.bomReflectivityMatrixSet === 'string' &&
     typeof config.radar.bomReflectivityFrameCount === 'number' &&
+    typeof config.radar.bomReflectivityLagMinutes === 'number' &&
     typeof config.radar.bomReflectivityUserAgent === 'string' &&
     typeof config.radar.radarTileZoomOffset === 'number' &&
+    typeof config.radar.radarOffsetXPx === 'number' &&
+    typeof config.radar.radarOffsetYPx === 'number' &&
+    typeof config.radar.mapTileFilter === 'string' &&
     typeof config.radar.radarTileFilter === 'string' &&
     typeof config.radar.bomImageFilter === 'string' &&
     typeof config.radar.sourceUrl === 'string' &&

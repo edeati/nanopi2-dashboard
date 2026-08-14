@@ -9,5 +9,8 @@
   "scripts": {
     "start": "node src/server.js",
     "test": "node tests/run-tests.js"
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
   }
 }

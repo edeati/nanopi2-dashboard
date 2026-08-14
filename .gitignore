@@ -6,3 +6,4 @@ config/auth.json
 !.env.example
 nohup.out
 froniusapi.pdf
+config/beatbot-tokens.json
