@@ -172,7 +172,7 @@
     "userAgent": "NanoPi2-Dashboard/1.0 (+https://local.nanopi2)"
   },
   "beatbot": {
-    "enabled": false,
+    "enabled": true,
     "label": "Pool Cleaner",
     "oauthRedirectUri": "https://my.home-assistant.io/redirect/oauth",
     "pollIntervalSeconds": 600
