@@ -21,6 +21,7 @@ const testModules = [
   './admin-api.test.js',
   './git-autosync.test.js',
   './ui-foundation.test.js',
+  './pool-cleaner-card-layout.test.js',
   './beatbot.test.js'
 ];
 
