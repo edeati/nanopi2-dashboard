@@ -61,14 +61,13 @@ module.exports = async function run() {
   assert.ok(html.indexOf('--bg-panel') > -1, 'new dark panel palette missing');
   assert.ok(html.indexOf('grid-template-rows: 1fr 0.34fr;') > -1, 'top row should reclaim more vertical space');
   assert.ok(html.indexOf('@media (max-width: 1100px) and (max-height: 820px) and (min-height: 700px) and (orientation: landscape)') > -1, 'tablet landscape breakpoint missing');
-  assert.ok(html.indexOf('grid-template-columns: minmax(0, 1fr) 150px 150px;') > -1, 'tablet bottom row should use compact pool and clock cards beside a three-card strip');
+  assert.ok(html.indexOf('grid-template-columns: minmax(0, 1fr) 210px 180px;') > -1, 'tablet bottom row should give the static pool and clock cards readable width');
   assert.ok(html.indexOf('animation-duration: 52s;') > -1, 'tablet ticker should scroll slower for readability');
   assert.ok(html.indexOf('--global-bar-clearance: 62px;') > -1, 'tablet clearance should reclaim vertical space after readability pass');
   assert.ok(html.indexOf('grid-template-rows: 1fr 0.45fr;') > -1, 'tablet row split should reduce dead gap while preserving larger lower metrics');
   assert.ok(html.indexOf('#mainRadar {\n        min-width: 0;\n      }') > -1, 'tablet radar panel should allow shrink to prevent edge stripe');
   assert.ok(html.indexOf('grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);') > -1, 'tablet weather layout should prioritize forecast width');
-  assert.ok(html.indexOf('#timeBig {\n        font-size: 52px;') > -1, 'tablet clock should fit beside the static pool cleaner card');
-  assert.ok(html.indexOf('.strip-card {\n        width: 138px;') > -1, 'tablet strip cards should shrink so three cards are visible');
+  assert.ok(html.indexOf('#timeBig {\n        font-size: 62px;') > -1, 'tablet clock should be larger while fitting beside the pool cleaner card');
   assert.ok(html.indexOf('.solar-gauge canvas {\n      width: 76px;') > -1, 'solar gauges should shrink with the tighter top-row cards');
   assert.ok(html.indexOf('min-height: 84px;') > -1, 'solar top gauge cards should be shorter to free room for lower cards');
   assert.ok(html.indexOf('height: 92px;') > -1, 'solar top row should shrink further to avoid bottom-card truncation');
