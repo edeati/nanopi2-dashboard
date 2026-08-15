@@ -175,6 +175,6 @@
     "enabled": true,
     "label": "Pool Cleaner",
     "oauthRedirectUri": "https://my.home-assistant.io/redirect/oauth",
-    "pollIntervalSeconds": 600
+    "pollIntervalSeconds": 120
   }
 }

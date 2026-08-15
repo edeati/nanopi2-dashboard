@@ -665,7 +665,7 @@
       grid-column: 1 / span 2;
       grid-row: 2;
       display: grid;
-      grid-template-columns: minmax(0, 630px) minmax(210px, 0.9fr) minmax(170px, 0.72fr);
+      grid-template-columns: minmax(0, 1fr) minmax(180px, 0.78fr) minmax(180px, 0.74fr);
       gap: 8px;
       min-height: 0;
     }
@@ -1799,11 +1799,21 @@
       }
 
       #bottomRow {
-        grid-template-columns: minmax(0, 630px) minmax(210px, 0.9fr) minmax(160px, 0.68fr);
+        grid-template-columns: minmax(0, 1fr) 150px 150px;
       }
 
       #weatherBinsStripTrack {
+        gap: 10px;
         animation-duration: 110s;
+      }
+
+      .strip-card {
+        width: 138px;
+        padding: 7px 8px;
+      }
+
+      .strip-card.strip-card-bin {
+        width: 148px;
       }
 
       #weatherMainRow {
@@ -1851,11 +1861,46 @@
       }
 
       #timeBig {
-        font-size: 58px;
+        font-size: 52px;
       }
 
       #dateBig {
+        font-size: 18px;
+      }
+
+      .pool-cleaner-card {
+        gap: 7px;
+      }
+
+      .pool-cleaner-name {
+        font-size: 14px;
+      }
+
+      .pool-cleaner-badge {
+        padding: 2px 7px;
+        font-size: 10px;
+      }
+
+      .pool-cleaner-status {
         font-size: 20px;
+      }
+
+      .pool-cleaner-battery {
+        font-size: 13px;
+      }
+
+      .pool-cleaner-battery strong {
+        font-size: 27px;
+      }
+
+      .pool-cleaner-mode-label,
+      .pool-cleaner-mode-select {
+        font-size: 11px;
+      }
+
+      .pool-cleaner-btn {
+        padding: 6px 8px;
+        font-size: 11px;
       }
 
       .g-label {
@@ -1912,6 +1957,7 @@
       text-transform: uppercase; letter-spacing: 0.06em;
     }
     .pool-cleaner-badge.is-online { background: rgba(142,219,124,0.15); color: var(--green); }
+    .pool-cleaner-badge.is-active { background: rgba(45,156,255,0.16); color: #76c8ff; }
     .pool-cleaner-badge.is-offline { background: rgba(255,115,80,0.12); color: var(--red); }
     .pool-cleaner-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
     .pool-cleaner-status { font-size: 22px; font-weight: 700; color: var(--text); }
@@ -1919,7 +1965,7 @@
       font-size: 16px; font-family: var(--font-data);
       display: flex; align-items: center; gap: 5px; color: var(--muted);
     }
-    .pool-cleaner-battery strong { font-size: 19px; color: currentColor; }
+    .pool-cleaner-battery strong { font-size: 24px; line-height: 1; color: currentColor; }
     .pool-cleaner-battery.bat-ok { color: var(--green); }
     .pool-cleaner-battery.bat-warn { color: var(--yellow); }
     .pool-cleaner-battery.bat-low { color: var(--red); }
@@ -3712,6 +3758,11 @@
         return key ? key.replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); }) : '';
       }
 
+      function poolCleanerIsActive(status) {
+        var key = String(status || '').toLowerCase();
+        return ['diving', 'cleaning', 'clean_wait', 'return_trip', 'auto_dock', 'dock', 'self_cleaning'].indexOf(key) > -1;
+      }
+
       function poolCleanerSignature(card, beatbotState) {
         if (!card) {
           var reason = beatbotState && beatbotState.error ? String(beatbotState.error) : '';
@@ -3793,6 +3844,9 @@
         var pcModes = Array.isArray(card.availableWorkModes) ? card.availableWorkModes : [];
         var pcErrors = Array.isArray(card.errors) ? card.errors : [];
         var pcId = String(card.id || '');
+        var pcActive = poolCleanerIsActive(card.status);
+        var pcBadgeText = pcActive ? 'Active' : (card.online ? 'Online' : 'Offline');
+        var pcBadgeClass = pcActive ? 'is-active' : (card.online ? 'is-online' : 'is-offline');
 
         var pcBtns = '';
         if (pcActions.indexOf('start') > -1) {
@@ -3829,8 +3883,8 @@
           '<div class=\"pool-cleaner-card\">' +
           '<div class=\"pool-cleaner-header\">' +
           '<span class=\"pool-cleaner-name\">' + escapeHtml(card.label || 'Pool Cleaner') + '</span>' +
-          '<span class=\"pool-cleaner-badge ' + (card.online ? 'is-online' : 'is-offline') + '\">' +
-          '<span class=\"pool-cleaner-badge-dot\"></span>' + (card.online ? 'Online' : 'Offline') +
+          '<span class=\"pool-cleaner-badge ' + pcBadgeClass + '\">' +
+          '<span class=\"pool-cleaner-badge-dot\"></span>' + pcBadgeText +
           '</span>' +
           '</div>' +
           '<div class=\"pool-cleaner-status-row\">' +

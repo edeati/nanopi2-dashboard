@@ -62,6 +62,7 @@ function testStatusDecoding() {
   assert.strictEqual(statusFor(5), 'cleaning');
   assert.strictEqual(statusFor(7), 'return_trip');
   assert.strictEqual(statusFor(8), 'clean_done');
+  assert.strictEqual(statusFor(12), 'diving');
   assert.strictEqual(statusFor(14), 'auto_dock');
   assert.strictEqual(statusFor(20), 'dock_done');
   assert.strictEqual(statusFor(999), null);
@@ -69,6 +70,7 @@ function testStatusDecoding() {
   assert.strictEqual(statusLabel('cleaning'), 'Cleaning');
   assert.strictEqual(statusLabel('return_trip'), 'Returning');
   assert.strictEqual(statusLabel('clean_done'), 'Cleaning complete');
+  assert.strictEqual(statusLabel('diving'), 'Diving');
   assert.strictEqual(statusLabel('auto_dock'), 'Docking');
   assert.strictEqual(statusLabel(null), null);
   assert.strictEqual(statusLabel('unknown_key'), 'unknown_key');
