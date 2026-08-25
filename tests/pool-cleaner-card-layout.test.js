@@ -13,10 +13,14 @@ module.exports = async function run() {
   assert.ok(html.indexOf("charging: '⚡'") > -1, 'charging state should have a compact card icon');
 
   assert.ok(html.indexOf('.pool-cleaner-status-row {\n      min-width: 0;\n      display: grid;') > -1, 'pool cleaner status row should use a fixed grid layout');
-  assert.ok(html.indexOf('grid-template-columns: minmax(0, 1fr) auto;') > -1, 'pool cleaner battery should stay in the trailing column');
+  assert.ok(html.indexOf('grid-template-columns: minmax(86px, 1fr) auto;') > -1, 'pool cleaner battery should stay in the trailing column while preserving status width');
   assert.ok(html.indexOf('.pool-cleaner-status-label {\n      min-width: 0;\n      overflow: hidden;\n      text-overflow: ellipsis;\n      white-space: nowrap;') > -1, 'pool cleaner status label should ellipsize instead of wrapping');
-  assert.ok(html.indexOf('.pool-cleaner-battery {\n      font-size: 16px; font-family: var(--font-data);\n      display: flex; align-items: center; gap: 6px; color: var(--muted);\n      white-space: nowrap;') > -1, 'pool cleaner battery metric should not wrap');
+  assert.ok(html.indexOf('.pool-cleaner-battery {\n      font-size: 15px; font-family: var(--font-data);\n      display: flex; align-items: center; gap: 5px; color: var(--muted);\n      white-space: nowrap;') > -1, 'pool cleaner battery metric should not wrap');
 
+  assert.ok(html.indexOf('id="i-pool-cleaner"') > -1, 'pool cleaner icon symbol missing');
+  assert.ok(html.indexOf('<section id="poolCleanerCard"') > -1, 'pool cleaner panel missing');
+  assert.ok(html.indexOf('<use href="#i-pool-cleaner"></use>') > -1, 'pool cleaner card should use the pool cleaner icon');
+  assert.ok(html.indexOf('<span class="panel-corner-icon"><svg><use href="#i-rain"></use></svg></span>\n        <span class="panel-title">Pool Cleaner</span>') === -1, 'pool cleaner card should not reuse the rain icon');
   assert.ok(html.indexOf('class=\\"pool-cleaner-battery-icon\\"') > -1, 'pool cleaner battery icon markup missing');
   assert.ok(html.indexOf('class=\\"pool-cleaner-battery-fill\\" style=\\"width:') > -1, 'pool cleaner battery fill should reflect percentage');
   assert.strictEqual(html.indexOf('Battery <strong>'), -1, 'pool cleaner rendered card should not use text battery label');
