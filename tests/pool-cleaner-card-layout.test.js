@@ -17,6 +17,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('#poolCleanerCard {\n        width: 210px;\n        justify-self: stretch;') > -1, 'tablet pool cleaner panel should keep its fixed 210px footprint');
   assert.ok(html.indexOf('.pool-cleaner-status-label {\n      min-width: 0;') > -1, 'pool cleaner status label should ellipsize instead of wrapping');
   assert.ok(html.indexOf('.pool-cleaner-battery-dial {') > -1, 'pool cleaner battery should use a large circular dial');
+  assert.ok(html.indexOf('width: min(68px, 100%);') > -1, 'battery dial should stay clear of the work mode label');
   assert.ok(html.indexOf('background: conic-gradient(currentColor calc(var(--battery-value) * 1%)') > -1, 'battery dial should graphically reflect its percentage');
   assert.ok(html.indexOf("pcBatteryVal >= 80 ? 'bat-full' : pcBatteryVal >= 20 ? 'bat-mid' : 'bat-low'") > -1, 'battery should be green from 80%, orange from 20%, and red below 20%');
   assert.ok(html.indexOf('.pool-cleaner-battery.bat-full { color: var(--green); }') > -1, 'full battery state should be green');
