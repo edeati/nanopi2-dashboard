@@ -6,6 +6,15 @@ const { getValidAccessToken, saveTokens, loadTokens } = require('./auth');
 const { INTERFACES, PRODUCT_CATEGORY, statusFor, statusLabel, errorsFor, errorLabels } = require('./protocol');
 
 const RECONCILE_DEFAULT_MS = 10 * 60 * 1000; // 10 minutes
+const ACTIVE_STATUSES = new Set([
+  'diving',
+  'cleaning',
+  'clean_wait',
+  'return_trip',
+  'auto_dock',
+  'dock',
+  'self_cleaning'
+]);
 
 /**
  * Normalize a raw Beatbot device object + runtime state into PoolCleanerState.
@@ -152,6 +161,8 @@ function createBeatbotService(opts) {
   const rawDevices = new Map();
   // Normalized state cache
   const stateCache = new Map();
+  // First time each device was seen in an active work state.
+  const activeSinceByDevice = new Map();
 
   let client = null;
   let eventClient = null;
@@ -176,9 +187,20 @@ function createBeatbotService(opts) {
     const raw = rawDevices.get(deviceId);
     if (!raw) {
       stateCache.delete(deviceId);
+      activeSinceByDevice.delete(deviceId);
       return;
     }
-    stateCache.set(deviceId, normalizeDevice(raw));
+    const normalized = normalizeDevice(raw);
+    if (ACTIVE_STATUSES.has(normalized.status)) {
+      if (!activeSinceByDevice.has(deviceId)) {
+        activeSinceByDevice.set(deviceId, new Date().toISOString());
+      }
+      normalized.activeSince = activeSinceByDevice.get(deviceId);
+    } else {
+      activeSinceByDevice.delete(deviceId);
+      normalized.activeSince = null;
+    }
+    stateCache.set(deviceId, normalized);
   }
 
   // ── Reconciliation (REST) ─────────────────────────────────────────────────
@@ -266,6 +288,7 @@ function createBeatbotService(opts) {
     if (event.eventType === 'device_removed') {
       rawDevices.delete(event.deviceId);
       stateCache.delete(event.deviceId);
+      activeSinceByDevice.delete(event.deviceId);
       return;
     }
     const raw = rawDevices.get(event.deviceId);

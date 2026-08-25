@@ -20,6 +20,13 @@ module.exports = async function run() {
   assert.ok(html.indexOf('class=\\"pool-cleaner-battery-icon\\"') > -1, 'pool cleaner battery icon markup missing');
   assert.ok(html.indexOf('class=\\"pool-cleaner-battery-fill\\" style=\\"width:') > -1, 'pool cleaner battery fill should reflect percentage');
   assert.strictEqual(html.indexOf('Battery <strong>'), -1, 'pool cleaner rendered card should not use text battery label');
+  assert.ok(html.indexOf('class=\\"pool-cleaner-mode-grid\\"') > -1, 'pool cleaner static card should render mode icon grid');
+  assert.ok(html.indexOf('data-pc-mode-choice=') > -1, 'pool cleaner mode chips should be actionable');
+  assert.ok(html.indexOf('function poolCleanerModeIcon(mode)') > -1, 'pool cleaner mode icon helper missing');
+  assert.ok(html.indexOf('function updatePoolCleanerElapsed()') > -1, 'pool cleaner elapsed timer helper missing');
+  assert.ok(html.indexOf('data-pc-elapsed-start=') > -1, 'pool cleaner active timer hook missing');
+  assert.ok(html.indexOf('<span class=\\"pool-cleaner-action-icon\\" aria-hidden=\\"true\\">⌂</span> Return') > -1, 'pool cleaner return action should use home icon and short label');
   assert.ok(html.indexOf('var pcModeSummaryHtml = \'\';') > -1, 'pool cleaner mode summary guard missing');
   assert.ok(html.indexOf('if (card.workMode && !pcModes.length)') > -1, 'pool cleaner should not duplicate mode text when the selector is available');
+  assert.strictEqual(html.indexOf('<span class=\\"pool-cleaner-name\\">' + "' + escapeHtml(card.label"), -1, 'pool cleaner static card should not render device name row');
 };

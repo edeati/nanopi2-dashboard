@@ -1859,11 +1859,7 @@
       }
 
       .pool-cleaner-card {
-        gap: 7px;
-      }
-
-      .pool-cleaner-name {
-        font-size: 14px;
+        gap: 6px;
       }
 
       .pool-cleaner-badge {
@@ -1872,7 +1868,7 @@
       }
 
       .pool-cleaner-status {
-        font-size: 20px;
+        font-size: 21px;
       }
 
       .pool-cleaner-battery {
@@ -1880,12 +1876,12 @@
       }
 
       .pool-cleaner-battery strong {
-        font-size: 27px;
+        font-size: 26px;
       }
 
-      .pool-cleaner-mode-label,
-      .pool-cleaner-mode-select {
-        font-size: 11px;
+      .pool-cleaner-mode-chip {
+        min-height: 38px;
+        padding: 4px 3px;
       }
 
       .pool-cleaner-btn {
@@ -1931,7 +1927,7 @@
 
     }
     /* ── Beatbot pool cleaner card ─────────────────────────── */
-    .pool-cleaner-card { display: flex; flex-direction: column; gap: 10px; height: 100%; }
+    .pool-cleaner-card { display: flex; flex-direction: column; gap: 8px; height: 100%; min-width: 0; }
     #poolCleanerStatic {
       height: 100%;
       min-height: 0;
@@ -1939,8 +1935,7 @@
     #poolCleanerStatic .pool-cleaner-card {
       justify-content: space-between;
     }
-    .pool-cleaner-header { display: flex; align-items: center; gap: 10px; }
-    .pool-cleaner-name { flex: 1; font-weight: 700; font-size: 17px; letter-spacing: 0.01em; }
+    .pool-cleaner-header { display: flex; align-items: center; justify-content: flex-end; min-height: 22px; }
     .pool-cleaner-badge {
       display: inline-flex; align-items: center; gap: 5px;
       padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600;
@@ -2022,19 +2017,61 @@
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
       gap: 8px;
+      padding: 5px 7px;
+      border: 1px solid rgba(98, 187, 255, 0.2);
+      border-radius: 8px;
+      background: rgba(2, 13, 25, 0.38);
+    }
+    .pool-cleaner-status-stack { min-width: 0; display: grid; gap: 1px; }
+    .pool-cleaner-elapsed {
+      min-height: 13px;
+      color: #9fb5c8;
+      font-family: var(--font-ui);
+      font-size: 11px;
+      line-height: 1;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
     }
     .pool-cleaner-errors { font-size: 13px; color: var(--yellow); margin-top: -4px; }
     .pool-cleaner-errors.has-fault { color: var(--red); }
-    .pool-cleaner-divider { border: none; border-top: 1px solid var(--panel-border); margin: 2px 0; }
-    .pool-cleaner-mode-row { display: flex; align-items: center; gap: 8px; }
-    .pool-cleaner-mode-label { font-size: 13px; color: var(--muted); flex-shrink: 0; }
-    .pool-cleaner-mode-select {
-      flex: 1; background: rgba(255,255,255,0.06); border: 1px solid var(--panel-border);
-      color: var(--text); border-radius: 6px; padding: 5px 8px; font-size: 13px;
-      font-family: var(--font-body); cursor: pointer;
+    .pool-cleaner-divider { border: none; border-top: 1px solid var(--panel-border); margin: 0; }
+    .pool-cleaner-mode-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 5px;
     }
-    .pool-cleaner-mode-select:disabled { opacity: 0.45; cursor: not-allowed; }
-    .pool-cleaner-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .pool-cleaner-mode-chip {
+      min-width: 0;
+      min-height: 42px;
+      display: grid;
+      place-items: center;
+      gap: 2px;
+      padding: 5px 3px;
+      border: 1px solid rgba(98, 187, 255, 0.18);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.045);
+      color: #a9c4d8;
+      font-family: var(--font-ui);
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .pool-cleaner-mode-chip.is-selected {
+      border-color: rgba(45,156,255,0.68);
+      background: rgba(45,156,255,0.18);
+      color: #e8f6ff;
+      box-shadow: inset 0 0 0 1px rgba(81, 192, 255, 0.18);
+    }
+    .pool-cleaner-mode-chip:disabled { opacity: 0.42; cursor: not-allowed; }
+    .pool-cleaner-mode-icon { color: #35b9ff; font-size: 17px; line-height: 1; }
+    .pool-cleaner-mode-text {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .pool-cleaner-actions { display: flex; gap: 8px; flex-wrap: nowrap; margin-top: auto; }
     .pool-cleaner-btn {
       flex: 1; min-width: 60px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--panel-border);
       background: rgba(255,255,255,0.07); color: var(--text); font-size: 13px; font-weight: 600;
@@ -2288,6 +2325,7 @@
       var lastWeatherRotatorSig = '';
       var lastCombinedStripSig = '';
       var lastPoolCleanerSig = '';
+      var poolCleanerActiveFallback = { id: '', startedAt: 0 };
       var firstDataApplied = false;
       var radarLoopStarted = false;
       var stateFetchInFlight = false;
@@ -3792,6 +3830,8 @@
           availableWorkModes: Array.isArray(bd.availableWorkModes) ? bd.availableWorkModes : [],
           errors: Array.isArray(bd.errors) ? bd.errors : [],
           supportedActions: Array.isArray(bd.supportedActions) ? bd.supportedActions : [],
+          activeSince: bd.activeSince || null,
+          updatedAt: bd.updatedAt || null,
           stale: !!(state.beatbot && state.beatbot.stale),
           error: (state.beatbot && state.beatbot.error) || null
         };
@@ -3841,6 +3881,73 @@
         return icons[key] || '•';
       }
 
+      function poolCleanerModeIcon(mode) {
+        var key = String(mode || '').toLowerCase();
+        var icons = {
+          fast: '▱',
+          floor: '▱',
+          standard: '▦',
+          cec: '♻',
+          eco: '♻',
+          wall: '▥',
+          waterline: '▥'
+        };
+        return icons[key] || '□';
+      }
+
+      function poolCleanerModeShortLabel(mode) {
+        var key = String(mode || '').toLowerCase();
+        var labels = {
+          fast: 'Floor',
+          floor: 'Floor',
+          standard: 'Wall',
+          cec: 'Eco',
+          eco: 'Eco',
+          wall: 'Line',
+          waterline: 'Line'
+        };
+        return labels[key] || poolCleanerModeLabel(mode);
+      }
+
+      function formatPoolCleanerElapsed(ms) {
+        var totalMinutes = Math.max(0, Math.floor(Number(ms || 0) / 60000));
+        var hours = Math.floor(totalMinutes / 60);
+        var minutes = totalMinutes % 60;
+        if (hours > 0) {
+          return hours + 'h ' + String(minutes).padStart(2, '0') + 'm';
+        }
+        return minutes + 'm';
+      }
+
+      function poolCleanerActiveSinceMs(card) {
+        if (!card || !poolCleanerIsActive(card.status)) {
+          poolCleanerActiveFallback = { id: '', startedAt: 0 };
+          return 0;
+        }
+        var serverStarted = Date.parse(card.activeSince || '');
+        if (Number.isFinite(serverStarted) && serverStarted > 0) {
+          poolCleanerActiveFallback = { id: card.id || '', startedAt: serverStarted };
+          return serverStarted;
+        }
+        if (poolCleanerActiveFallback.id !== card.id || !poolCleanerActiveFallback.startedAt) {
+          poolCleanerActiveFallback = { id: card.id || '', startedAt: Date.now() };
+        }
+        return poolCleanerActiveFallback.startedAt;
+      }
+
+      function updatePoolCleanerElapsed() {
+        var node = document.querySelector('[data-pc-elapsed-start]');
+        if (!node) {
+          return;
+        }
+        var startedAt = Number(node.getAttribute('data-pc-elapsed-start') || 0);
+        if (!Number.isFinite(startedAt) || startedAt <= 0) {
+          node.textContent = '';
+          return;
+        }
+        node.textContent = 'Cleaning ' + formatPoolCleanerElapsed(Date.now() - startedAt);
+      }
+
       function poolCleanerSignature(card, beatbotState) {
         if (!card) {
           var reason = beatbotState && beatbotState.error ? String(beatbotState.error) : '';
@@ -3853,6 +3960,7 @@
           String(card.battery),
           card.status || '',
           card.workMode || '',
+          card.activeSince || '',
           card.errors.join(','),
           card.supportedActions.join(',')
         ].join('|');
@@ -3899,6 +4007,29 @@
             });
           });
         }
+
+        var pcModeBtns = root.querySelectorAll('[data-pc-mode-choice]');
+        for (var pcm = 0; pcm < pcModeBtns.length; pcm += 1) {
+          (function (btn) {
+            btn.addEventListener('click', function () {
+              if (btn.disabled || btn.classList.contains('is-busy') || btn.classList.contains('is-selected')) { return; }
+              var id = btn.getAttribute('data-pc-mode-id');
+              var mode = btn.getAttribute('data-pc-mode-choice');
+              btn.classList.add('is-busy');
+              btn.disabled = true;
+              fetch('/api/beatbot/devices/' + encodeURIComponent(id) + '/work-mode', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: mode })
+              }).catch(function () {}).finally(function () {
+                setTimeout(function () {
+                  btn.classList.remove('is-busy');
+                  btn.disabled = false;
+                }, 4000);
+              });
+            });
+          }(pcModeBtns[pcm]));
+        }
       }
 
       function renderPoolCleanerStatic(card, beatbotState) {
@@ -3918,7 +4049,6 @@
         var pcBatText = pcBatteryVal !== null ? (pcBatteryVal.toFixed(0) + '%') : '--';
         var pcBatFill = pcBatteryVal !== null ? Math.max(0, Math.min(100, pcBatteryVal)).toFixed(0) : '0';
         var pcBatClass = pcBatteryVal === null ? '' : (pcBatteryVal >= 50 ? 'bat-ok' : pcBatteryVal >= 20 ? 'bat-warn' : 'bat-low');
-        var pcOfflineAttr = card.online ? '' : ' disabled';
         var pcActions = Array.isArray(card.supportedActions) ? card.supportedActions : [];
         var pcModes = Array.isArray(card.availableWorkModes) ? card.availableWorkModes : [];
         var pcErrors = Array.isArray(card.errors) ? card.errors : [];
@@ -3926,28 +4056,36 @@
         var pcActive = poolCleanerIsActive(card.status);
         var pcBadgeText = pcActive ? 'Active' : (card.online ? 'Online' : 'Offline');
         var pcBadgeClass = pcActive ? 'is-active' : (card.online ? 'is-online' : 'is-offline');
+        var pcActionDisabledAttr = (!card.online && !pcActive) ? ' disabled' : '';
+        var pcModeDisabledAttr = card.online ? '' : ' disabled';
+        var pcStartedAt = poolCleanerActiveSinceMs(card);
+        var pcElapsedHtml = pcActive && pcStartedAt
+          ? '<div class=\"pool-cleaner-elapsed\" data-pc-elapsed-start=\"' + pcStartedAt + '\">Cleaning ' + escapeHtml(formatPoolCleanerElapsed(Date.now() - pcStartedAt)) + '</div>'
+          : '<div class=\"pool-cleaner-elapsed\"></div>';
 
         var pcBtns = '';
         if (pcActions.indexOf('start') > -1) {
-          pcBtns += '<button class=\"pool-cleaner-btn btn-start\" data-pc-action=\"start\" data-pc-id=\"' + escapeHtml(pcId) + '\"' + pcOfflineAttr + '>▶ Start</button>';
+          pcBtns += '<button class=\"pool-cleaner-btn btn-start\" data-pc-action=\"start\" data-pc-id=\"' + escapeHtml(pcId) + '\"' + pcActionDisabledAttr + '>▶ Start</button>';
         }
         if (pcActions.indexOf('pause') > -1) {
-          pcBtns += '<button class=\"pool-cleaner-btn btn-pause\" data-pc-action=\"pause\" data-pc-id=\"' + escapeHtml(pcId) + '\"' + pcOfflineAttr + '>⏸ Pause</button>';
+          pcBtns += '<button class=\"pool-cleaner-btn btn-pause\" data-pc-action=\"pause\" data-pc-id=\"' + escapeHtml(pcId) + '\"' + pcActionDisabledAttr + '>⏸ Pause</button>';
         }
         if (pcActions.indexOf('return') > -1) {
-          pcBtns += '<button class=\"pool-cleaner-btn btn-return\" data-pc-action=\"return\" data-pc-id=\"' + escapeHtml(pcId) + '\"' + pcOfflineAttr + '>⏎ Return</button>';
+          pcBtns += '<button class=\"pool-cleaner-btn btn-return\" data-pc-action=\"return\" data-pc-id=\"' + escapeHtml(pcId) + '\"' + pcActionDisabledAttr + '><span class=\"pool-cleaner-action-icon\" aria-hidden=\"true\">⌂</span> Return</button>';
         }
 
         var pcModeHtml = '';
         if (pcModes.length) {
           var pcModeOptions = pcModes.map(function (m) {
-            var sel = m === card.workMode ? ' selected' : '';
-            return '<option value=\"' + escapeHtml(m) + '\"' + sel + '>' + escapeHtml(poolCleanerModeLabel(m)) + '</option>';
+            var selected = m === card.workMode ? ' is-selected' : '';
+            return '<button class=\"pool-cleaner-mode-chip' + selected + '\" data-pc-mode-id=\"' + escapeHtml(pcId) + '\" data-pc-mode-choice=\"' + escapeHtml(m) + '\" title=\"' + escapeHtml(poolCleanerModeLabel(m)) + '\"' + pcModeDisabledAttr + '>' +
+              '<span class=\"pool-cleaner-mode-icon\" aria-hidden=\"true\">' + escapeHtml(poolCleanerModeIcon(m)) + '</span>' +
+              '<span class=\"pool-cleaner-mode-text\">' + escapeHtml(poolCleanerModeShortLabel(m)) + '</span>' +
+              '</button>';
           }).join('');
           pcModeHtml = '<hr class=\"pool-cleaner-divider\">' +
-            '<div class=\"pool-cleaner-mode-row\">' +
-            '<span class=\"pool-cleaner-mode-label\">Mode</span>' +
-            '<select class=\"pool-cleaner-mode-select\" data-pc-mode-id=\"' + escapeHtml(pcId) + '\"' + pcOfflineAttr + '>' + pcModeOptions + '</select>' +
+            '<div class=\"pool-cleaner-mode-grid\" aria-label=\"Cleaning mode\">' +
+            pcModeOptions +
             '</div>';
         }
 
@@ -3966,13 +4104,12 @@
         poolCleanerStaticNode.innerHTML =
           '<div class=\"pool-cleaner-card\">' +
           '<div class=\"pool-cleaner-header\">' +
-          '<span class=\"pool-cleaner-name\">' + escapeHtml(card.label || 'Pool Cleaner') + '</span>' +
           '<span class=\"pool-cleaner-badge ' + pcBadgeClass + '\">' +
           '<span class=\"pool-cleaner-badge-dot\"></span>' + pcBadgeText +
           '</span>' +
           '</div>' +
           '<div class=\"pool-cleaner-status-row\">' +
-          '<div class=\"pool-cleaner-status\"><span class=\"pool-cleaner-state-icon\" aria-hidden=\"true\">' + escapeHtml(poolCleanerStateIcon(card.status, pcErrors)) + '</span><span class=\"pool-cleaner-status-label\">' + escapeHtml(card.statusLabel || '--') + '</span></div>' +
+          '<div class=\"pool-cleaner-status-stack\"><div class=\"pool-cleaner-status\"><span class=\"pool-cleaner-state-icon\" aria-hidden=\"true\">' + escapeHtml(poolCleanerStateIcon(card.status, pcErrors)) + '</span><span class=\"pool-cleaner-status-label\">' + escapeHtml(card.statusLabel || '--') + '</span></div>' + pcElapsedHtml + '</div>' +
           '<div class=\"pool-cleaner-battery ' + pcBatClass + '\" title=\"Battery ' + escapeHtml(pcBatText) + '\"><span class=\"pool-cleaner-battery-icon\" aria-hidden=\"true\"><span class=\"pool-cleaner-battery-fill\" style=\"width:' + pcBatFill + '%\"></span></span><strong>' + pcBatText + '</strong></div>' +
           '</div>' +
           pcModeSummaryHtml +
@@ -4704,7 +4841,8 @@
               radar: Object.assign({}, latestState.radar || {}, patch.radar || {}),
               fronius: Object.assign({}, latestState.fronius || {}, {
                 realtime: patch.fronius.realtime
-              })
+              }),
+              beatbot: patch.beatbot || latestState.beatbot
             });
             applyState(latestState);
           })
@@ -4767,6 +4905,7 @@
       window.addEventListener('resize', resizeCanvas);
       tickClock();
       setInterval(tickClock, 1000);
+      setInterval(updatePoolCleanerElapsed, 1000);
       fetchStartupState();
       setInterval(fetchState, SLOW_STATE_REFRESH_MS);
       // Fetch full state more frequently during startup to populate charts faster

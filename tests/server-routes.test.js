@@ -233,6 +233,7 @@ module.exports = async function run() {
     const realtimePayload = JSON.parse(realtimeState.body);
     assert.ok(realtimePayload.fronius && realtimePayload.fronius.realtime, 'realtime endpoint should expose realtime fronius payload');
     assert.ok(realtimePayload.radar && Object.prototype.hasOwnProperty.call(realtimePayload.radar, 'gifUpdatedAt'), 'realtime endpoint should expose radar gif update signal');
+    assert.ok(realtimePayload.beatbot && Array.isArray(realtimePayload.beatbot.devices), 'realtime endpoint should expose beatbot state for fast pool-cleaner updates');
     assert.strictEqual(realtimePayload.radar.renderMode, 'server_gif');
     assert.strictEqual(
       realtimePayload.radar.iframeUrl,

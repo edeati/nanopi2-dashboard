@@ -484,6 +484,7 @@ function createApp(options) {
 
     if (req.method === 'GET' && urlPath === '/api/state/realtime') {
       const now = Date.now();
+      const externalState = getExternalState();
       const gifMeta = getRadarGifMeta();
       const bomMeta = getBomRadarMeta();
       const gifWidth = gifMeta ? Number(gifMeta.width || 0) : 0;
@@ -506,6 +507,7 @@ function createApp(options) {
           bomUpdatedAt: bomMeta && bomMeta.updatedAt ? bomMeta.updatedAt : null,
           bomImagePath: '/api/radar/bom-image'
         },
+        beatbot: externalState.beatbot || { devices: [], stale: true, error: null },
         generatedAt: new Date(now).toISOString()
       });
     }
