@@ -3,14 +3,8 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const { shouldRefreshBomRadar } = require('../src/server');
 
 module.exports = async function run() {
-  assert.strictEqual(shouldRefreshBomRadar('server_gif'), true, 'server GIF mode should keep the static fallback fresh');
-  assert.strictEqual(shouldRefreshBomRadar('bom_gif'), true, 'BOM GIF mode should keep the static fallback fresh');
-  assert.strictEqual(shouldRefreshBomRadar('bom_static'), true, 'static BOM mode should refresh its image');
-  assert.strictEqual(shouldRefreshBomRadar('rainviewer_iframe'), false, 'iframe mode should not poll the static BOM image');
-
   const html = fs.readFileSync(path.join(process.cwd(), 'public/dashboard.html'), 'utf8');
 
   assert.ok(html.indexOf('id="globalRainIndicator"') > -1, 'global rain indicator missing');
@@ -264,12 +258,6 @@ module.exports = async function run() {
   assert.ok(html.indexOf('var RADAR_STATUS_REFRESH_MS = 1000;') > -1, 'radar status refresh should be throttled for kiosk hardware');
   assert.ok(html.indexOf('setTimeout(refreshRadarStatus, RADAR_STATUS_REFRESH_MS);') > -1, 'radar status loop should use the throttled cadence');
   assert.strictEqual(html.indexOf('requestAnimationFrame(animateRadar)'), -1, 'radar status should not mutate the DOM every animation frame');
-  assert.ok(html.indexOf("var lowPowerKiosk = /Android\\s(?:[1-7])(?:[.\\s;]|$)/i.test(navigator.userAgent);") > -1, 'legacy Android kiosk detection missing');
-  assert.ok(html.indexOf('if (lowPowerKiosk && canUseStaticRadar && radarStaticUrl) {') > -1, 'legacy Android kiosks should prefer maintained static radar images');
-  assert.ok(html.indexOf("var canUseStaticRadar = radarRenderMode === 'server_gif' || radarRenderMode === 'bom_gif';") > -1, 'legacy static override should exclude unsupported radar modes');
-  assert.ok(html.indexOf("if (radarRenderMode === 'bom_static' && radarStaticUrl) {") > -1, 'configured static radar mode should take priority on every device');
-  assert.ok(html.indexOf('html.low-power-kiosk #weatherBinsStripTrack {') > -1, 'legacy Android kiosks should disable the continuous strip animation');
-  assert.ok(html.indexOf('html.low-power-kiosk #newsTicker {') > -1, 'legacy Android kiosks should disable the continuous news animation');
   assert.ok(html.indexOf('id="radarGifStatus"') > -1, 'radar GIF status indicator missing');
   assert.ok(html.indexOf('function updateRadarGifStatus(') > -1, 'radar GIF status updater missing');
   assert.ok(html.indexOf("if (radarRenderMode === 'rainviewer_iframe') {") > -1, 'frontend should support iframe radar mode');
@@ -382,13 +370,12 @@ module.exports = async function run() {
   assert.ok(html.indexOf('if (radarStatusLoopStarted || !firstDataApplied) {') > -1, 'deferred radar status startup guard missing');
   assert.ok(html.indexOf('refreshRadarGifMode(true);\n        refreshRadarStatus();') > -1, 'radar startup should start the throttled status loop');
   assert.ok(html.indexOf("} else if (payload && payload.mode === 'bom_static') {") > -1, 'radar mode mapper should include bom_static mode');
-  assert.ok(html.indexOf('radarAnimatedUrl = payload.gifPath;') > -1, 'radar init should retain the animated radar URL');
-  assert.ok(html.indexOf('radarStaticUrl = payload.bomImagePath;') > -1, 'radar init should retain the static BOM radar URL');
-  assert.ok(html.indexOf('radarAnimatedUrl = String(state.radar.gifPath);') > -1, 'state apply should retain the animated radar URL');
-  assert.ok(html.indexOf('radarStaticUrl = String(state.radar.bomImagePath);') > -1, 'state apply should retain the static BOM radar URL');
-  assert.ok(html.indexOf('radarAnimatedUrl = String(patch.radar.gifPath);') > -1, 'realtime patch should retain the animated radar URL');
-  assert.ok(html.indexOf('radarStaticUrl = String(patch.radar.bomImagePath);') > -1, 'realtime patch should retain the static BOM radar URL');
-  assert.ok(html.split('radarGifUrl = preferredRadarImageUrl();').length - 1 >= 3, 'all radar payload paths should select the low-power-safe image URL');
+  assert.ok(html.indexOf('if (payload && payload.mode === \'bom_static\' && payload.bomImagePath) {') > -1, 'radar init should use bomImagePath in bom_static mode');
+  assert.ok(html.indexOf('} else if (payload && payload.gifPath) {') > -1, 'radar init should keep gifPath path for gif mode');
+  assert.ok(html.indexOf("if (radarRenderMode === 'server_gif') {\n              radarGifUrl = String(state.radar.gifPath);") > -1, 'state apply should only bind gifPath while in server_gif mode');
+  assert.ok(html.indexOf("if (radarRenderMode === 'bom_static') {\n              radarGifUrl = String(state.radar.bomImagePath);") > -1, 'state apply should only bind bomImagePath while in bom_static mode');
+  assert.ok(html.indexOf("if (radarRenderMode === 'server_gif') {\n                radarGifUrl = String(patch.radar.gifPath);") > -1, 'realtime patch should only bind gifPath while in server_gif mode');
+  assert.ok(html.indexOf("if (radarRenderMode === 'bom_static') {\n                radarGifUrl = String(patch.radar.bomImagePath);") > -1, 'realtime patch should only bind bomImagePath while in bom_static mode');
   assert.strictEqual(html.indexOf('window.location.replace(buildViewUrl(viewMode, untilMs, nextAtMs));'), -1, 'fullscreen switch should not force a page reload');
   assert.ok(html.indexOf("document.body.classList.add('blackout');") > -1, 'fullscreen switch should enable blackout overlay');
   assert.ok(html.indexOf('function applyViewMode(viewMode, untilMs, nextAtMs) {') > -1, 'fullscreen should apply view mode in-place');

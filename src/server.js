@@ -972,10 +972,6 @@ function scheduleRadarPolling(radarClient, radarState, radarConfig, timers, onFr
   };
 }
 
-function shouldRefreshBomRadar(renderMode) {
-  return renderMode === 'bom_static' || renderMode === 'server_gif' || renderMode === 'bom_gif';
-}
-
 function scheduleGitAutoSync(gitSync, gitConfig, timers) {
   if (!gitConfig.autoSyncEnabled) {
     return function noop() {};
@@ -1526,7 +1522,7 @@ function createServer(options) {
       stoppers.push(gifStop);
     }
 
-    if (shouldRefreshBomRadar(renderMode)) {
+    if (renderMode === 'bom_static') {
       const bomRefreshMs = Math.max(30, Number(dashboardConfig.radar.refreshSeconds || 120)) * 1000;
       const bomTick = async function bomTick() {
         try {
@@ -1567,7 +1563,6 @@ if (require.main === module) {
 
 module.exports = {
   createServer,
-  shouldRefreshBomRadar,
   startServer,
   formatDateLocal,
   resolveTimeZone,
