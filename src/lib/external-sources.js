@@ -27,7 +27,7 @@ function createFetcher(options) {
 
 function parseNewsTitles(xml, maxItems) {
   const out = [];
-  const re = /<title>([^<]+)<\/title>/gi;
+  const re = /<item\b[\s\S]*?<title>([^<]+)<\/title>[\s\S]*?<\/item>/gi;
   let m;
   while ((m = re.exec(xml)) !== null) {
     const value = String(m[1] || '').trim();
@@ -990,5 +990,6 @@ function createExternalSources(config, overrides) {
 }
 
 module.exports = {
-  createExternalSources
+  createExternalSources,
+  parseNewsTitles
 };

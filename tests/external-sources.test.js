@@ -1,9 +1,15 @@
 'use strict';
 
 const assert = require('assert');
-const { createExternalSources } = require('../src/lib/external-sources');
+const { createExternalSources, parseNewsTitles } = require('../src/lib/external-sources');
 
 module.exports = async function run() {
+  assert.deepStrictEqual(
+    parseNewsTitles('<rss><channel><title>Channel label</title><item><title>Fresh one</title></item><item><title>Fresh two</title></item></channel></rss>', 5),
+    ['Fresh one', 'Fresh two'],
+    'news parsing should ignore the RSS channel title and return item headlines only'
+  );
+
   function formatDateLocal(date) {
     return date.getFullYear() +
       '-' + String(date.getMonth() + 1).padStart(2, '0') +

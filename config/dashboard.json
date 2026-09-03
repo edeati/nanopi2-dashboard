@@ -45,7 +45,7 @@
     "endpoint": ""
   },
   "news": {
-    "feedUrl": "https://www.9news.com.au/rss",
+    "feedUrl": "https://www.sbs.com.au/news/feed",
     "maxItems": 5
   },
   "bins": {
