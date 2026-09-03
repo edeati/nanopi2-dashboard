@@ -2211,6 +2211,22 @@
     }
     .pool-cleaner-btn:hover:not(:disabled) { background: rgba(255,255,255,0.13); }
     .pool-cleaner-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+
+    html.low-power-kiosk #newsTicker {
+      padding-left: 0;
+      animation: none;
+    }
+
+    html.low-power-kiosk #weatherBinsStripTrack {
+      animation: none;
+      transform: none;
+      will-change: auto;
+    }
+
+    html.low-power-kiosk .solar-gauge-generation.is-maxed,
+    html.low-power-kiosk .skeleton::after {
+      animation: none;
+    }
     .pool-cleaner-btn.is-busy { opacity: 0.6; }
     .pool-cleaner-btn.btn-start { border-color: rgba(142,219,124,0.35); color: var(--green); }
     .pool-cleaner-btn.btn-pause { border-color: rgba(242,187,60,0.35); color: var(--yellow); }
@@ -2470,6 +2486,8 @@
       var radarGifReady = false;
       var radarGifLoading = false;
       var radarGifUrl = '';
+      var radarAnimatedUrl = '';
+      var radarStaticUrl = '';
       var radarGifLastUpdatedAt = '';
       var radarGifReloadQueued = false;
       var radarGifReloadForceQueued = false;
@@ -2506,6 +2524,22 @@
       var solarLoadingPhase = 0;
       var FAST_STATE_REFRESH_MS = 5000;
       var SLOW_STATE_REFRESH_MS = 5 * 60 * 1000;
+      var lowPowerKiosk = /Android\s(?:[1-7])(?:[.\s;]|$)/i.test(navigator.userAgent);
+
+      if (lowPowerKiosk) {
+        document.documentElement.classList.add('low-power-kiosk');
+      }
+
+      function preferredRadarImageUrl() {
+        if (radarRenderMode === 'bom_static' && radarStaticUrl) {
+          return radarStaticUrl;
+        }
+        var canUseStaticRadar = radarRenderMode === 'server_gif' || radarRenderMode === 'bom_gif';
+        if (lowPowerKiosk && canUseStaticRadar && radarStaticUrl) {
+          return radarStaticUrl;
+        }
+        return radarAnimatedUrl || radarStaticUrl || radarGifUrl;
+      }
 
       var rotationConfig = {
         intervalSeconds: 180,
@@ -3143,11 +3177,13 @@
             } else {
               setRadarMode('server_gif');
             }
-            if (payload && payload.mode === 'bom_static' && payload.bomImagePath) {
-              radarGifUrl = payload.bomImagePath;
-            } else if (payload && payload.gifPath) {
-              radarGifUrl = payload.gifPath;
+            if (payload && payload.gifPath) {
+              radarAnimatedUrl = payload.gifPath;
             }
+            if (payload && payload.bomImagePath) {
+              radarStaticUrl = payload.bomImagePath;
+            }
+            radarGifUrl = preferredRadarImageUrl();
             if (radarGifUrl) {
               loadRadarGif(false);
               if (!radarGifRefreshTimer) {
@@ -4813,15 +4849,12 @@
             radarGifLastUpdatedAt = String(state.radar.gifUpdatedAt);
           }
           if (state.radar.gifPath) {
-            if (radarRenderMode === 'server_gif') {
-              radarGifUrl = String(state.radar.gifPath);
-            }
+            radarAnimatedUrl = String(state.radar.gifPath);
           }
           if (state.radar.bomImagePath) {
-            if (radarRenderMode === 'bom_static') {
-              radarGifUrl = String(state.radar.bomImagePath);
-            }
+            radarStaticUrl = String(state.radar.bomImagePath);
           }
+          radarGifUrl = preferredRadarImageUrl();
           if (state.radar.bomUpdatedAt) {
             radarBomLastUpdatedAt = String(state.radar.bomUpdatedAt);
           }
@@ -4877,15 +4910,12 @@
             var gifUpdatedAt = patch.radar && patch.radar.gifUpdatedAt ? String(patch.radar.gifUpdatedAt) : '';
             var bomUpdatedAt = patch.radar && patch.radar.bomUpdatedAt ? String(patch.radar.bomUpdatedAt) : '';
             if (patch.radar && patch.radar.gifPath) {
-              if (radarRenderMode === 'server_gif') {
-                radarGifUrl = String(patch.radar.gifPath);
-              }
+              radarAnimatedUrl = String(patch.radar.gifPath);
             }
             if (patch.radar && patch.radar.bomImagePath) {
-              if (radarRenderMode === 'bom_static') {
-                radarGifUrl = String(patch.radar.bomImagePath);
-              }
+              radarStaticUrl = String(patch.radar.bomImagePath);
             }
+            radarGifUrl = preferredRadarImageUrl();
             if (gifUpdatedAt && gifUpdatedAt !== radarGifLastUpdatedAt) {
               radarGifLastUpdatedAt = gifUpdatedAt;
               if (radarGifUrl) {
