@@ -2063,7 +2063,13 @@
       justify-items: center;
       gap: 2px;
     }
-    .pool-cleaner-battery strong { font-size: clamp(24px, 3vw, 34px); line-height: 0.9; color: #edf6fc; }
+    .pool-cleaner-battery strong {
+      max-width: calc(100% - 12px);
+      font-size: clamp(18px, 2vw, 21px);
+      line-height: 0.9;
+      letter-spacing: -0.04em;
+      color: #edf6fc;
+    }
     .pool-cleaner-battery-label {
       color: currentColor;
       font-family: var(--font-ui);
@@ -2469,6 +2475,7 @@
       var radarGifReloadForceQueued = false;
       var radarGifRefreshTimer = null;
       var radarGifRefreshMs = 120000;
+      var RADAR_STATUS_REFRESH_MS = 1000;
       var radarBomLastUpdatedAt = '';
       var radarRainLikely = false;
       var radarHeavyRain = false;
@@ -2486,7 +2493,7 @@
       var lastPoolCleanerSig = '';
       var poolCleanerActiveFallback = { id: '', startedAt: 0 };
       var firstDataApplied = false;
-      var radarLoopStarted = false;
+      var radarStatusLoopStarted = false;
       var stateFetchInFlight = false;
       var realtimeStateFetchInFlight = false;
       var latestState = null;
@@ -2561,7 +2568,7 @@
         requestAnimationFrame(function () {
           resizeCanvas();
           if (currentViewMode === 'radar') {
-            maybeStartRadarLoop();
+            maybeStartRadarStatusLoop();
           }
           document.body.classList.remove('blackout');
           takeoverTransitionInFlight = false;
@@ -2721,11 +2728,11 @@
         refreshRadarGifMode(false);
       }
 
-      function maybeStartRadarLoop() {
-        if (radarLoopStarted || !firstDataApplied) {
+      function maybeStartRadarStatusLoop() {
+        if (radarStatusLoopStarted || !firstDataApplied) {
           return;
         }
-        radarLoopStarted = true;
+        radarStatusLoopStarted = true;
         initRadarGifMode();
       }
 
@@ -3034,7 +3041,7 @@
         }
       }
 
-      async function animateRadar() {
+      function refreshRadarStatus() {
         if (radarRenderMode === 'rainviewer_iframe') {
           applyRainClassification(
             isWeatherRainLikely(latestWeatherSummary),
@@ -3042,7 +3049,7 @@
             0.08
           );
           updateRainIndicator();
-          requestAnimationFrame(animateRadar);
+          setTimeout(refreshRadarStatus, RADAR_STATUS_REFRESH_MS);
           return;
         }
         if (!radarGifReady) {
@@ -3057,7 +3064,7 @@
           0.08
         );
         updateRainIndicator();
-        requestAnimationFrame(animateRadar);
+        setTimeout(refreshRadarStatus, RADAR_STATUS_REFRESH_MS);
       }
 
       function fetchRadarMeta() {
@@ -3153,7 +3160,7 @@
 
       function initRadarGifMode() {
         refreshRadarGifMode(true);
-        requestAnimationFrame(animateRadar);
+        refreshRadarStatus();
       }
 
       function drawDonut(ctx, canvas, ratio, colorA, colorB) {
@@ -4826,7 +4833,7 @@
         if (!firstDataApplied) {
           firstDataApplied = true;
           document.body.classList.remove('loading');
-          maybeStartRadarLoop();
+          maybeStartRadarStatusLoop();
         }
       }
 

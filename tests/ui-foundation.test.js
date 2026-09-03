@@ -254,8 +254,10 @@ module.exports = async function run() {
   assert.ok(html.indexOf('var queuedForce = radarGifReloadForceQueued;') > -1, 'gif onload/onerror should drain queued force mode');
   assert.ok(html.indexOf('loadRadarGif(false);') > -1, 'realtime gif updates should request latest gif without strict blocking');
   assert.ok(html.indexOf('function loadRadarGif(') > -1, 'radar GIF load function should exist');
-  assert.ok(html.indexOf('function maybeStartRadarLoop(') > -1, 'radar startup loop gate missing');
-  assert.ok(html.indexOf('requestAnimationFrame(animateRadar);') > -1, 'radar startup should launch canvas animation loop immediately');
+  assert.ok(html.indexOf('function maybeStartRadarStatusLoop(') > -1, 'radar status startup loop gate missing');
+  assert.ok(html.indexOf('var RADAR_STATUS_REFRESH_MS = 1000;') > -1, 'radar status refresh should be throttled for kiosk hardware');
+  assert.ok(html.indexOf('setTimeout(refreshRadarStatus, RADAR_STATUS_REFRESH_MS);') > -1, 'radar status loop should use the throttled cadence');
+  assert.strictEqual(html.indexOf('requestAnimationFrame(animateRadar)'), -1, 'radar status should not mutate the DOM every animation frame');
   assert.ok(html.indexOf('id="radarGifStatus"') > -1, 'radar GIF status indicator missing');
   assert.ok(html.indexOf('function updateRadarGifStatus(') > -1, 'radar GIF status updater missing');
   assert.ok(html.indexOf("if (radarRenderMode === 'rainviewer_iframe') {") > -1, 'frontend should support iframe radar mode');
@@ -364,9 +366,9 @@ module.exports = async function run() {
   assert.ok(html.indexOf('function fetchStartupState() {') > -1, 'startup state fetch helper missing');
   assert.ok(html.indexOf("fetch('/api/state/startup')") > -1, 'startup should fetch the lightweight startup payload first');
   assert.ok(html.indexOf("requestAnimationFrame(function () {\n              fetchState();\n            });") > -1, 'startup should defer heavy state hydration until after first paint');
-  assert.ok(html.indexOf('var radarLoopStarted = false;') > -1, 'deferred radar startup flag missing');
-  assert.ok(html.indexOf('if (radarLoopStarted || !firstDataApplied) {') > -1, 'deferred radar startup guard missing');
-  assert.ok(html.indexOf('requestAnimationFrame(animateRadar);\n        initRadarGifMode();') === -1, 'startup should not kick off png tile animation loop');
+  assert.ok(html.indexOf('var radarStatusLoopStarted = false;') > -1, 'deferred radar status startup flag missing');
+  assert.ok(html.indexOf('if (radarStatusLoopStarted || !firstDataApplied) {') > -1, 'deferred radar status startup guard missing');
+  assert.ok(html.indexOf('refreshRadarGifMode(true);\n        refreshRadarStatus();') > -1, 'radar startup should start the throttled status loop');
   assert.ok(html.indexOf("} else if (payload && payload.mode === 'bom_static') {") > -1, 'radar mode mapper should include bom_static mode');
   assert.ok(html.indexOf('if (payload && payload.mode === \'bom_static\' && payload.bomImagePath) {') > -1, 'radar init should use bomImagePath in bom_static mode');
   assert.ok(html.indexOf('} else if (payload && payload.gifPath) {') > -1, 'radar init should keep gifPath path for gif mode');
