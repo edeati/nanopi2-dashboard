@@ -697,10 +697,8 @@
     #poolCleanerCard {
       display: grid;
       align-content: stretch;
-      background:
-        linear-gradient(160deg, rgba(37, 118, 150, 0.28), rgba(10, 24, 35, 0.78)),
-        var(--bg-panel);
-      border-color: rgba(98, 187, 255, 0.28);
+      background: #18272d;
+      border-color: #3a4c51;
     }
     #customCard {
       display: flex;
@@ -1863,37 +1861,6 @@
         font-size: 18px;
       }
 
-      .pool-cleaner-card {
-        gap: 6px;
-      }
-
-      .pool-cleaner-badge {
-        padding: 2px 7px;
-        font-size: 10px;
-      }
-
-      .pool-cleaner-status {
-        font-size: 21px;
-      }
-
-      .pool-cleaner-battery {
-        font-size: 13px;
-      }
-
-      .pool-cleaner-battery strong {
-        font-size: 26px;
-      }
-
-      .pool-cleaner-mode-chip {
-        min-height: 38px;
-        padding: 4px 3px;
-      }
-
-      .pool-cleaner-btn {
-        padding: 6px 8px;
-        font-size: 11px;
-      }
-
       .g-label {
         font-size: 13px;
       }
@@ -1936,8 +1903,9 @@
       position: relative;
       display: grid;
       grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: minmax(70px, 1fr) auto auto;
-      gap: 7px;
+      grid-template-rows: minmax(0, 1fr) auto auto;
+      font-family: var(--font-ui);
+      gap: 6px;
       height: 100%;
       min-width: 0;
     }
@@ -1962,7 +1930,8 @@
       left: 36px;
       color: #e7f3fb;
       font-size: 10px;
-      font-weight: 750;
+      font-weight: 600;
+      font-family: var(--font-ui);
       letter-spacing: 0.03em;
     }
     .pool-cleaner-header {
@@ -1976,38 +1945,36 @@
     }
     .pool-cleaner-badge {
       display: inline-flex; align-items: center; gap: 5px;
-      padding: 3px 6px; border-radius: 7px; font-size: 9px; font-weight: 800;
+      padding: 3px 0; font-size: 9px; font-weight: 600;
       text-transform: uppercase; letter-spacing: 0.08em;
     }
-    .pool-cleaner-badge.is-online { background: rgba(142,219,124,0.15); color: var(--green); }
-    .pool-cleaner-badge.is-active { background: rgba(45,156,255,0.16); color: #76c8ff; }
-    .pool-cleaner-badge.is-offline { background: rgba(255,115,80,0.12); color: var(--red); }
-    .pool-cleaner-badge-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+    .pool-cleaner-badge.is-online { color: var(--green); }
+    .pool-cleaner-badge.is-active { color: #76c8ff; }
+    .pool-cleaner-badge.is-offline { color: var(--red); }
+    .pool-cleaner-badge-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
     .pool-cleaner-overview {
       min-width: 0;
       display: grid;
-      grid-template-columns: minmax(78px, 0.78fr) minmax(94px, 1.22fr);
-      align-items: stretch;
-      gap: 8px;
+      min-height: 0;
+      overflow: auto;
+      grid-template-columns: minmax(0, 1fr);
+      align-content: start;
+      gap: 6px;
     }
     .pool-cleaner-status {
       min-width: 0;
-      display: grid;
-      justify-items: center;
-      align-content: center;
-      gap: 4px;
-      font-size: clamp(14px, 1.55vw, 18px);
-      font-weight: 800;
-      color: var(--text);
-      text-align: center;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 20px;
+      font-weight: 600;
+      color: #eef3ef;
     }
     .pool-cleaner-state-icon {
-      width: 31px;
-      height: 31px;
-      display: grid;
-      place-items: center;
-      color: #76c8ff;
-      filter: drop-shadow(0 0 7px rgba(45, 156, 255, 0.42));
+      width: 23px;
+      height: 23px;
+      flex: 0 0 23px;
+      color: #b4c8bf;
     }
     .pool-cleaner-state-icon svg {
       display: block;
@@ -2021,63 +1988,48 @@
     }
     .pool-cleaner-status-label {
       min-width: 0;
-      max-width: 100%;
+      line-height: 1.15;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      line-height: 1;
-      text-transform: uppercase;
     }
     .pool-cleaner-battery {
-      --battery-value: 0;
-      position: relative;
       min-width: 0;
-      display: grid;
-      place-items: center;
-      color: #7f93a6;
+      color: #a8b8b5;
       white-space: nowrap;
-      font-family: var(--font-data);
-    }
-    .pool-cleaner-battery-dial {
-      position: relative;
-      width: min(68px, 100%);
-      aspect-ratio: 1;
-      display: grid;
-      place-items: center;
-      border-radius: 50%;
-      background: conic-gradient(currentColor calc(var(--battery-value) * 1%), rgba(108, 141, 170, 0.16) 0);
-      filter: drop-shadow(0 0 8px color-mix(in srgb, currentColor 32%, transparent));
-    }
-    .pool-cleaner-battery-dial::before {
-      content: "";
-      position: absolute;
-      inset: 6px;
-      border-radius: 50%;
-      background: #0c1a26;
-      box-shadow: inset 0 0 18px rgba(6, 11, 18, 0.7);
     }
     .pool-cleaner-battery-copy {
-      position: relative;
-      z-index: 1;
-      display: grid;
-      justify-items: center;
-      gap: 2px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 5px;
     }
     .pool-cleaner-battery strong {
-      max-width: calc(100% - 12px);
-      font-size: clamp(18px, 2vw, 21px);
-      line-height: 0.9;
-      letter-spacing: -0.04em;
-      color: #edf6fc;
+      margin-left: auto;
+      flex: 0 0 auto;
+      font-size: 17px;
+      font-weight: 600;
+      line-height: 1.2;
+      font-variant-numeric: tabular-nums;
+      color: #eef3ef;
     }
     .pool-cleaner-battery-label {
-      color: currentColor;
-      font-family: var(--font-ui);
-      font-size: 8px;
-      font-weight: 800;
-      letter-spacing: 0.12em;
-      line-height: 1;
-      text-transform: uppercase;
+      color: #b6c5c3;
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1.2;
+    }
+    .pool-cleaner-battery-track {
+      height: 4px;
+      overflow: hidden;
+      border-radius: 2px;
+      background: #35474b;
+    }
+    .pool-cleaner-battery-level {
+      display: block;
+      height: 100%;
+      background: currentColor;
+      border-radius: inherit;
     }
     .pool-cleaner-battery-icon {
       position: relative;
@@ -2112,30 +2064,18 @@
     .pool-cleaner-battery.bat-low { color: var(--red); }
     .pool-cleaner-status-row {
       min-width: 0;
-      display: grid;
-      place-items: center;
-      padding: 7px 6px;
-      border: 1px solid rgba(98, 187, 255, 0.34);
-      border-radius: 10px;
-      background: rgba(6, 23, 37, 0.76);
-      box-shadow: inset 0 1px 0 rgba(172, 220, 244, 0.08);
+      grid-row: 1;
+      grid-column: 1;
     }
-    .pool-cleaner-status-row.is-active {
-      border-color: rgba(53, 185, 255, 0.82);
-      background: linear-gradient(180deg, rgba(20, 90, 133, 0.48), rgba(5, 29, 48, 0.78));
-      box-shadow: inset 0 0 20px rgba(45, 156, 255, 0.12), 0 0 12px rgba(45, 156, 255, 0.16);
-    }
-    .pool-cleaner-status-stack { min-width: 0; max-width: 100%; display: grid; gap: 3px; justify-items: center; }
+    .pool-cleaner-status-row.is-active .pool-cleaner-state-icon { color: #a6d7b5; }
+    .pool-cleaner-status-stack { min-width: 0; display: grid; gap: 3px; }
     .pool-cleaner-elapsed {
-      min-height: 11px;
-      color: #9fb5c8;
-      font-family: var(--font-ui);
+      color: #b6c5c3;
       font-size: 10px;
-      font-weight: 700;
-      line-height: 1;
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
+      line-height: 1.2;
+      padding-left: 34px;
     }
+    .pool-cleaner-elapsed:empty { display: none; }
     .pool-cleaner-errors { grid-column: 1 / -1; font-size: 12px; color: var(--yellow); }
     .pool-cleaner-errors.has-fault { color: var(--red); }
     .pool-cleaner-mode-summary {
@@ -2147,9 +2087,9 @@
     .pool-cleaner-mode-summary strong { color: #f1f7fb; }
     .pool-cleaner-mode-section { min-width: 0; display: grid; gap: 4px; }
     .pool-cleaner-section-label {
-      color: #8fa8bc;
+      color: #a5b9b5;
       font-size: 9px;
-      font-weight: 800;
+      font-weight: 600;
       letter-spacing: 0.12em;
       line-height: 1;
       text-transform: uppercase;
@@ -2157,34 +2097,41 @@
     .pool-cleaner-mode-grid {
       display: grid;
       grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 1fr);
-      gap: 5px;
+      gap: 2px;
+      padding: 3px;
+      border-radius: 6px;
+      background: #101e23;
     }
     .pool-cleaner-mode-chip {
       min-width: 0;
-      min-height: 41px;
+      min-height: 34px;
       display: grid;
       place-items: center;
       align-content: center;
       gap: 3px;
-      padding: 4px 2px 5px;
-      border: 1px solid rgba(98, 187, 255, 0.18);
-      border-radius: 8px;
-      background: rgba(4, 18, 30, 0.64);
-      color: #b4c9d9;
-      font-family: var(--font-ui);
-      font-size: clamp(8px, 0.9vw, 10px);
-      font-weight: 800;
-      line-height: 1;
+      padding: 2px 1px;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      background: transparent;
+      color: #acbfbc;
+      font-family: inherit;
+      font-size: 9px;
+      font-weight: 500;
+      line-height: 1.15;
       cursor: pointer;
     }
     .pool-cleaner-mode-chip.is-selected {
-      border-color: rgba(57, 198, 255, 0.95);
-      background: linear-gradient(180deg, rgba(45,156,255,0.42), rgba(12,77,135,0.68));
-      color: #ffffff;
-      box-shadow: 0 0 0 1px rgba(120, 220, 255, 0.3), 0 0 12px rgba(45,156,255,0.24);
+      border-color: #607c70;
+      background: #32483e;
+      color: #e3f0e5;
     }
-    .pool-cleaner-mode-chip:disabled { opacity: 0.42; cursor: not-allowed; }
-    .pool-cleaner-mode-icon { width: 19px; height: 19px; color: #63bcff; }
+    .pool-cleaner-mode-chip:disabled { cursor: not-allowed; }
+    .pool-cleaner-mode-chip:hover:not(:disabled) { background: #354a46; }
+    .pool-cleaner-mode-chip:focus-visible, .pool-cleaner-btn:focus-visible {
+      outline: 2px solid #c4dfcf;
+      outline-offset: 2px;
+    }
+    .pool-cleaner-mode-icon { width: 14px; height: 14px; color: currentColor; }
     .pool-cleaner-mode-icon svg {
       display: block;
       width: 100%;
@@ -2201,20 +2148,20 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .pool-cleaner-actions { display: flex; gap: 6px; flex-wrap: nowrap; min-height: 31px; }
+    .pool-cleaner-actions { display: flex; gap: 6px; flex-wrap: nowrap; min-height: 28px; }
     .pool-cleaner-btn {
       flex: 1; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
-      height: 31px; padding: 4px 7px; border-radius: 8px; border: 1px solid var(--panel-border);
-      background: rgba(5, 17, 28, 0.66); color: var(--text); font-size: 12px; font-weight: 800;
-      font-family: var(--font-body); cursor: pointer; transition: background 0.15s, opacity 0.15s;
+      height: 28px; padding: 4px 7px; border-radius: 5px; border: 1px solid var(--panel-border);
+      background: rgba(5, 17, 28, 0.66); color: var(--text); font-size: 12px; font-weight: 600;
+      font-family: inherit; cursor: pointer; transition: background 0.15s, opacity 0.15s;
       text-align: center;
     }
     .pool-cleaner-btn:hover:not(:disabled) { background: rgba(255,255,255,0.13); }
-    .pool-cleaner-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+    .pool-cleaner-btn:disabled { color: #9aaba9; border-color: #435454; background: transparent; cursor: not-allowed; }
     .pool-cleaner-btn.is-busy { opacity: 0.6; }
     .pool-cleaner-btn.btn-start { border-color: rgba(142,219,124,0.35); color: var(--green); }
     .pool-cleaner-btn.btn-pause { border-color: rgba(242,187,60,0.35); color: var(--yellow); }
-    .pool-cleaner-btn.btn-return { border-color: rgba(45,156,255,0.35); color: var(--blue); }
+    .pool-cleaner-btn.btn-return:not(:disabled) { border-color: #6c897d; color: #d2e7d9; }
     .pool-cleaner-action-icon { width: 14px; height: 14px; display: grid; place-items: center; font-size: 14px; line-height: 1; }
     .pool-cleaner-action-icon svg {
       display: block;
@@ -2239,9 +2186,15 @@
     .strip-pool-status { font-size: 18px; font-weight: 700; margin-top: 2px; }
     .strip-pool-battery { font-size: 14px; color: var(--muted); }
 
-    @media (max-height: 680px) and (orientation: landscape) {
-      .pool-cleaner-card { grid-template-rows: minmax(62px, 1fr) auto auto; gap: 5px; }
-      .pool-cleaner-battery-dial { width: min(68px, 100%); }
+    @media (max-height: 680px) and (orientation: landscape), (min-width: 1101px) {
+      .pool-cleaner-card {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+        grid-template-rows: 1fr auto;
+        gap: 6px 12px;
+      }
+      .pool-cleaner-overview { grid-row: 1 / -1; gap: 8px; }
+      .pool-cleaner-mode-section, .pool-cleaner-actions, .pool-cleaner-mode-summary { grid-column: 2; }
+      .pool-cleaner-status { font-size: 19px; }
       .pool-cleaner-mode-chip { min-height: 36px; }
       .pool-cleaner-mode-icon { width: 16px; height: 16px; }
       .pool-cleaner-actions { min-height: 28px; }
@@ -4211,7 +4164,8 @@
           return;
         }
 
-        var pcBatteryVal = Number.isFinite(Number(card.battery)) ? Number(card.battery) : null;
+        var pcBatteryVal = card.battery !== null && card.battery !== undefined && card.battery !== '' && Number.isFinite(Number(card.battery))
+          ? Math.max(0, Math.min(100, Number(card.battery))) : null;
         var pcBatText = pcBatteryVal !== null ? (pcBatteryVal.toFixed(0) + '%') : '--';
         var pcBatFill = pcBatteryVal !== null ? Math.max(0, Math.min(100, pcBatteryVal)).toFixed(0) : '0';
         var pcBatClass = pcBatteryVal === null ? '' : (pcBatteryVal >= 80 ? 'bat-full' : pcBatteryVal >= 20 ? 'bat-mid' : 'bat-low');
@@ -4276,7 +4230,7 @@
           '</span>' +
           '</div>' +
           '<div class=\"pool-cleaner-overview\">' +
-          '<div class=\"pool-cleaner-battery ' + pcBatClass + '\" style=\"--battery-value:' + pcBatFill + '\" title=\"Battery ' + escapeHtml(pcBatText) + '\"><div class=\"pool-cleaner-battery-dial\"><div class=\"pool-cleaner-battery-copy\"><span class=\"pool-cleaner-battery-icon\" aria-hidden=\"true\"><span class=\"pool-cleaner-battery-fill\" style=\"width:' + pcBatFill + '%\"></span></span><strong>' + pcBatText + '</strong><span class=\"pool-cleaner-battery-label\">Battery</span></div></div></div>' +
+          '<div class=\"pool-cleaner-battery ' + pcBatClass + '\" title=\"Battery ' + escapeHtml(pcBatText) + '\"><div class=\"pool-cleaner-battery-copy\"><span class=\"pool-cleaner-battery-icon\" aria-hidden=\"true\"><span class=\"pool-cleaner-battery-fill\" style=\"width:' + pcBatFill + '%\"></span></span><span class=\"pool-cleaner-battery-label\">Battery</span><strong>' + pcBatText + '</strong></div><div class=\"pool-cleaner-battery-track\" aria-hidden=\"true\"><span class=\"pool-cleaner-battery-level\" style=\"width:' + pcBatFill + '%\"></span></div></div>' +
           '<div class=\"pool-cleaner-status-row' + (pcActive ? ' is-active' : '') + '\">' +
           '<div class=\"pool-cleaner-status-stack\"><div class=\"pool-cleaner-status\"><span class=\"pool-cleaner-state-icon\" aria-hidden=\"true\"><svg viewBox=\"0 0 24 24\"><use href=\"#' + poolCleanerStateIcon(card.status, pcErrors) + '\"></use></svg></span><span class=\"pool-cleaner-status-label\">' + escapeHtml(card.statusLabel || '--') + '</span></div>' + pcElapsedHtml + '</div>' +
           '</div>' +

@@ -13,14 +13,10 @@ module.exports = async function run() {
   assert.ok(html.indexOf("charging: 'i-pc-charge'") > -1, 'charging state should have a dedicated SVG icon');
 
   assert.ok(html.indexOf('.pool-cleaner-overview {\n      min-width: 0;\n      display: grid;') > -1, 'pool cleaner should use a dedicated battery and status overview');
-  assert.ok(html.indexOf('grid-template-columns: minmax(78px, 0.78fr) minmax(94px, 1.22fr);') > -1, 'pool cleaner overview should reserve readable space for both battery and status');
   assert.ok(html.indexOf('#poolCleanerCard {\n        width: 210px;\n        justify-self: stretch;') > -1, 'tablet pool cleaner panel should keep its fixed 210px footprint');
-  assert.ok(html.indexOf('.pool-cleaner-status-label {\n      min-width: 0;') > -1, 'pool cleaner status label should ellipsize instead of wrapping');
-  assert.ok(html.indexOf('.pool-cleaner-battery-dial {') > -1, 'pool cleaner battery should use a large circular dial');
-  assert.ok(html.indexOf('width: min(68px, 100%);') > -1, 'battery dial should stay clear of the work mode label');
-  assert.ok(html.indexOf('font-size: clamp(18px, 2vw, 21px);') > -1, 'battery percentage should fit inside the reduced dial');
-  assert.ok(html.indexOf('max-width: calc(100% - 12px);') > -1, 'battery percentage should remain inside the dial ring');
-  assert.ok(html.indexOf('background: conic-gradient(currentColor calc(var(--battery-value) * 1%)') > -1, 'battery dial should graphically reflect its percentage');
+  assert.ok(html.indexOf('.pool-cleaner-battery-track {') > -1, 'battery should have a full-width rail');
+  assert.strictEqual(html.indexOf('pool-cleaner-battery-dial'), -1, 'battery text must not be confined inside a dial');
+  assert.ok(html.indexOf('.pool-cleaner-status-label {\n      min-width: 0;') > -1, 'pool cleaner status label should be allowed to shrink');
   assert.ok(html.indexOf("pcBatteryVal >= 80 ? 'bat-full' : pcBatteryVal >= 20 ? 'bat-mid' : 'bat-low'") > -1, 'battery should be green from 80%, orange from 20%, and red below 20%');
   assert.ok(html.indexOf('.pool-cleaner-battery.bat-full { color: var(--green); }') > -1, 'full battery state should be green');
   assert.ok(html.indexOf('.pool-cleaner-battery.bat-mid { color: var(--orange); }') > -1, 'mid battery state should be orange');
