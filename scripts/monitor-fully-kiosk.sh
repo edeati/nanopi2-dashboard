@@ -54,6 +54,14 @@ write_status() {
   mv "$pending_status" "$STATUS_FILE"
 }
 
+notify_user() {
+  if command -v osascript >/dev/null 2>&1; then
+    osascript -e \
+      'display notification "Crash evidence is ready. Return to the Codex tablet task." with title "Fully Kiosk monitor"' \
+      >/dev/null 2>&1 || true
+  fi
+}
+
 capture_evidence() {
   local reason="$1"
   local observed_pid="${2:-}"
@@ -102,6 +110,7 @@ capture_evidence() {
     > "$RUN_DIR/system.log" 2>&1 || true
 
   mv "$RUN_DIR/result.pending" "$RESULT_FILE"
+  notify_user
   printf 'Evidence captured in %s (%s)\n' "$RUN_DIR" "$reason"
 }
 
