@@ -5,6 +5,9 @@ TABLET_SERIAL="${1:-192.168.0.29:5555}"
 CHECK_INTERVAL="${2:-5}"
 ADB_BIN="${ADB_BIN:-adb}"
 MONITOR_ROOT="${FULLY_KIOSK_MONITOR_ROOT:-/tmp/fully-kiosk-monitor}"
+SLACK_KEYCHAIN_SERVICE="${SLACK_KEYCHAIN_SERVICE:-nanopi2-fully-kiosk-slack-webhook}"
+SLACK_KEYCHAIN_ACCOUNT="${SLACK_KEYCHAIN_ACCOUNT:-kiosk-alerts}"
+SLACK_ALERT_PREFIX="${FULLY_KIOSK_SLACK_ALERT_PREFIX:-}"
 PACKAGE_NAME="de.ozerov.fully"
 MAIN_PROCESS="de.ozerov.fully"
 
@@ -62,6 +65,57 @@ notify_user() {
   fi
 }
 
+notify_slack() {
+  local reason="$1"
+  local captured_at="$2"
+  local webhook_url
+  local message
+  local payload
+
+  if ! command -v security >/dev/null 2>&1 \
+    || ! command -v node >/dev/null 2>&1 \
+    || ! command -v curl >/dev/null 2>&1; then
+    printf '%s\n' "Slack notification skipped: security, node, or curl is unavailable" \
+      > "$RUN_DIR/slack-notification-error.log"
+    return
+  fi
+
+  webhook_url="$(security find-generic-password \
+    -a "$SLACK_KEYCHAIN_ACCOUNT" \
+    -s "$SLACK_KEYCHAIN_SERVICE" \
+    -w 2>/dev/null || true)"
+
+  if [[ -z "$webhook_url" ]]; then
+    printf 'Slack notification skipped: no webhook in Keychain service %s\n' \
+      "$SLACK_KEYCHAIN_SERVICE" > "$RUN_DIR/slack-notification-error.log"
+    return
+  fi
+
+  message="${SLACK_ALERT_PREFIX}:rotating_light: Fully Kiosk exit detected on ${TABLET_SERIAL}. Evidence is ready at \`${RUN_DIR}\`. Reason: \`${reason}\`. Captured: ${captured_at}."
+  if ! payload="$(node -e \
+    'process.stdout.write(JSON.stringify({text: process.argv[1], username: "Kiosk Watcher", icon_emoji: ":rotating_light:"}))' \
+    "$message")"; then
+    printf '%s\n' "Slack notification failed: could not build JSON payload" \
+      > "$RUN_DIR/slack-notification-error.log"
+    return
+  fi
+
+  if printf 'url = "%s"\n' "$webhook_url" | curl --config - \
+    --fail --silent --show-error \
+    --connect-timeout 5 \
+    --max-time 10 \
+    --header 'Content-type: application/json' \
+    --data-binary "$payload" \
+    > "$RUN_DIR/slack-notification-response.txt" \
+    2> "$RUN_DIR/slack-notification-error.log"; then
+    printf 'sent_at_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      > "$RUN_DIR/slack-notification-status.txt"
+  else
+    printf 'failed_at_utc=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      > "$RUN_DIR/slack-notification-status.txt"
+  fi
+}
+
 capture_evidence() {
   local reason="$1"
   local observed_pid="${2:-}"
@@ -111,6 +165,7 @@ capture_evidence() {
 
   mv "$RUN_DIR/result.pending" "$RESULT_FILE"
   notify_user
+  notify_slack "$reason" "$captured_at"
   printf 'Evidence captured in %s (%s)\n' "$RUN_DIR" "$reason"
 }
 
