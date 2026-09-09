@@ -1,0 +1,4 @@
+**
+!scripts
+!scripts/monitor-fully-kiosk.sh
+!scripts/healthcheck-fully-kiosk.sh

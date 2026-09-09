@@ -1,0 +1,24 @@
+services:
+  fully-kiosk-monitor:
+    container_name: fully-kiosk-monitor
+    build:
+      context: ../..
+      dockerfile: deploy/kiosk-monitor/Dockerfile
+    restart: unless-stopped
+    environment:
+      FULLY_KIOSK_TABLET_SERIAL: 192.168.0.29:5555
+      FULLY_KIOSK_CHECK_INTERVAL: "5"
+      FULLY_KIOSK_MONITOR_ROOT: /var/lib/fully-kiosk-monitor
+      FULLY_KIOSK_EVIDENCE_DISPLAY_ROOT: /DATA/AppData/homedashboard/fully-kiosk-monitor
+      FULLY_KIOSK_MAX_EVIDENCE_RUNS: "20"
+      FULLY_KIOSK_HEALTH_MAX_AGE_SECONDS: "30"
+      SLACK_WEBHOOK_URL_FILE: /run/secrets/slack_webhook_url
+    volumes:
+      - /DATA/AppData/homedashboard/fully-kiosk-monitor:/var/lib/fully-kiosk-monitor
+      - /DATA/AppData/homedashboard/fully-kiosk-monitor-adb:/root/.android
+    secrets:
+      - slack_webhook_url
+
+secrets:
+  slack_webhook_url:
+    file: /DATA/AppData/homedashboard/secrets/fully-kiosk-slack-webhook

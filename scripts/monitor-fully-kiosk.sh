@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TABLET_SERIAL="${1:-192.168.0.29:5555}"
-CHECK_INTERVAL="${2:-5}"
+TABLET_SERIAL="${1:-${FULLY_KIOSK_TABLET_SERIAL:-192.168.0.29:5555}}"
+CHECK_INTERVAL="${2:-${FULLY_KIOSK_CHECK_INTERVAL:-5}}"
 ADB_BIN="${ADB_BIN:-adb}"
 MONITOR_ROOT="${FULLY_KIOSK_MONITOR_ROOT:-/tmp/fully-kiosk-monitor}"
+EVIDENCE_DISPLAY_ROOT="${FULLY_KIOSK_EVIDENCE_DISPLAY_ROOT:-$MONITOR_ROOT}"
+MAX_EVIDENCE_RUNS="${FULLY_KIOSK_MAX_EVIDENCE_RUNS:-20}"
 SLACK_KEYCHAIN_SERVICE="${SLACK_KEYCHAIN_SERVICE:-nanopi2-fully-kiosk-slack-webhook}"
 SLACK_KEYCHAIN_ACCOUNT="${SLACK_KEYCHAIN_ACCOUNT:-kiosk-alerts}"
+SLACK_WEBHOOK_URL_FILE="${SLACK_WEBHOOK_URL_FILE:-}"
 SLACK_ALERT_PREFIX="${FULLY_KIOSK_SLACK_ALERT_PREFIX:-}"
 PACKAGE_NAME="de.ozerov.fully"
 MAIN_PROCESS="de.ozerov.fully"
@@ -16,14 +19,52 @@ if [[ ! "$CHECK_INTERVAL" =~ ^[1-9][0-9]*$ ]]; then
   exit 64
 fi
 
+if [[ ! "$MAX_EVIDENCE_RUNS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "Maximum evidence runs must be a positive whole number" >&2
+  exit 64
+fi
+
+if [[ "$MONITOR_ROOT" != /* || "$MONITOR_ROOT" == "/" ]]; then
+  echo "Monitor root must be a specific absolute directory" >&2
+  exit 64
+fi
+
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 RUN_DIR="$MONITOR_ROOT/$RUN_ID"
+DISPLAY_RUN_DIR="$EVIDENCE_DISPLAY_ROOT/$RUN_ID"
 STATUS_FILE="$RUN_DIR/status.txt"
 RESULT_FILE="$RUN_DIR/result.txt"
 
 mkdir -p "$RUN_DIR"
 printf '%s\n' "$RUN_DIR" > "$MONITOR_ROOT/current_run"
 printf '%s\n' "$$" > "$RUN_DIR/watcher.pid"
+
+prune_old_runs() {
+  local candidate
+  local candidate_name
+  local retained=1
+
+  while IFS= read -r candidate; do
+    if [[ "$candidate" == "$RUN_DIR" ]]; then
+      continue
+    fi
+
+    candidate_name="${candidate##*/}"
+    if [[ ! "$candidate_name" =~ ^[0-9]{8}T[0-9]{6}Z-[0-9]+$ ]]; then
+      continue
+    fi
+
+    if (( retained < MAX_EVIDENCE_RUNS )); then
+      retained=$((retained + 1))
+      continue
+    fi
+
+    rm -rf -- "$candidate"
+  done < <(find "$MONITOR_ROOT" -mindepth 1 -maxdepth 1 -type d -print \
+    | LC_ALL=C sort -r)
+}
+
+prune_old_runs
 
 device_state() {
   "$ADB_BIN" -s "$TABLET_SERIAL" get-state 2>/dev/null || true
@@ -65,6 +106,27 @@ notify_user() {
   fi
 }
 
+read_slack_webhook_url() {
+  if [[ -n "$SLACK_WEBHOOK_URL_FILE" ]]; then
+    if [[ ! -r "$SLACK_WEBHOOK_URL_FILE" ]]; then
+      return 1
+    fi
+
+    tr -d '\r\n' < "$SLACK_WEBHOOK_URL_FILE"
+    return
+  fi
+
+  if command -v security >/dev/null 2>&1; then
+    security find-generic-password \
+      -a "$SLACK_KEYCHAIN_ACCOUNT" \
+      -s "$SLACK_KEYCHAIN_SERVICE" \
+      -w 2>/dev/null
+    return
+  fi
+
+  return 1
+}
+
 notify_slack() {
   local reason="$1"
   local captured_at="$2"
@@ -72,29 +134,39 @@ notify_slack() {
   local message
   local payload
 
-  if ! command -v security >/dev/null 2>&1 \
-    || ! command -v node >/dev/null 2>&1 \
-    || ! command -v curl >/dev/null 2>&1; then
-    printf '%s\n' "Slack notification skipped: security, node, or curl is unavailable" \
+  if ! command -v curl >/dev/null 2>&1; then
+    printf '%s\n' "Slack notification skipped: curl is unavailable" \
       > "$RUN_DIR/slack-notification-error.log"
     return
   fi
 
-  webhook_url="$(security find-generic-password \
-    -a "$SLACK_KEYCHAIN_ACCOUNT" \
-    -s "$SLACK_KEYCHAIN_SERVICE" \
-    -w 2>/dev/null || true)"
+  webhook_url="$(read_slack_webhook_url || true)"
 
   if [[ -z "$webhook_url" ]]; then
-    printf 'Slack notification skipped: no webhook in Keychain service %s\n' \
-      "$SLACK_KEYCHAIN_SERVICE" > "$RUN_DIR/slack-notification-error.log"
+    printf '%s\n' "Slack notification skipped: webhook credential is unavailable" \
+      > "$RUN_DIR/slack-notification-error.log"
     return
   fi
 
-  message="${SLACK_ALERT_PREFIX}:rotating_light: Fully Kiosk exit detected on ${TABLET_SERIAL}. Evidence is ready at \`${RUN_DIR}\`. Reason: \`${reason}\`. Captured: ${captured_at}."
-  if ! payload="$(node -e \
-    'process.stdout.write(JSON.stringify({text: process.argv[1], username: "Kiosk Watcher", icon_emoji: ":rotating_light:"}))' \
-    "$message")"; then
+  if [[ "$webhook_url" != https://hooks.slack.com/services/* ]]; then
+    printf '%s\n' "Slack notification skipped: webhook credential has an unexpected URL" \
+      > "$RUN_DIR/slack-notification-error.log"
+    return
+  fi
+
+  message="${SLACK_ALERT_PREFIX}:rotating_light: Fully Kiosk exit detected on ${TABLET_SERIAL}. Evidence is ready at \`${DISPLAY_RUN_DIR}\`. Reason: \`${reason}\`. Captured: ${captured_at}."
+  if command -v jq >/dev/null 2>&1; then
+    payload="$(jq -nc --arg text "$message" \
+      '{text: $text, username: "Kiosk Watcher", icon_emoji: ":rotating_light:"}' || true)"
+  elif command -v node >/dev/null 2>&1; then
+    payload="$(node -e \
+      'process.stdout.write(JSON.stringify({text: process.argv[1], username: "Kiosk Watcher", icon_emoji: ":rotating_light:"}))' \
+      "$message" || true)"
+  else
+    payload=""
+  fi
+
+  if [[ -z "$payload" ]]; then
     printf '%s\n' "Slack notification failed: could not build JSON payload" \
       > "$RUN_DIR/slack-notification-error.log"
     return
@@ -129,6 +201,7 @@ capture_evidence() {
     printf 'baseline_pid=%s\n' "$BASELINE_PID"
     printf 'observed_pid=%s\n' "$observed_pid"
     printf 'run_dir=%s\n' "$RUN_DIR"
+    printf 'display_run_dir=%s\n' "$DISPLAY_RUN_DIR"
   } > "$RUN_DIR/result.pending"
 
   {
