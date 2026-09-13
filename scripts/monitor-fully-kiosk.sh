@@ -7,6 +7,8 @@ ADB_BIN="${ADB_BIN:-adb}"
 MONITOR_ROOT="${FULLY_KIOSK_MONITOR_ROOT:-/tmp/fully-kiosk-monitor}"
 EVIDENCE_DISPLAY_ROOT="${FULLY_KIOSK_EVIDENCE_DISPLAY_ROOT:-$MONITOR_ROOT}"
 MAX_EVIDENCE_RUNS="${FULLY_KIOSK_MAX_EVIDENCE_RUNS:-20}"
+ADB_FAILURE_THRESHOLD="${FULLY_KIOSK_ADB_FAILURE_THRESHOLD:-3}"
+PROCESS_MISSING_THRESHOLD="${FULLY_KIOSK_PROCESS_MISSING_THRESHOLD:-3}"
 SLACK_KEYCHAIN_SERVICE="${SLACK_KEYCHAIN_SERVICE:-nanopi2-fully-kiosk-slack-webhook}"
 SLACK_KEYCHAIN_ACCOUNT="${SLACK_KEYCHAIN_ACCOUNT:-kiosk-alerts}"
 SLACK_WEBHOOK_URL_FILE="${SLACK_WEBHOOK_URL_FILE:-}"
@@ -21,6 +23,16 @@ fi
 
 if [[ ! "$MAX_EVIDENCE_RUNS" =~ ^[1-9][0-9]*$ ]]; then
   echo "Maximum evidence runs must be a positive whole number" >&2
+  exit 64
+fi
+
+if [[ ! "$ADB_FAILURE_THRESHOLD" =~ ^[1-9][0-9]*$ ]]; then
+  echo "ADB failure threshold must be a positive whole number" >&2
+  exit 64
+fi
+
+if [[ ! "$PROCESS_MISSING_THRESHOLD" =~ ^[1-9][0-9]*$ ]]; then
+  echo "Process missing threshold must be a positive whole number" >&2
   exit 64
 fi
 
@@ -71,9 +83,13 @@ device_state() {
 }
 
 main_pid() {
-  "$ADB_BIN" -s "$TABLET_SERIAL" shell ps 2>/dev/null \
-    | tr -d '\r' \
-    | awk -v process="$MAIN_PROCESS" '$NF == process { print $2; exit }' || true
+  local ps_output
+
+  if ! ps_output="$("$ADB_BIN" -s "$TABLET_SERIAL" shell ps 2>/dev/null | tr -d '\r')"; then
+    return 1
+  fi
+
+  awk -v process="$MAIN_PROCESS" '$NF == process { print $2; exit }' <<< "$ps_output"
 }
 
 foreground_activity() {
@@ -154,7 +170,7 @@ notify_slack() {
     return
   fi
 
-  message="${SLACK_ALERT_PREFIX}:rotating_light: Fully Kiosk exit detected on ${TABLET_SERIAL}. Evidence is ready at \`${DISPLAY_RUN_DIR}\`. Reason: \`${reason}\`. Captured: ${captured_at}."
+  message="${SLACK_ALERT_PREFIX}:rotating_light: Fully Kiosk monitor alert on ${TABLET_SERIAL}. Evidence is ready at \`${DISPLAY_RUN_DIR}\`. Reason: \`${reason}\`. Captured: ${captured_at}."
   if command -v jq >/dev/null 2>&1; then
     payload="$(jq -nc --arg text "$message" \
       '{text: $text, username: "Kiosk Watcher", icon_emoji: ":rotating_light:"}' || true)"
@@ -249,12 +265,16 @@ stop_monitor() {
 trap stop_monitor INT TERM
 
 CONSECUTIVE_ADB_FAILURES=0
+CONSECUTIVE_PROCESS_MISSES=0
 
 if [[ "$(device_state)" != "device" ]]; then
   "$ADB_BIN" connect "$TABLET_SERIAL" >/dev/null 2>&1 || true
 fi
 
-BASELINE_PID="$(main_pid)"
+if ! BASELINE_PID="$(main_pid)"; then
+  echo "Could not query Fully Kiosk processes on $TABLET_SERIAL" >&2
+  exit 1
+fi
 if [[ -z "$BASELINE_PID" ]]; then
   echo "Fully Kiosk main process is not running on $TABLET_SERIAL" >&2
   exit 1
@@ -267,29 +287,54 @@ printf 'Monitoring %s on %s (PID %s) every %ss; evidence directory: %s\n' \
 while true; do
   if [[ "$(device_state)" != "device" ]]; then
     CONSECUTIVE_ADB_FAILURES=$((CONSECUTIVE_ADB_FAILURES + 1))
+    CONSECUTIVE_PROCESS_MISSES=0
     "$ADB_BIN" connect "$TABLET_SERIAL" >/dev/null 2>&1 || true
 
-    if (( CONSECUTIVE_ADB_FAILURES >= 2 )); then
-      capture_evidence "adb-unavailable-two-consecutive-checks"
+    if (( CONSECUTIVE_ADB_FAILURES >= ADB_FAILURE_THRESHOLD )); then
+      capture_evidence "adb-unavailable-${ADB_FAILURE_THRESHOLD}-consecutive-checks"
       exit 2
     fi
 
-    write_status "adb-unavailable-once" "" ""
+    write_status \
+      "adb-unavailable-${CONSECUTIVE_ADB_FAILURES}-of-${ADB_FAILURE_THRESHOLD}" "" ""
+    sleep "$CHECK_INTERVAL"
+    continue
+  fi
+
+  if ! CURRENT_PID="$(main_pid)"; then
+    CONSECUTIVE_ADB_FAILURES=$((CONSECUTIVE_ADB_FAILURES + 1))
+    CONSECUTIVE_PROCESS_MISSES=0
+    "$ADB_BIN" connect "$TABLET_SERIAL" >/dev/null 2>&1 || true
+
+    if (( CONSECUTIVE_ADB_FAILURES >= ADB_FAILURE_THRESHOLD )); then
+      capture_evidence "adb-unavailable-${ADB_FAILURE_THRESHOLD}-consecutive-checks"
+      exit 2
+    fi
+
+    write_status \
+      "adb-command-failed-${CONSECUTIVE_ADB_FAILURES}-of-${ADB_FAILURE_THRESHOLD}" "" ""
     sleep "$CHECK_INTERVAL"
     continue
   fi
 
   CONSECUTIVE_ADB_FAILURES=0
-  CURRENT_PID="$(main_pid)"
 
   if [[ -z "$CURRENT_PID" ]]; then
-    sleep 1
-    CURRENT_PID="$(main_pid)"
-    if [[ -z "$CURRENT_PID" ]]; then
+    CONSECUTIVE_PROCESS_MISSES=$((CONSECUTIVE_PROCESS_MISSES + 1))
+
+    if (( CONSECUTIVE_PROCESS_MISSES >= PROCESS_MISSING_THRESHOLD )); then
       capture_evidence "fully-main-process-missing"
       exit 3
     fi
+
+    write_status \
+      "fully-main-process-missing-unconfirmed-${CONSECUTIVE_PROCESS_MISSES}-of-${PROCESS_MISSING_THRESHOLD}" \
+      "" "$(foreground_activity)"
+    sleep "$CHECK_INTERVAL"
+    continue
   fi
+
+  CONSECUTIVE_PROCESS_MISSES=0
 
   if [[ "$CURRENT_PID" != "$BASELINE_PID" ]]; then
     capture_evidence "fully-main-pid-changed" "$CURRENT_PID"

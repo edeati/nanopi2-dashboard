@@ -11,6 +11,8 @@ services:
       FULLY_KIOSK_MONITOR_ROOT: /var/lib/fully-kiosk-monitor
       FULLY_KIOSK_EVIDENCE_DISPLAY_ROOT: /DATA/AppData/homedashboard/fully-kiosk-monitor
       FULLY_KIOSK_MAX_EVIDENCE_RUNS: "20"
+      FULLY_KIOSK_ADB_FAILURE_THRESHOLD: "3"
+      FULLY_KIOSK_PROCESS_MISSING_THRESHOLD: "3"
       FULLY_KIOSK_HEALTH_MAX_AGE_SECONDS: "30"
       SLACK_WEBHOOK_URL_FILE: /run/secrets/slack_webhook_url
     volumes:

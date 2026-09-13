@@ -3,7 +3,11 @@
 This deployment runs the event-driven Fully Kiosk process monitor independently
 from the dashboard container. It persists the ADB client identity and captured
 evidence across image rebuilds. The monitor retains the 20 newest run directories
-by default so evidence cannot grow without a bound.
+by default so evidence cannot grow without a bound. ADB transport failures and
+successful process listings that do not contain Fully Kiosk are counted
+separately. Each condition must occur three times in succession before the
+watcher records evidence and sends an alert, preventing a brief wireless ADB
+dropout from being reported as an app exit.
 
 ## CasaOS paths
 
@@ -43,4 +47,7 @@ docker logs --tail 100 fully-kiosk-monitor
 Docker reports the container as healthy only when the watcher status is fresh and
 the tablet answers a live ADB state check. Health represents current monitoring
 and connectivity, not the absence of earlier incidents; completed incident bundles
-remain in the evidence directory and their alerts remain in Slack.
+remain in the evidence directory and their alerts remain in Slack. A
+`fully-main-process-missing` event therefore means three successful process
+queries found no Fully Kiosk main process. An `adb-unavailable-3-consecutive-checks`
+event means the tablet transport or process query failed three times instead.
