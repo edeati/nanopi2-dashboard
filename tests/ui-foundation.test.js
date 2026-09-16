@@ -272,8 +272,10 @@ module.exports = async function run() {
   assert.ok(html.indexOf("document.getElementById('solarStatusImport').textContent = importReady") > -1, 'solar import display should use readiness');
   assert.ok(html.indexOf('function sumSolarBinsKwh(') > -1, 'solar daily bins helper missing');
   assert.ok(html.indexOf('function updateSolarChartImage(') > -1, 'solar chart image refresh helper missing');
-  assert.ok(html.indexOf('Math.floor(generatedAtMs / (5 * 60 * 1000))') > -1, 'solar chart refresh should be limited to five-minute buckets');
-  assert.ok(html.indexOf("solarChartImage.src = '/api/solar/chart.svg?slot=' + (bucket % 2);") > -1, 'solar chart should alternate bounded cache URLs');
+  assert.ok(html.indexOf('solarChartPendingAttempts < 4') > -1, 'solar chart should bound rapid empty-history retries');
+  assert.ok(html.indexOf("var refreshMs = fastPendingRetry ? (15 * 1000) : (5 * 60 * 1000);") > -1, 'solar chart should fall back to the normal refresh cadence after startup retries');
+  assert.ok(html.indexOf("solarChartImage.src = '/api/solar/chart.svg?rev=2&mode=' + (ready ? 'ready' : 'pending') + '&slot=' + (bucket % 2);") > -1, 'solar chart should alternate bounded no-store URLs');
+  assert.strictEqual(html.indexOf("solarChartImage.onerror"), -1, 'failed chart loads should wait for the next scheduled retry bucket');
   assert.ok(html.indexOf('object-fit: contain;') > -1, 'solar chart should preserve its aspect ratio in takeover layouts');
   assert.ok(html.indexOf("fetch('/api/state?compact=1')") > -1, 'dashboard should request compact state without raw chart histories');
   assert.strictEqual(html.indexOf('function drawUsageHourlyBars('), -1, 'browser should not render the solar history chart on canvas');

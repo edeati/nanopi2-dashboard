@@ -224,10 +224,11 @@ module.exports = async function run() {
     assert.strictEqual(Object.prototype.hasOwnProperty.call(compactPayload, 'solarUsageHourly'), false, 'compact state should omit client chart data');
     assert.strictEqual(Object.prototype.hasOwnProperty.call(compactPayload, 'solarDawnQuarterly'), false, 'compact state should omit hidden dawn-chart data');
 
-    const solarChart = await request(server, { path: '/api/solar/chart.svg?v=test' });
+    const solarChart = await request(server, { path: '/api/solar/chart.svg?rev=2&slot=0' });
     assert.strictEqual(solarChart.statusCode, 200);
     assert.strictEqual(solarChart.headers['content-type'], 'image/svg+xml; charset=utf-8');
-    assert.strictEqual(solarChart.headers['cache-control'], 'public, max-age=300');
+    assert.strictEqual(solarChart.headers['cache-control'], 'no-store, no-cache, must-revalidate, max-age=0');
+    assert.strictEqual(solarChart.headers.pragma, 'no-cache');
     assert.ok(solarChart.body.startsWith('<svg '), 'solar chart endpoint should return an SVG image');
     assert.ok(solarChart.body.indexOf('Solar generation and usage history') > -1, 'solar chart should include accessible image context');
     assert.strictEqual(statePayload.reminders[0].title, 'Lita Nexgard');

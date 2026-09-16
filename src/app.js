@@ -541,7 +541,9 @@ function createApp(options) {
         height: 260
       });
       const body = Buffer.from(svg, 'utf8');
-      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       return sendBinary(res, 200, 'image/svg+xml; charset=utf-8', body);
     }
 

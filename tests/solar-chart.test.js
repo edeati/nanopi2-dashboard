@@ -25,6 +25,8 @@ module.exports = async function run() {
   assert.ok(svg.includes('fill="#8edb7c"'), 'solar chart should render self-used energy bars');
   assert.ok(svg.includes('fill="#70a8ff"'), 'solar chart should render import bars');
   assert.ok(svg.includes('fill="#ffe27a"'), 'solar chart should render the generated-energy area');
+  assert.ok(svg.includes(' Q '), 'solar chart should smooth the generated-energy area on the server');
+  assert.ok(svg.indexOf('<path ') < svg.indexOf('fill="#8edb7c"'), 'usage bars should render above the generated-energy area');
   assert.ok(svg.includes('>6kW</text>'), 'solar chart should render the inverter-scale label');
   assert.strictEqual(svg.includes('NaN'), false, 'solar chart must not emit invalid numeric coordinates');
 

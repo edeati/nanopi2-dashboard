@@ -611,15 +611,14 @@ function binsDayKey(bins) {
   return null;
 }
 
-function shouldRefreshFromRealtimeHistory(solarDailyBins, nowMs, timeZone, startupMs, archiveDetailReady) {
+function shouldRefreshFromRealtimeHistory(solarDailyBins, nowMs, timeZone, _startupMs, archiveDetailReady) {
   const bins = Array.isArray(solarDailyBins) ? solarDailyBins : [];
   const currentDayKey = formatDateLocal(nowMs, timeZone);
   const existingDayKey = binsDayKey(bins);
   if (!bins.length || (existingDayKey && existingDayKey !== currentDayKey)) {
     return true;
   }
-  const earlyStartup = (Number(nowMs) - Number(startupMs || 0)) < 5 * 60 * 1000;
-  return earlyStartup && !archiveDetailReady;
+  return !archiveDetailReady;
 }
 
 function binHasEnergy(bin) {
@@ -630,7 +629,32 @@ function binHasEnergy(bin) {
     Number((bin && bin.loadWh) || 0) > 0;
 }
 
-function mergeArchiveWithHistoryGaps(archiveBins, historyBins) {
+function historyCoversDailyBinStart(solarHistory, nowMs, timeZone, binIndex) {
+  const history = Array.isArray(solarHistory) ? solarHistory : [];
+  const dayKey = formatDateLocal(nowMs, timeZone);
+  const binStartSec = Math.min(47, Math.max(0, Number(binIndex || 0))) * 1800;
+  let sawCurrentDay = false;
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const point = history[i] || {};
+    if (formatDateLocal(point.ts, timeZone) !== dayKey) {
+      if (sawCurrentDay) {
+        break;
+      }
+      continue;
+    }
+    sawCurrentDay = true;
+    const pointSec = secondOfDayLocal(point.ts, timeZone);
+    if (Math.abs(pointSec - binStartSec) <= 60) {
+      return true;
+    }
+    if (pointSec < binStartSec - 60) {
+      break;
+    }
+  }
+  return false;
+}
+
+function mergeArchiveWithHistoryGaps(archiveBins, historyBins, preferHistoryBinIndex) {
   const archive = Array.isArray(archiveBins) ? archiveBins : [];
   const history = Array.isArray(historyBins) ? historyBins : [];
   const out = [];
@@ -640,7 +664,8 @@ function mergeArchiveWithHistoryGaps(archiveBins, historyBins) {
     const archiveCore = Number(a.generatedWh || 0) > 0 ||
       Number(a.importWh || 0) > 0 ||
       Number(a.exportWh || 0) > 0;
-    const useHistory = !archiveCore && binHasEnergy(h);
+    const preferHistory = i === Number(preferHistoryBinIndex) && binHasEnergy(h);
+    const useHistory = preferHistory || (!archiveCore && binHasEnergy(h));
     const src = useHistory ? h : a;
     out.push({
       dayKey: src.dayKey || a.dayKey || h.dayKey || null,
@@ -1060,6 +1085,7 @@ function createServer(options) {
     logger
   });
   let solarDailyBins = ((options && options.initialSolarDailyBins) || []).slice();
+  let solarArchiveDailyBins = solarDailyBins.slice();
   let solarGeneratedArchiveHistory = ((options && options.initialSolarGeneratedHistory) || []).slice();
   let solarGeneratedArchiveDayKey = String((options && options.initialSolarGeneratedDayKey) || binsDayKey(solarDailyBins) || '');
   let solarHourlyBins = aggregateDailyToHourlyBins(solarDailyBins);
@@ -1436,8 +1462,22 @@ function createServer(options) {
       while (solarHistory.length > 0 && solarHistory[0].ts < cutoff) {
         solarHistory.shift();
       }
-      if (shouldRefreshFromRealtimeHistory(solarDailyBins, now, dashboardTimeZone, startupMs, archiveDetailReady)) {
-        solarDailyBins = aggregateHistoryToDailyBins(solarHistory, now, dashboardTimeZone);
+      const historyDaily = aggregateHistoryToDailyBins(solarHistory, now, dashboardTimeZone);
+      const currentDayKey = formatDateLocal(now, dashboardTimeZone);
+      const archiveDayKey = binsDayKey(solarArchiveDailyBins);
+      if (archiveDetailReady && archiveDayKey === currentDayKey) {
+        const currentBinIndex = Math.min(47, Math.max(0, Math.floor(secondOfDayLocal(now, dashboardTimeZone) / 1800)));
+        const realtimeCurrentBin = historyCoversDailyBinStart(solarHistory, now, dashboardTimeZone, currentBinIndex)
+          ? currentBinIndex
+          : -1;
+        solarDailyBins = mergeArchiveWithHistoryGaps(solarArchiveDailyBins, historyDaily, realtimeCurrentBin);
+        solarHourlyBins = aggregateDailyToHourlyBins(solarDailyBins);
+      } else if (archiveDetailReady || shouldRefreshFromRealtimeHistory(solarDailyBins, now, dashboardTimeZone, startupMs, archiveDetailReady)) {
+        if (archiveDetailReady) {
+          archiveDetailReady = false;
+          solarArchiveDailyBins = [];
+        }
+        solarDailyBins = historyDaily;
         solarHourlyBins = aggregateDailyToHourlyBins(solarDailyBins);
       }
     }, function onArchiveDetail(detail, now) {
@@ -1447,10 +1487,16 @@ function createServer(options) {
       archiveDetailReady = hasArchive;
       if (hasArchive) {
         const archiveDaily = aggregateDetailToDailyBins(detail, dayKey, dashboardTimeZone);
-        solarDailyBins = mergeArchiveWithHistoryGaps(archiveDaily, historyDaily);
+        const currentBinIndex = Math.min(47, Math.max(0, Math.floor(secondOfDayLocal(now, dashboardTimeZone) / 1800)));
+        const realtimeCurrentBin = historyCoversDailyBinStart(solarHistory, now, dashboardTimeZone, currentBinIndex)
+          ? currentBinIndex
+          : -1;
+        solarArchiveDailyBins = archiveDaily;
+        solarDailyBins = mergeArchiveWithHistoryGaps(archiveDaily, historyDaily, realtimeCurrentBin);
         solarGeneratedArchiveHistory = buildGeneratedSeriesFromDetail(detail, dayKey, dashboardTimeZone);
         solarGeneratedArchiveDayKey = dayKey;
       } else {
+        solarArchiveDailyBins = [];
         solarDailyBins = historyDaily;
         solarGeneratedArchiveHistory = [];
         solarGeneratedArchiveDayKey = '';
@@ -1569,6 +1615,7 @@ module.exports = {
   secondOfDayLocal,
   aggregateHistoryToDailyBins,
   aggregateDetailToDailyBins,
+  historyCoversDailyBinStart,
   mergeArchiveWithHistoryGaps,
   buildUsageHourlyFromDailyBins,
   buildDawnQuarterlyFromHistory,

@@ -30,7 +30,16 @@ function renderGeneratedArea(series, dimensions) {
       'L ' + fixed(first.x) + ' ' + fixed(first.y)
     ];
     for (let i = 1; i < segment.length; i += 1) {
-      commands.push('L ' + fixed(segment[i].x) + ' ' + fixed(segment[i].y));
+      const previous = segment[i - 1];
+      const current = segment[i];
+      const midpointX = (previous.x + current.x) / 2;
+      const midpointY = (previous.y + current.y) / 2;
+      commands.push(
+        'Q ' + fixed(previous.x) + ' ' + fixed(previous.y) + ' ' + fixed(midpointX) + ' ' + fixed(midpointY)
+      );
+    }
+    if (segment.length > 1) {
+      commands.push('Q ' + fixed(last.x) + ' ' + fixed(last.y) + ' ' + fixed(last.x) + ' ' + fixed(last.y));
     }
     commands.push('L ' + fixed(last.x) + ' ' + fixed(dimensions.bottom), 'Z');
     paths.push(commands.join(' '));
@@ -99,6 +108,10 @@ function renderSolarChartSvg(options) {
     );
   }
 
+  renderGeneratedArea(generatedSeries, dimensions).forEach((pathData) => {
+    elements.push('<path d="' + pathData + '" fill="#ffe27a" fill-opacity="0.34"/>');
+  });
+
   if (bins.length) {
     const slotWidth = plotWidth / bins.length;
     bins.forEach((item, index) => {
@@ -118,9 +131,6 @@ function renderSolarChartSvg(options) {
     });
   }
 
-  renderGeneratedArea(generatedSeries, dimensions).forEach((pathData) => {
-    elements.push('<path d="' + pathData + '" fill="#ffe27a" fill-opacity="0.42"/>');
-  });
   elements.push(
     '<line x1="' + left + '" y1="' + bottom + '" x2="' + (width - right) + '" y2="' + bottom + '" stroke="#a6b2c4" stroke-opacity="0.46"/>',
     bins.length || generatedSeries.length

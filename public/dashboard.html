@@ -2452,7 +2452,8 @@
       var stateFetchInFlight = false;
       var realtimeStateFetchInFlight = false;
       var latestState = null;
-      var lastSolarChartBucket = -1;
+      var lastSolarChartRefreshKey = '';
+      var solarChartPendingAttempts = 0;
       var lastSolarFlowSig = '';
       var lastSolarGaugeSig = '';
       var FAST_STATE_REFRESH_MS = 5000;
@@ -3134,20 +3135,30 @@
         ctx.stroke();
       }
 
-      function updateSolarChartImage(state) {
-        var generatedAtMs = Date.parse((state && state.generatedAt) || '');
-        var bucket = isFinite(generatedAtMs) ? Math.floor(generatedAtMs / (5 * 60 * 1000)) : 0;
-        if (!solarChartImage || bucket === lastSolarChartBucket) {
-          return;
+      function hasSolarChartEnergy(state) {
+        var bins = state && Array.isArray(state.solarDailyBins) ? state.solarDailyBins : [];
+        for (var i = 0; i < bins.length; i += 1) {
+          var bin = bins[i] || {};
+          if (Number(bin.generatedWh || 0) > 0 || Number(bin.importWh || 0) > 0 || Number(bin.selfWh || 0) > 0) {
+            return true;
+          }
         }
-        lastSolarChartBucket = bucket;
-        solarChartImage.src = '/api/solar/chart.svg?slot=' + (bucket % 2);
+        return false;
       }
 
-      if (solarChartImage) {
-        solarChartImage.onerror = function () {
-          lastSolarChartBucket = -1;
-        };
+      function updateSolarChartImage(state) {
+        var generatedAtMs = Date.parse((state && state.generatedAt) || '');
+        var ready = hasSolarChartEnergy(state);
+        var fastPendingRetry = !ready && solarChartPendingAttempts < 4;
+        var refreshMs = fastPendingRetry ? (15 * 1000) : (5 * 60 * 1000);
+        var bucket = isFinite(generatedAtMs) ? Math.floor(generatedAtMs / refreshMs) : 0;
+        var refreshKey = (ready ? 'ready:' : (fastPendingRetry ? 'pending-fast:' : 'pending-slow:')) + bucket;
+        if (!solarChartImage || refreshKey === lastSolarChartRefreshKey) {
+          return;
+        }
+        lastSolarChartRefreshKey = refreshKey;
+        solarChartPendingAttempts = ready ? 0 : (solarChartPendingAttempts + 1);
+        solarChartImage.src = '/api/solar/chart.svg?rev=2&mode=' + (ready ? 'ready' : 'pending') + '&slot=' + (bucket % 2);
       }
 
       function computeCosts(today) {

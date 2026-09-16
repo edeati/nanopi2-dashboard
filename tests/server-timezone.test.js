@@ -6,6 +6,7 @@ const {
   aggregateHistoryToDailyBins,
   aggregateDetailToDailyBins,
   buildGeneratedSeriesFromDetail,
+  historyCoversDailyBinStart,
   mergeArchiveWithHistoryGaps,
   buildUsageHourlyFromDailyBins,
   buildDawnQuarterlyFromHistory,
@@ -131,6 +132,19 @@ module.exports = async function run() {
   const merged = mergeArchiveWithHistoryGaps(archiveBins, historyBins);
   assert.ok(merged[15].generatedWh > 0, 'history should fill empty archive dawn bins');
   assert.strictEqual(merged[16].generatedWh, 161.4, 'existing archive bins should be preserved');
+  const currentMerged = mergeArchiveWithHistoryGaps(archiveBins, historyBins, 15);
+  assert.strictEqual(currentMerged[15].loadWh, 14.6, 'realtime history should replace the current incomplete archive bin');
+  assert.strictEqual(currentMerged[15].loadWh, currentMerged[15].selfWh + currentMerged[15].importWh, 'current realtime bin should remain internally consistent');
+  assert.strictEqual(
+    historyCoversDailyBinStart([{ ts: Date.parse('2026-02-15T22:00:08.000Z') }], nowUtc, 'Australia/Brisbane', 16),
+    true,
+    'realtime history beginning near the half-hour boundary should cover the current bin'
+  );
+  assert.strictEqual(
+    historyCoversDailyBinStart([{ ts: Date.parse('2026-02-15T22:20:00.000Z') }], nowUtc, 'Australia/Brisbane', 16),
+    false,
+    'mid-bin post-restart history should not replace the earlier archive portion'
+  );
 
   const cumulativeProduced = {
     producedWhBySecond: {
@@ -374,6 +388,11 @@ module.exports = async function run() {
     shouldRefreshFromRealtimeHistory(usageDaily, nowEarly, 'Australia/Brisbane', startupMs, false),
     true,
     'early startup realtime should seed bins until archive detail is ready'
+  );
+  assert.strictEqual(
+    shouldRefreshFromRealtimeHistory(usageDaily, startupMs + (10 * 60 * 1000), 'Australia/Brisbane', startupMs, false),
+    true,
+    'realtime should keep bins current whenever archive detail is unavailable'
   );
   const staleDayBins = createZeroBins('2026-02-15');
   assert.strictEqual(
