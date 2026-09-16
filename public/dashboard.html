@@ -548,6 +548,11 @@
       background: transparent;
     }
 
+    .solar-chart-image {
+      object-fit: contain;
+      background: #0e1014;
+    }
+
     .chart-legend {
       display: flex;
       gap: 10px;
@@ -2282,16 +2287,12 @@
 
       <div id="solarChartsRow">
         <div class="solar-chart-main">
-          <div class="chart-wrap skeleton"><canvas id="solarUsageChart" class="chart"></canvas></div>
+          <div class="chart-wrap skeleton"><img id="solarUsageChartImage" class="chart solar-chart-image" alt="Solar generation and usage history"></div>
           <div class="chart-legend" id="solarUsageLegend">
             <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#ffe27a;"></span>Generated</span>
             <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#8edb7c;"></span>Self-used</span>
             <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#70a8ff;"></span>Import</span>
           </div>
-        </div>
-        <div class="solar-chart-secondary">
-          <div class="chart-label">Dawn Detail (Produced + Feed-In)</div>
-          <div class="chart-wrap skeleton"><canvas id="solarDawnChart" class="chart"></canvas></div>
         </div>
       </div>
 
@@ -2394,10 +2395,7 @@
       var generationGaugeSubNode = document.getElementById('generationGaugeSub');
       var usageGaugeMainNode = document.getElementById('usageGaugeMain');
       var usageGaugeSubNode = document.getElementById('usageGaugeSub');
-      var usageBarCanvas = document.getElementById('solarUsageChart');
-      var usageBarCtx = usageBarCanvas.getContext('2d');
-      var solarBarCanvas = document.getElementById('solarDawnChart');
-      var solarBarCtx = solarBarCanvas.getContext('2d');
+      var solarChartImage = document.getElementById('solarUsageChartImage');
       var newsTickerNode = document.getElementById('newsTicker');
       var weatherBinsStripTrackNode = document.getElementById('weatherBinsStripTrack');
       var poolCleanerStaticNode = document.getElementById('poolCleanerStatic');
@@ -2416,7 +2414,6 @@
       var TILE_SIZE = 256;
       var MAP_TILE_OVERDRAW = 1;
       var RADAR_TILE_OVERDRAW = 2;
-      var CANVAS_FONT_FAMILY = '"Manrope", "Avenir Next", "Helvetica Neue", Arial, sans-serif';
       var radarMeta = null;
       var mapTileCache = {};
       var mapDerivedTileCache = {};
@@ -2455,13 +2452,9 @@
       var stateFetchInFlight = false;
       var realtimeStateFetchInFlight = false;
       var latestState = null;
-      var lastSolarUsageSig = '';
-      var lastSolarDawnSig = '';
+      var lastSolarChartBucket = -1;
       var lastSolarFlowSig = '';
       var lastSolarGaugeSig = '';
-      var solarChartsLoading = false;
-      var solarLoadingTimer = 0;
-      var solarLoadingPhase = 0;
       var FAST_STATE_REFRESH_MS = 5000;
       var SLOW_STATE_REFRESH_MS = 5 * 60 * 1000;
 
@@ -2668,18 +2661,20 @@
       function resizeCanvas() {
         function fit(canvas) {
           var rect = canvas.getBoundingClientRect();
-          canvas.width = Math.max(1, Math.ceil(rect.width));
-          canvas.height = Math.max(1, Math.ceil(rect.height));
+          var nextWidth = Math.max(1, Math.ceil(rect.width));
+          var nextHeight = Math.max(1, Math.ceil(rect.height));
+          if (canvas.width !== nextWidth) {
+            canvas.width = nextWidth;
+          }
+          if (canvas.height !== nextHeight) {
+            canvas.height = nextHeight;
+          }
         }
         fit(radarCanvas);
         fit(radarClassifyCanvas);
         fit(generationGaugeCanvas);
         fit(usageGaugeCanvas);
-        fit(usageBarCanvas);
-        fit(solarBarCanvas);
         mapDerivedTileCache = {};
-        lastSolarUsageSig = '';
-        lastSolarDawnSig = '';
         lastSolarFlowSig = '';
         lastSolarGaugeSig = '';
         drawInitialPlaceholders();
@@ -2850,8 +2845,6 @@
         generationGaugeSubNode.textContent = 'No solar activity';
         usageGaugeMainNode.textContent = 'Load 0.00 kW';
         usageGaugeSubNode.textContent = 'Import 0.00 kW';
-        drawLoadingBars(usageBarCtx, usageBarCanvas, 'rgba(255, 136, 92, 0.28)', 'rgba(160, 46, 30, 0.12)', 0);
-        drawLoadingBars(solarBarCtx, solarBarCanvas, 'rgba(126, 225, 160, 0.34)', 'rgba(126, 225, 160, 0.12)', 0.4);
       }
 
       function computeVisibleTiles(z) {
@@ -3141,229 +3134,20 @@
         ctx.stroke();
       }
 
-      function drawUsageHourlyBars(ctx, canvas, bins, solarGeneratedSeries) {
-        var w = canvas.width;
-        var h = canvas.height;
-        var pad = 28;
-        var padBottom = 16;
-        var chartBottom = h - padBottom;
-        var solarChartMaxW = Math.max(2000, Number(pricingConfig.inverterCapacityKw || 6.3) * 1000);
-        ctx.clearRect(0, 0, w, h);
-        var data = Array.isArray(bins) ? bins.slice() : [];
-        var barsCount = data.length;
-        if (!data.length) {
-          drawHourAxis(ctx, w, h, pad, chartBottom, 24, (w - pad * 2) / 24);
+      function updateSolarChartImage(state) {
+        var generatedAtMs = Date.parse((state && state.generatedAt) || '');
+        var bucket = isFinite(generatedAtMs) ? Math.floor(generatedAtMs / (5 * 60 * 1000)) : 0;
+        if (!solarChartImage || bucket === lastSolarChartBucket) {
           return;
         }
-        var bucketHours = barsCount > 0 ? (24 / barsCount) : 1;
-        var usagePeakWh = 1;
-        for (var i = 0; i < barsCount; i += 1) {
-          var item = data[i] || {};
-          usagePeakWh = Math.max(usagePeakWh, Math.max((Number(item.selfWh || 0) + Number(item.importWh || 0)) / bucketHours, Number(item.generatedWh || 0) / bucketHours));
-        }
-
-        var barW = (w - pad * 2) / barsCount;
-        for (var j = 0; j < barsCount; j += 1) {
-          var bin = data[j] || {};
-          var generatedWh = Math.max(0, Number(bin.generatedWh || 0)) / bucketHours;
-          var selfWh = generatedWh > 0 ? Math.min(generatedWh, Math.max(0, Number(bin.selfWh || 0)) / bucketHours) : 0;
-          var a = selfWh;
-          var b = Math.max(0, Number(bin.importWh || 0)) / bucketHours;
-          var ah = Math.floor((a / usagePeakWh) * (chartBottom - pad));
-          var bh = Math.floor((b / usagePeakWh) * (chartBottom - pad));
-          var x = Math.round(pad + (j * barW));
-          var xNext = Math.round(pad + ((j + 1) * barW));
-          var drawW = Math.max(1, xNext - x - 1);
-          var yB = chartBottom - bh;
-          var yA = yB - ah;
-          if (bh > 0) {
-            ctx.fillStyle = 'rgba(112, 168, 255, 0.44)';
-            ctx.fillRect(x, yB, drawW, bh);
-          }
-          if (ah > 0) {
-            ctx.fillStyle = '#8edb7c';
-            ctx.fillRect(x, yA, drawW, ah);
-          }
-        }
-        var generatedSeries = Array.isArray(solarGeneratedSeries) ? solarGeneratedSeries.slice() : [];
-        if (!generatedSeries.length) {
-          generatedSeries = data.map(function (item, index) {
-            return {
-              secOfDay: ((index + 0.5) * bucketHours * 3600),
-              value: Math.max(0, Number((item || {}).generatedWh || 0)) / bucketHours
-            };
-          });
-        }
-        var generatedLinePeakWh = generatedSeries.reduce(function (peak, point) { return Math.max(peak, Number((point && point.value) || 0)); }, 0);
-        var generatedLineMaxY = Math.max(usagePeakWh, solarChartMaxW, generatedLinePeakWh);
-        drawPowerAxis(ctx, w, h, pad, chartBottom, solarChartMaxW);
-        drawGeneratedLine(ctx, generatedSeries, w, pad, chartBottom, generatedLineMaxY);
-        drawHourAxis(ctx, w, h, pad, chartBottom, barsCount, barW);
+        lastSolarChartBucket = bucket;
+        solarChartImage.src = '/api/solar/chart.svg?slot=' + (bucket % 2);
       }
 
-      function drawGeneratedLine(ctx, generatedSeries, w, pad, chartBottom, maxY) {
-        if (!Array.isArray(generatedSeries) || !generatedSeries.length) {
-          return;
-        }
-        ctx.save();
-        ctx.lineWidth = 4;
-        ctx.fillStyle = 'rgba(255, 226, 122, 0.42)';
-        ctx.lineJoin = 'round';
-        ctx.lineCap = 'round';
-        var drawing = false;
-        var lastX = 0;
-        ctx.beginPath();
-        for (var i = 0; i < generatedSeries.length; i += 1) {
-          var point = generatedSeries[i] || {};
-          if (Number(point.value || 0) <= 0) {
-            if (drawing) {
-              ctx.lineTo(lastX, chartBottom);
-              ctx.closePath();
-              ctx.fill();
-              ctx.beginPath();
-            }
-            drawing = false;
-            continue;
-          }
-          var x = Math.round(pad + ((Number(point.secOfDay || 0) / 86400) * (w - (pad * 2))));
-          var y = chartBottom - Math.floor((Number(point.value || 0) / Math.max(1, maxY)) * (chartBottom - pad));
-          if (!drawing) {
-            ctx.moveTo(x, chartBottom);
-            ctx.lineTo(x, y);
-            drawing = true;
-          } else {
-            ctx.lineTo(x, y);
-          }
-          lastX = x;
-        }
-        if (drawing) {
-          ctx.lineTo(lastX, chartBottom);
-          ctx.closePath();
-          ctx.fill();
-        }
-        ctx.restore();
-      }
-
-      function drawDawnQuarterBars(ctx, canvas, bins) {
-        var w = canvas.width;
-        var h = canvas.height;
-        var pad = 6;
-        var padBottom = 16;
-        var chartBottom = h - padBottom;
-        var solarChartMaxW = Math.max(2000, Number(pricingConfig.inverterCapacityKw || 6.3) * 1000);
-        var data = Array.isArray(bins) ? bins.slice(0, 12) : [];
-        var barsCount = 12;
-        ctx.clearRect(0, 0, w, h);
-        if (!data.length) {
-          drawHourAxis(ctx, w, h, pad, chartBottom, barsCount, (w - pad * 2) / barsCount);
-          return;
-        }
-        var maxY = solarChartMaxW;
-        for (var i = 0; i < barsCount; i += 1) {
-          var item = data[i] || {};
-          maxY = Math.max(maxY, Number(item.selfWh || 0) + Number(item.exportWh || 0));
-        }
-        var barW = (w - pad * 2) / barsCount;
-        for (var j = 0; j < barsCount; j += 1) {
-          var bin = data[j] || {};
-          var a = Math.max(0, Number(bin.selfWh || 0));
-          var b = Math.max(0, Number(bin.exportWh || 0));
-          var ah = Math.floor((a / maxY) * (chartBottom - pad));
-          var bh = Math.floor((b / maxY) * (chartBottom - pad));
-          var x = Math.round(pad + (j * barW));
-          var xNext = Math.round(pad + ((j + 1) * barW));
-          var drawW = Math.max(1, xNext - x - 1);
-          var yB = chartBottom - bh;
-          var yA = yB - ah;
-          ctx.fillStyle = '#5fe08b';
-          ctx.fillRect(x, yB, drawW, Math.max(1, bh));
-          ctx.fillStyle = '#f2bb3c';
-          ctx.fillRect(x, yA, drawW, Math.max(1, ah));
-        }
-        drawPowerAxis(ctx, w, h, pad, chartBottom, solarChartMaxW);
-        drawHourAxis(ctx, w, h, pad, chartBottom, barsCount, barW);
-      }
-
-      function drawHourAxis(ctx, w, h, pad, chartBottom, barsCount, barWidth) {
-        var count = Math.max(1, Number(barsCount || 24));
-        var slotWidth = Math.max(1, Number(barWidth || ((w - pad * 2) / count)));
-        ctx.save();
-        ctx.strokeStyle = 'rgba(150, 165, 184, 0.22)';
-        ctx.fillStyle = 'rgba(172, 186, 202, 0.78)';
-        ctx.lineWidth = 1;
-        ctx.font = '14px ' + CANVAS_FONT_FAMILY;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-
-        for (var hour = 0; hour <= 21; hour += 3) {
-          var slot = (hour / 24) * count;
-          var x = Math.round(pad + (slot * slotWidth) + (slotWidth / 2));
-          ctx.beginPath();
-          ctx.moveTo(x + 0.5, pad);
-          ctx.lineTo(x + 0.5, chartBottom);
-          ctx.stroke();
-          var label = String(hour).padStart(2, '0');
-          ctx.fillText(label, x, chartBottom + 2);
-        }
-
-        ctx.strokeStyle = 'rgba(166, 178, 196, 0.42)';
-        ctx.beginPath();
-        ctx.moveTo(pad, chartBottom + 0.5);
-        ctx.lineTo(w - pad, chartBottom + 0.5);
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      function drawPowerAxis(ctx, w, h, pad, chartBottom, maxY) {
-        var safeMaxY = Math.max(2000, Number(maxY || 0));
-        var topLevel = Math.floor(safeMaxY / 2000) * 2000;
-        if (topLevel < 2000) {
-          return;
-        }
-        ctx.save();
-        ctx.strokeStyle = 'rgba(150, 165, 184, 0.16)';
-        ctx.fillStyle = 'rgba(172, 186, 202, 0.72)';
-        ctx.lineWidth = 1;
-        ctx.font = '12px ' + CANVAS_FONT_FAMILY;
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'middle';
-        for (var level = 2000; level <= topLevel; level += 2000) {
-          var y = chartBottom - Math.floor((level / safeMaxY) * (chartBottom - pad));
-          ctx.beginPath();
-          ctx.moveTo(pad, y + 0.5);
-          ctx.lineTo(w - pad, y + 0.5);
-          ctx.stroke();
-          ctx.fillText(String(Math.round(level / 1000)) + 'kW', pad - 2, y);
-        }
-        ctx.restore();
-      }
-
-      function drawLoadingBars(ctx, canvas, colorA, colorB, phaseOffset) {
-        var w = canvas.width;
-        var h = canvas.height;
-        var pad = 6;
-        var padBottom = 16;
-        var chartBottom = h - padBottom;
-        var bars = 16;
-        var barW = Math.max(2, Math.floor((w - pad * 2) / bars));
-        var phase = (solarLoadingPhase + Number(phaseOffset || 0));
-        ctx.clearRect(0, 0, w, h);
-        for (var i = 0; i < bars; i += 1) {
-          var wave = Math.sin((i * 0.58) + phase);
-          var pulse = Math.sin((i * 0.29) + (phase * 0.7));
-          var mix = Math.max(0.18, 0.45 + (wave * 0.28) + (pulse * 0.18));
-          var totalH = Math.floor((chartBottom - pad) * mix);
-          var topH = Math.floor(totalH * 0.56);
-          var bottomH = Math.max(1, totalH - topH);
-          var x = pad + (i * barW);
-          var yBottom = chartBottom - bottomH;
-          var yTop = yBottom - topH;
-          ctx.fillStyle = colorB;
-          ctx.fillRect(x, yBottom, Math.max(1, barW - 1), bottomH);
-          ctx.fillStyle = colorA;
-          ctx.fillRect(x, yTop, Math.max(1, barW - 1), topH);
-        }
-        drawHourAxis(ctx, w, h, pad, chartBottom, bars, barW);
+      if (solarChartImage) {
+        solarChartImage.onerror = function () {
+          lastSolarChartBucket = -1;
+        };
       }
 
       function computeCosts(today) {
@@ -3386,127 +3170,15 @@
         return totalWh / 1000;
       }
 
-      function buildSolarPanelSignatures(usageBins, solarGeneratedSeries, dawnBins, flowSummary, chartsLoading) {
-        var usage = chartsLoading ? 'loading' : 'none';
-        var dawn = chartsLoading ? 'loading' : 'none';
-        var flow = 'none';
-        if (!chartsLoading) {
-          if (Array.isArray(usageBins) && usageBins.length) {
-            usage = usageBins.slice(0, 24).map(function (item) {
-              return [
-                Math.round(Number((item && item.selfWh) || 0)),
-                Math.round(Number((item && item.importWh) || 0))
-              ].join(',');
-            }).join('|');
-          }
-          if (Array.isArray(solarGeneratedSeries) && solarGeneratedSeries.length) {
-            usage += '|' + solarGeneratedSeries.slice(-24).map(function (item) {
-              return [
-                Math.round(Number((item && item.secOfDay) || 0)),
-                Math.round(Number((item && item.value) || 0))
-              ].join(',');
-            }).join('|');
-          }
-          if (Array.isArray(dawnBins) && dawnBins.length) {
-            dawn = dawnBins.slice(0, 12).map(function (item) {
-              return [
-                Math.round(Number((item && item.selfWh) || 0)),
-                Math.round(Number((item && item.exportWh) || 0))
-              ].join(',');
-            }).join('|');
-          }
-        }
+      function buildSolarFlowSignature(flowSummary) {
         var f = flowSummary || {};
-        flow = [
+        return [
           Number(f.producedKwh || 0).toFixed(3),
           Number(f.selfUsedKwh || 0).toFixed(3),
           Number(f.feedInKwh || 0).toFixed(3),
           Number(f.importKwh || 0).toFixed(3),
           Number(f.selfConsumptionPct || 0).toFixed(2)
         ].join('|');
-        return {
-          usage: usage + '|' + usageBarCanvas.width + 'x' + usageBarCanvas.height,
-          dawn: dawn + '|' + solarBarCanvas.width + 'x' + solarBarCanvas.height,
-          flow: flow
-        };
-      }
-
-      function hasAnySolarData(bins, todayRaw) {
-        var today = todayRaw || {};
-        if (
-          (today.generatedReady && Number(today.generatedKwh || 0) > 0) ||
-          (today.importReady && Number(today.importKwh || 0) > 0) ||
-          (today.exportReady && Number(today.exportKwh || 0) > 0)
-        ) {
-          return true;
-        }
-        if (!Array.isArray(bins) || !bins.length) {
-          return false;
-        }
-        for (var i = 0; i < bins.length; i += 1) {
-          var item = bins[i] || {};
-          if (
-            Number(item.generatedWh || 0) > 0 ||
-            Number(item.importWh || 0) > 0 ||
-            Number(item.exportWh || 0) > 0 ||
-            Number(item.selfWh || 0) > 0
-          ) {
-            return true;
-          }
-        }
-        return false;
-      }
-
-      function hasAnySolarBinEnergy(bins) {
-        if (!Array.isArray(bins) || !bins.length) {
-          return false;
-        }
-        for (var i = 0; i < bins.length; i += 1) {
-          var item = bins[i] || {};
-          if (
-            Number(item.producedWh || 0) > 0 ||
-            Number(item.generatedWh || 0) > 0 ||
-            Number(item.importWh || 0) > 0 ||
-            Number(item.exportWh || 0) > 0 ||
-            Number(item.selfWh || 0) > 0
-          ) {
-            return true;
-          }
-        }
-        return false;
-      }
-
-      function isSolarBackendPending(froniusState) {
-        var fronius = froniusState || {};
-        var realtime = fronius.realtime || {};
-        var today = fronius.today || {};
-        if (!realtime.at) {
-          return true;
-        }
-        return !(today.generatedReady && today.importReady && today.exportReady);
-      }
-
-      function setSolarChartsLoading(isLoading) {
-        var next = !!isLoading;
-        if (solarChartsLoading === next) {
-          return;
-        }
-        solarChartsLoading = next;
-        if (!solarChartsLoading) {
-          if (solarLoadingTimer) {
-            clearInterval(solarLoadingTimer);
-            solarLoadingTimer = 0;
-          }
-          return;
-        }
-        solarLoadingPhase = 0;
-        drawLoadingBars(usageBarCtx, usageBarCanvas, 'rgba(128, 213, 255, 0.56)', 'rgba(128, 213, 255, 0.18)', 0);
-        drawLoadingBars(solarBarCtx, solarBarCanvas, 'rgba(126, 225, 160, 0.62)', 'rgba(126, 225, 160, 0.2)', 0.4);
-        solarLoadingTimer = setInterval(function () {
-          solarLoadingPhase += 0.45;
-          drawLoadingBars(usageBarCtx, usageBarCanvas, 'rgba(128, 213, 255, 0.56)', 'rgba(128, 213, 255, 0.18)', 0);
-          drawLoadingBars(solarBarCtx, solarBarCanvas, 'rgba(126, 225, 160, 0.62)', 'rgba(126, 225, 160, 0.2)', 0.4);
-        }, 420);
       }
 
       function renderSolarFlowPanel(flowSummary) {
@@ -4674,37 +4346,14 @@
 
         var todayRaw = state.fronius.today || {};
         var importReady = !!todayRaw.importReady;
-        var bins = (Array.isArray(state.solarHourlyBins) && state.solarHourlyBins.length)
-          ? state.solarHourlyBins
-          : (state.solarDailyBins || []);
-        var usageChartBins = Array.isArray(state.solarDailyBins) && state.solarDailyBins.length ? state.solarDailyBins : (Array.isArray(state.solarUsageHourly) ? state.solarUsageHourly : []);
-        var solarGeneratedSeries = Array.isArray(state.solarGeneratedHistory) ? state.solarGeneratedHistory : [];
+        var bins = Array.isArray(state.solarDailyBins) ? state.solarDailyBins : [];
         var solarMeta = state.solarMeta || {};
-        var dawnQuarterBins = Array.isArray(state.solarDawnQuarterly) ? state.solarDawnQuarterly : [];
         var flowSummary = state.solarFlowSummary || {};
-        var binsHaveEnergy = hasAnySolarBinEnergy(bins) || hasAnySolarBinEnergy(usageChartBins) || hasAnySolarBinEnergy(dawnQuarterBins);
-        var todayHasTotals = Number(todayRaw.generatedKwh || 0) > 0 || Number(todayRaw.importKwh || 0) > 0 || Number(todayRaw.exportKwh || 0) > 0;
-        var chartsLoading = !binsHaveEnergy && (isSolarBackendPending(state.fronius || {}) || todayHasTotals);
-        setSolarChartsLoading(chartsLoading);
-        var panelSigs = buildSolarPanelSignatures(usageChartBins, solarGeneratedSeries, dawnQuarterBins, flowSummary, chartsLoading);
-        if (chartsLoading) {
-          drawLoadingBars(usageBarCtx, usageBarCanvas, 'rgba(128, 213, 255, 0.56)', 'rgba(128, 213, 255, 0.18)', 0);
-          drawLoadingBars(solarBarCtx, solarBarCanvas, 'rgba(126, 225, 160, 0.62)', 'rgba(126, 225, 160, 0.2)', 0.4);
-          lastSolarUsageSig = panelSigs.usage;
-          lastSolarDawnSig = panelSigs.dawn;
-        } else {
-          if (panelSigs.usage !== lastSolarUsageSig) {
-            drawUsageHourlyBars(usageBarCtx, usageBarCanvas, usageChartBins, solarGeneratedSeries);
-            lastSolarUsageSig = panelSigs.usage;
-          }
-          if (panelSigs.dawn !== lastSolarDawnSig) {
-            drawDawnQuarterBars(solarBarCtx, solarBarCanvas, dawnQuarterBins);
-            lastSolarDawnSig = panelSigs.dawn;
-          }
-        }
-        if (panelSigs.flow !== lastSolarFlowSig) {
+        updateSolarChartImage(state);
+        var flowSig = buildSolarFlowSignature(flowSummary);
+        if (flowSig !== lastSolarFlowSig) {
           renderSolarFlowPanel(flowSummary);
-          lastSolarFlowSig = panelSigs.flow;
+          lastSolarFlowSig = flowSig;
         }
         var solarDataQuality = String((state.solarMeta && state.solarMeta.dataQuality) || 'realtime_estimated');
         var solarDataQualityBadge = document.getElementById('solarDataQualityBadge');
@@ -4799,7 +4448,7 @@
       function fetchState() {
         if (stateFetchInFlight) { return; }
         stateFetchInFlight = true;
-        fetch('/api/state')
+        fetch('/api/state?compact=1')
           .then(function (res) { return res.json(); })
           .then(function (state) {
             latestState = state;

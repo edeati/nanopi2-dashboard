@@ -213,6 +213,23 @@ module.exports = async function run() {
     assert.strictEqual(statePayload.bins.items[0].tag, 'TODAY');
     assert.strictEqual(statePayload.bins.items[1].tag, 'PUT OUT');
     assert.ok(Array.isArray(statePayload.reminders), 'state payload should expose reminders');
+
+    const compactState = await request(server, { path: '/api/state?compact=1' });
+    assert.strictEqual(compactState.statusCode, 200);
+    const compactPayload = JSON.parse(compactState.body);
+    assert.ok(Array.isArray(compactPayload.solarDailyBins), 'compact state should retain the small daily-bin summary');
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(compactPayload, 'solarHistory'), false, 'compact state should omit raw solar history');
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(compactPayload, 'solarGeneratedHistory'), false, 'compact state should omit generated chart history');
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(compactPayload, 'solarHourlyBins'), false, 'compact state should omit redundant hourly bins');
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(compactPayload, 'solarUsageHourly'), false, 'compact state should omit client chart data');
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(compactPayload, 'solarDawnQuarterly'), false, 'compact state should omit hidden dawn-chart data');
+
+    const solarChart = await request(server, { path: '/api/solar/chart.svg?v=test' });
+    assert.strictEqual(solarChart.statusCode, 200);
+    assert.strictEqual(solarChart.headers['content-type'], 'image/svg+xml; charset=utf-8');
+    assert.strictEqual(solarChart.headers['cache-control'], 'public, max-age=300');
+    assert.ok(solarChart.body.startsWith('<svg '), 'solar chart endpoint should return an SVG image');
+    assert.ok(solarChart.body.indexOf('Solar generation and usage history') > -1, 'solar chart should include accessible image context');
     assert.strictEqual(statePayload.reminders[0].title, 'Lita Nexgard');
 
     const startupState = await request(server, { path: '/api/state/startup' });

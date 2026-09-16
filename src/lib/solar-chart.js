@@ -1,0 +1,136 @@
+'use strict';
+
+function finiteNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function fixed(value) {
+  return finiteNumber(value, 0).toFixed(2).replace(/\.00$/, '');
+}
+
+function renderGeneratedArea(series, dimensions) {
+  const points = (Array.isArray(series) ? series : [])
+    .slice(-720)
+    .map((point) => ({
+      secOfDay: Math.max(0, Math.min(86400, finiteNumber(point && point.secOfDay, 0))),
+      value: Math.max(0, finiteNumber(point && point.value, 0))
+    }));
+  const paths = [];
+  let segment = [];
+
+  function flushSegment() {
+    if (!segment.length) {
+      return;
+    }
+    const first = segment[0];
+    const last = segment[segment.length - 1];
+    const commands = [
+      'M ' + fixed(first.x) + ' ' + fixed(dimensions.bottom),
+      'L ' + fixed(first.x) + ' ' + fixed(first.y)
+    ];
+    for (let i = 1; i < segment.length; i += 1) {
+      commands.push('L ' + fixed(segment[i].x) + ' ' + fixed(segment[i].y));
+    }
+    commands.push('L ' + fixed(last.x) + ' ' + fixed(dimensions.bottom), 'Z');
+    paths.push(commands.join(' '));
+    segment = [];
+  }
+
+  points.forEach((point) => {
+    if (!(point.value > 0)) {
+      flushSegment();
+      return;
+    }
+    segment.push({
+      x: dimensions.left + ((point.secOfDay / 86400) * dimensions.plotWidth),
+      y: dimensions.bottom - ((point.value / dimensions.maxY) * dimensions.plotHeight)
+    });
+  });
+  flushSegment();
+  return paths;
+}
+
+function renderSolarChartSvg(options) {
+  const opts = options || {};
+  const width = Math.max(320, Math.min(1600, Math.round(finiteNumber(opts.width, 900))));
+  const height = Math.max(140, Math.min(800, Math.round(finiteNumber(opts.height, 260))));
+  const bins = (Array.isArray(opts.bins) ? opts.bins : []).slice(0, 96);
+  const generatedSeries = (Array.isArray(opts.generatedSeries) ? opts.generatedSeries : []).slice(-720);
+  const inverterW = Math.max(2000, finiteNumber(opts.inverterCapacityKw, 6.3) * 1000);
+  const left = 44;
+  const right = 12;
+  const top = 12;
+  const bottom = height - 28;
+  const plotWidth = Math.max(1, width - left - right);
+  const plotHeight = Math.max(1, bottom - top);
+  const bucketHours = bins.length ? 24 / bins.length : 1;
+  let maxY = inverterW;
+
+  bins.forEach((item) => {
+    const bin = item || {};
+    const selfW = Math.max(0, finiteNumber(bin.selfWh, 0)) / bucketHours;
+    const importW = Math.max(0, finiteNumber(bin.importWh, 0)) / bucketHours;
+    maxY = Math.max(maxY, selfW + importW, Math.max(0, finiteNumber(bin.generatedWh, 0)) / bucketHours);
+  });
+  generatedSeries.forEach((point) => {
+    maxY = Math.max(maxY, Math.max(0, finiteNumber(point && point.value, 0)));
+  });
+
+  const dimensions = { left, bottom, plotWidth, plotHeight, maxY };
+  const elements = [
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Solar generation and usage history">',
+    '<rect width="' + width + '" height="' + height + '" fill="#0e1014"/>'
+  ];
+
+  for (let level = 2000; level <= Math.floor(maxY / 2000) * 2000; level += 2000) {
+    const y = bottom - ((level / maxY) * plotHeight);
+    elements.push(
+      '<line x1="' + left + '" y1="' + fixed(y) + '" x2="' + (width - right) + '" y2="' + fixed(y) + '" stroke="#96a5b8" stroke-opacity="0.16"/>',
+      '<text x="' + (left - 5) + '" y="' + fixed(y + 4) + '" text-anchor="end" fill="#acbaca" fill-opacity="0.76" font-family="Arial,sans-serif" font-size="12">' + Math.round(level / 1000) + 'kW</text>'
+    );
+  }
+
+  for (let hour = 0; hour <= 21; hour += 3) {
+    const x = left + ((hour / 24) * plotWidth);
+    elements.push(
+      '<line x1="' + fixed(x) + '" y1="' + top + '" x2="' + fixed(x) + '" y2="' + bottom + '" stroke="#96a5b8" stroke-opacity="0.22"/>',
+      '<text x="' + fixed(x) + '" y="' + (bottom + 17) + '" text-anchor="middle" fill="#acbaca" fill-opacity="0.82" font-family="Arial,sans-serif" font-size="14">' + String(hour).padStart(2, '0') + '</text>'
+    );
+  }
+
+  if (bins.length) {
+    const slotWidth = plotWidth / bins.length;
+    bins.forEach((item, index) => {
+      const bin = item || {};
+      const selfW = Math.max(0, finiteNumber(bin.selfWh, 0)) / bucketHours;
+      const importW = Math.max(0, finiteNumber(bin.importWh, 0)) / bucketHours;
+      const selfHeight = (selfW / maxY) * plotHeight;
+      const importHeight = (importW / maxY) * plotHeight;
+      const x = left + (index * slotWidth);
+      const barWidth = Math.max(1, slotWidth - 1);
+      if (importHeight > 0) {
+        elements.push('<rect x="' + fixed(x) + '" y="' + fixed(bottom - importHeight) + '" width="' + fixed(barWidth) + '" height="' + fixed(importHeight) + '" fill="#70a8ff" fill-opacity="0.55"/>');
+      }
+      if (selfHeight > 0) {
+        elements.push('<rect x="' + fixed(x) + '" y="' + fixed(bottom - importHeight - selfHeight) + '" width="' + fixed(barWidth) + '" height="' + fixed(selfHeight) + '" fill="#8edb7c"/>');
+      }
+    });
+  }
+
+  renderGeneratedArea(generatedSeries, dimensions).forEach((pathData) => {
+    elements.push('<path d="' + pathData + '" fill="#ffe27a" fill-opacity="0.42"/>');
+  });
+  elements.push(
+    '<line x1="' + left + '" y1="' + bottom + '" x2="' + (width - right) + '" y2="' + bottom + '" stroke="#a6b2c4" stroke-opacity="0.46"/>',
+    bins.length || generatedSeries.length
+      ? ''
+      : '<text x="' + (width / 2) + '" y="' + (height / 2) + '" text-anchor="middle" fill="#a7b2bf" font-family="Arial,sans-serif" font-size="16">Waiting for solar history</text>',
+    '</svg>'
+  );
+  return elements.join('');
+}
+
+module.exports = {
+  renderSolarChartSvg
+};

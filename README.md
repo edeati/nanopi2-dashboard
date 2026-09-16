@@ -39,7 +39,7 @@ Node 14-compatible dashboard server and admin UI for NanoPi2, designed to replac
 - Solar focus visuals:
   - canvas current-generation gauge
   - canvas daily ring summary
-  - canvas history chart from server-side realtime history (`solarHistory` in `/api/state`)
+  - backend-rendered solar history image, refreshed from compact dashboard state without sending raw history arrays to the kiosk
 - Git sync:
   - manual sync actions via admin API
   - background auto-sync scheduler from config (`git.autoSyncEnabled`, `git.intervalSeconds`)

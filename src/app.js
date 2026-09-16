@@ -8,6 +8,7 @@ const querystring = require('querystring');
 const { verifyPassword } = require('./lib/auth');
 const { saveDashboardConfig } = require('./lib/config-loader');
 const { DEFAULT_REDIRECT_URI, buildAuthUrl, exchangeCode } = require('./lib/beatbot/auth');
+const { renderSolarChartSvg } = require('./lib/solar-chart');
 
 const TRANSPARENT_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO9Wn2kAAAAASUVORK5CYII=',
@@ -514,12 +515,34 @@ function createApp(options) {
 
     if (req.method === 'GET' && urlPath === '/api/state') {
       const now = Date.now();
-      return sendJson(res, 200, buildStatePayload(now, radarRenderMode, radarClientIframeUrl, true));
+      const payload = buildStatePayload(now, radarRenderMode, radarClientIframeUrl, true);
+      const compact = ['1', 'true', 'yes'].indexOf(String(requestUrl.searchParams.get('compact') || '').toLowerCase()) > -1;
+      if (compact) {
+        delete payload.solarHistory;
+        delete payload.solarGeneratedHistory;
+        delete payload.solarHourlyBins;
+        delete payload.solarUsageHourly;
+        delete payload.solarDawnQuarterly;
+      }
+      return sendJson(res, 200, payload);
     }
 
     if (req.method === 'GET' && urlPath === '/api/state/startup') {
       const now = Date.now();
       return sendJson(res, 200, buildStatePayload(now, radarRenderMode, radarClientIframeUrl, false));
+    }
+
+    if (req.method === 'GET' && urlPath === '/api/solar/chart.svg') {
+      const svg = renderSolarChartSvg({
+        bins: getSolarDailyBins(),
+        generatedSeries: getSolarGeneratedHistory(),
+        inverterCapacityKw: dashboardConfig.pricing && dashboardConfig.pricing.inverterCapacityKw,
+        width: 900,
+        height: 260
+      });
+      const body = Buffer.from(svg, 'utf8');
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      return sendBinary(res, 200, 'image/svg+xml; charset=utf-8', body);
     }
 
     if (req.method === 'GET' && urlPath === '/api/radar/status') {
