@@ -805,7 +805,7 @@
       width: 220px;
       background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)), rgba(13, 17, 22, 0.9);
       align-content: stretch;
-      grid-template-rows: auto 1fr auto auto auto 1fr;
+      grid-template-rows: auto minmax(0, 1fr) max-content max-content max-content minmax(0, 1fr);
       justify-items: center;
       text-align: center;
     }
@@ -846,7 +846,7 @@
     .strip-card.strip-card-bin.strip-tone-yellow .strip-card-title,
     .strip-card.strip-card-bin.strip-tone-yellow .strip-card-copy,
     .strip-card.strip-card-bin.strip-tone-yellow .strip-card-bin-day {
-      color: #f2d44b;
+      color: #fff8e7;
       text-shadow:
         0 1px 0 rgba(0, 0, 0, 0.95),
         0 -1px 0 rgba(0, 0, 0, 0.95),
@@ -874,7 +874,7 @@
     }
 
     .strip-card.strip-card-bin.strip-tone-yellow .strip-card-bg-icon {
-      color: #f2d44b;
+      color: #ffcc00;
     }
 
     .strip-card.strip-card-bin.strip-tone-green .strip-card-bg-icon {
@@ -1026,7 +1026,7 @@
     .strip-card.strip-card-bin .strip-card-title {
       grid-row: 3;
       font-size: 30px;
-      line-height: 0.98;
+      line-height: 1.15;
       text-align: center;
       position: relative;
       z-index: 1;
