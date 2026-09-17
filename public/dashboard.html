@@ -875,6 +875,9 @@
 
     .strip-card.strip-card-bin.strip-tone-yellow .strip-card-bg-icon {
       color: #ffcc00;
+      /* Tint the rendered glyph too: Samsung colour fonts ignore CSS color. */
+      -webkit-filter: brightness(0) saturate(100%) invert(77.42%) sepia(84.15%) saturate(1668.00%) hue-rotate(-5.89deg) brightness(97.01%) contrast(124.53%) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.25));
+      filter: brightness(0) saturate(100%) invert(77.42%) sepia(84.15%) saturate(1668.00%) hue-rotate(-5.89deg) brightness(97.01%) contrast(124.53%) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.25));
     }
 
     .strip-card.strip-card-bin.strip-tone-green .strip-card-bg-icon {
