@@ -3161,7 +3161,7 @@
         }
         lastSolarChartRefreshKey = refreshKey;
         solarChartPendingAttempts = ready ? 0 : (solarChartPendingAttempts + 1);
-        solarChartImage.src = '/api/solar/chart.svg?rev=2&mode=' + (ready ? 'ready' : 'pending') + '&slot=' + (bucket % 2);
+        solarChartImage.src = '/api/solar/chart.svg?rev=2&mode=' + (ready ? 'ready' : 'pending') + '&refresh=' + encodeURIComponent(refreshKey);
       }
 
       function computeCosts(today) {

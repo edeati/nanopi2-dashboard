@@ -1,7 +1,9 @@
 'use strict';
 
 const assert = require('assert');
+const http = require('http');
 const {
+  createServer,
   formatDateLocal,
   aggregateHistoryToDailyBins,
   aggregateDetailToDailyBins,
@@ -11,7 +13,6 @@ const {
   buildUsageHourlyFromDailyBins,
   buildDawnQuarterlyFromHistory,
   buildFlowSummaryFromBins,
-  normalizeGeneratedBinsToTodayTotals,
   buildSolarMeta,
   hasUsableArchiveDetail,
   shouldRefreshFromRealtimeHistory
@@ -146,65 +147,33 @@ module.exports = async function run() {
     'mid-bin post-restart history should not replace the earlier archive portion'
   );
 
-  const cumulativeProduced = {
-    producedWhBySecond: {
-      '25200': 12,
-      '27000': 66,
-      '28800': 161
-    },
-    importWhBySecond: {},
-    exportWhBySecond: {}
+  // Sanitized inverter archive values: interval Wh samples can naturally rise
+  // through dawn and still dip briefly. They must never be interpreted as a
+  // cumulative counter based on that shape.
+  const dawnIntervalValues = [
+    [21600, 0.22888888888888889], [21900, 0.012777777777777779], [22200, 0.17222222222222222],
+    [22500, 0.32361111111111113], [22800, 0.95666666666666667], [23100, 1.2522222222222221],
+    [23400, 1.8105555555555555], [23700, 12.268888888888888], [24000, 14.640833333333333],
+    [24300, 32.346388888888889], [24600, 39.888611111111111], [24900, 56.531388888888891],
+    [25200, 74.588611111111106], [25500, 92.231111111111105], [25800, 105.11],
+    [26100, 120.58611111111111], [26400, 133.02611111111111], [26700, 157.45361111111112],
+    [27000, 185.27666666666667], [27300, 210.82444444444445], [27600, 223.67722222222221],
+    [27900, 243.43055555555554], [28200, 260.06944444444446], [28500, 277.94888888888892],
+    [28800, 284.30888888888887]
+  ];
+  const dawnIntervalDetail = {
+    producedWhBySecond: Object.fromEntries(dawnIntervalValues.map(([second, wh]) => [String(second), wh])),
+    importWhBySecond: { 21600: 5000, 28800: 5075 },
+    exportWhBySecond: { 21600: 1000, 28800: 1150 }
   };
-  const cumulativeBins = aggregateDetailToDailyBins(cumulativeProduced, '2026-02-16', 'Australia/Brisbane');
-  assert.ok(cumulativeBins[14].generatedWh > 0, 'cumulative produced should populate 07:00-07:30 bin');
-  assert.ok(cumulativeBins[15].generatedWh > 0, 'cumulative produced should populate 07:30-08:00 bin');
-  assert.strictEqual(cumulativeBins[16].generatedWh, 0, 'cumulative produced should not collapse into 08:00-08:30 bin');
-
-  const hourlyCumulative = {
-    producedWhBySecond: {
-      '25200': 1000, // 07:00
-      '28800': 1600, // 08:00 (+600 over the hour)
-      '32400': 2200 // 09:00 (+600 over the hour)
-    },
-    importWhBySecond: {
-      '25200': 400,
-      '28800': 460,
-      '32400': 520
-    },
-    exportWhBySecond: {
-      '25200': 100,
-      '28800': 180,
-      '32400': 260
-    }
-  };
-  const hourlyCumulativeBins = aggregateDetailToDailyBins(hourlyCumulative, '2026-02-16', 'Australia/Brisbane');
-  assert.ok(hourlyCumulativeBins[14].generatedWh > 0, '07:00-08:00 cumulative delta should distribute into 07:00-07:30 bin');
-  assert.ok(hourlyCumulativeBins[15].generatedWh > 0, '07:00-08:00 cumulative delta should distribute into 07:30-08:00 bin');
-  assert.ok(hourlyCumulativeBins[16].generatedWh > 0, '08:00-09:00 cumulative delta should distribute into 08:00-08:30 bin');
-  assert.ok(hourlyCumulativeBins[17].generatedWh > 0, '08:00-09:00 cumulative delta should distribute into 08:30-09:00 bin');
-  assert.ok(hourlyCumulativeBins[15].importWh > 0 && hourlyCumulativeBins[16].importWh > 0, 'import deltas should also distribute across the hour');
-  assert.ok(hourlyCumulativeBins[15].exportWh > 0 && hourlyCumulativeBins[16].exportWh > 0, 'export deltas should also distribute across the hour');
-
-  const rampThenDipProduced = {
-    producedWhBySecond: {
-      '0': 0,
-      '300': 1,
-      '600': 2,
-      '900': 3,
-      '1200': 4,
-      '1500': 5,
-      '1800': 6,
-      '2100': 7,
-      '2400': 8,
-      '2700': 7,
-      '3000': 6
-    },
-    importWhBySecond: {},
-    exportWhBySecond: {}
-  };
-  const rampThenDipBins = aggregateDetailToDailyBins(rampThenDipProduced, '2026-02-16', 'Australia/Brisbane');
-  const rampThenDipGeneratedWh = rampThenDipBins.reduce((sum, bin) => sum + Number(bin.generatedWh || 0), 0);
-  assert.ok(rampThenDipGeneratedWh > 40, 'interval-like produced series with minor dips should not be treated as cumulative deltas');
+  const dawnIntervalBins = aggregateDetailToDailyBins(dawnIntervalDetail, '2026-02-16', 'Australia/Brisbane');
+  const dawnGeneratedWh = dawnIntervalBins.reduce((sum, bin) => sum + Number(bin.generatedWh || 0), 0);
+  assert.ok(Math.abs(dawnGeneratedWh - 2528.964722222222) < 0.000001, 'all interval Wh values should be retained without cumulative differencing');
+  assertDerivedBinFlows(dawnIntervalBins);
+  const dawnGeneratedSeries = buildGeneratedSeriesFromDetail(dawnIntervalDetail, '2026-02-16', 'Australia/Brisbane');
+  const eightAmPoint = dawnGeneratedSeries.find((point) => point.secOfDay === 28800);
+  assert.ok(eightAmPoint && Math.abs(eightAmPoint.value - (284.30888888888887 * 12)) < 0.000001, 'five-minute archive Wh should render as Wh * 12 watts');
+  assert.ok(Math.max(...dawnGeneratedSeries.map((point) => point.value)) < 3500, 'dawn interval samples should not create a synthetic multi-kilowatt spike');
 
   const detailWithExplicitSelfLoad = {
     producedWhBySecond: {
@@ -299,30 +268,41 @@ module.exports = async function run() {
   assert.ok(Math.abs(flowSummary.importKwh - 0.05) < 0.001, 'flow import should sum from bins');
   assert.ok(Math.abs(flowSummary.selfConsumptionPct - (0.4 / 0.445 * 100)) < 0.01, 'flow self-consumption should be derived');
 
-  const skewedDaily = createZeroBins('2026-02-16');
-  skewedDaily[14].generatedWh = 140;
-  skewedDaily[14].exportWh = 120;
-  skewedDaily[14].importWh = 30;
-  skewedDaily[14].selfWh = 20;
-  skewedDaily[14].loadWh = 50;
-  skewedDaily[15].generatedWh = 80;
-  skewedDaily[15].exportWh = 40;
-  skewedDaily[15].importWh = 10;
-  skewedDaily[15].selfWh = 40;
-  skewedDaily[15].loadWh = 50;
-  const normalizedDaily = normalizeGeneratedBinsToTodayTotals(skewedDaily, {
-    generatedKwh: 2.2,
-    importKwh: 0.04,
-    exportKwh: 0.16
+  const noScaleTimers = { setInterval: () => null, clearInterval: () => {} };
+  const noScaleServer = createServer({
+    timers: noScaleTimers,
+    froniusClient: {
+      fetchRealtime: async () => ({ generatedW: 200, gridW: 0, loadW: 200, dayGeneratedKwh: 9 }),
+      fetchDailySum: async () => ({ dayGeneratedKwh: 9, dayImportKwh: 0.02, dayExportKwh: 0.15 }),
+      fetchDailyDetail: async () => ({
+        producedWhBySecond: { 28800: 250 },
+        importWhBySecond: { 28500: 1000, 28800: 1020 },
+        exportWhBySecond: { 28500: 500, 28800: 650 }
+      })
+    },
+    externalSources: {
+      fetchWeather: async () => ({ summary: 'ok', tempC: 0 }),
+      fetchNews: async () => ({ headlines: [] }),
+      fetchBins: async () => ({ nextType: 'Unknown', nextDate: null })
+    },
+    radarClient: { refresh: async () => {}, getState: () => ({ frames: [], updatedAt: null, error: null }) },
+    internetProbe: { getState: () => ({ online: true, history: [] }) },
+    gitRunner: async () => ({ ok: true }),
+    radarAnimationProvider: async () => ({ body: Buffer.from('GIF89a'), contentType: 'image/gif' })
   });
-  const normalizedGeneratedKwh = normalizedDaily.reduce((sum, bin) => sum + Number(bin.generatedWh || 0), 0) / 1000;
-  const normalizedExportKwh = normalizedDaily.reduce((sum, bin) => sum + Number(bin.exportWh || 0), 0) / 1000;
-  const normalizedImportKwh = normalizedDaily.reduce((sum, bin) => sum + Number(bin.importWh || 0), 0) / 1000;
-  const normalizedSelfKwh = normalizedDaily.reduce((sum, bin) => sum + Number(bin.selfWh || 0), 0) / 1000;
-  assert.ok(Math.abs(normalizedGeneratedKwh - 2.2) < 0.001, 'normalized bins should align generated total to today generated');
-  assert.ok(Math.abs(normalizedExportKwh - 0.16) < 0.001, 'normalized bins should preserve export total');
-  assert.ok(Math.abs(normalizedImportKwh - 0.04) < 0.001, 'normalized bins should preserve import total');
-  assert.ok(Math.abs(normalizedSelfKwh - (2.2 - 0.16)) < 0.001, 'normalized bins should derive self-use from generated-export');
+  await new Promise((resolve) => noScaleServer.listen(0, '127.0.0.1', resolve));
+  try {
+    await new Promise((resolve) => setImmediate(resolve));
+    const noScaleState = await requestJson(noScaleServer, '/api/state');
+    const noScaleGeneratedWh = noScaleState.solarDailyBins.reduce((sum, bin) => sum + Number(bin.generatedWh || 0), 0);
+    const noScaleSelfWh = noScaleState.solarDailyBins.reduce((sum, bin) => sum + Number(bin.selfWh || 0), 0);
+    assert.strictEqual(noScaleState.fronius.today.generatedKwh, 9, 'the regression must load the 9kWh authoritative daily total before checking sparse history');
+    assert.strictEqual(noScaleGeneratedWh, 250, 'a 9kWh daily summary must not scale a 250Wh sparse archive interval into a synthetic spike');
+    assert.ok(noScaleSelfWh <= 250, 'a 9kWh daily summary must not manufacture self-use beyond the observed generation');
+    assert.strictEqual(noScaleState.solarFlowSummary.producedKwh, 0.25, 'state flow summary must use observed archive bins rather than the whole-day total');
+  } finally {
+    await new Promise((resolve) => noScaleServer.close(resolve));
+  }
 
   const beforeMidnightUtc = Date.parse('2026-02-15T13:59:30.000Z'); // 23:59:30 local
   const afterMidnightUtc = Date.parse('2026-02-15T14:00:30.000Z'); // 00:00:30 local
@@ -413,5 +393,39 @@ function createZeroBins(dayKey) {
       selfWh: 0,
       loadWh: 0
     };
+  });
+}
+
+function assertDerivedBinFlows(bins) {
+  for (let index = 0; index < bins.length; index += 1) {
+    const bin = bins[index];
+    const generatedWh = Number(bin.generatedWh);
+    const exportWh = Number(bin.exportWh);
+    const selfWh = Number(bin.selfWh);
+    const importWh = Number(bin.importWh);
+    assert.ok(Math.abs(selfWh - Math.max(0, generatedWh - exportWh)) < 0.000001, 'self-use should derive from interval generation minus counter export');
+    assert.ok(Math.abs(Number(bin.loadWh) - (selfWh + importWh)) < 0.000001, 'load should equal self-use plus counter import');
+  }
+}
+
+function requestJson(server, requestPath) {
+  return new Promise((resolve, reject) => {
+    const address = server.address();
+    const request = http.get({ host: '127.0.0.1', port: address.port, path: requestPath }, (response) => {
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => {
+        if (response.statusCode !== 200) {
+          reject(new Error('unexpected_status_' + response.statusCode));
+          return;
+        }
+        try {
+          resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+    request.on('error', reject);
   });
 }

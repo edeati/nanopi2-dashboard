@@ -124,49 +124,6 @@ function estimateSeriesStep(points) {
   return best;
 }
 
-function isLikelyCumulativeSeries(points) {
-  if (!Array.isArray(points) || points.length < 2) {
-    return false;
-  }
-  let up = 0;
-  let down = 0;
-  let posDeltaSum = 0;
-  let posDeltaCount = 0;
-  let valuesSum = 0;
-  for (let i = 0; i < points.length; i += 1) {
-    valuesSum += Number(points[i].value || 0);
-    if (i === 0) {
-      continue;
-    }
-    const diff = Number(points[i].value || 0) - Number(points[i - 1].value || 0);
-    if (diff >= 0) {
-      up += 1;
-      if (diff > 0) {
-        posDeltaSum += diff;
-        posDeltaCount += 1;
-      }
-    } else {
-      down += 1;
-    }
-  }
-  const monotonicRatio = up / Math.max(1, up + down);
-  const maxDownSteps = Math.max(1, Math.floor(points.length * 0.01));
-  if (monotonicRatio < 0.98 || down > maxDownSteps) {
-    return false;
-  }
-  const first = Number(points[0].value || 0);
-  const last = Number(points[points.length - 1].value || 0);
-  if (last <= first) {
-    return false;
-  }
-  const avgValue = valuesSum / Math.max(1, points.length);
-  const avgPositiveDelta = posDeltaCount > 0 ? (posDeltaSum / posDeltaCount) : 0;
-  if (avgPositiveDelta <= 0) {
-    return false;
-  }
-  return avgValue >= (avgPositiveDelta * 1.5);
-}
-
 function buildGeneratedSeriesFromRealtimeHistory(solarHistory, nowMs, timeZone) {
   const dayKey = formatDateLocal(nowMs, timeZone);
   return (Array.isArray(solarHistory) ? solarHistory : [])
@@ -185,23 +142,6 @@ function buildGeneratedSeriesFromDetail(detail, dayKey, timeZone) {
     return [];
   }
   const series = [];
-  if (isLikelyCumulativeSeries(points)) {
-    for (let i = 1; i < points.length; i += 1) {
-      const prev = points[i - 1];
-      const curr = points[i];
-      const spanSec = Math.max(0, curr.sec - prev.sec);
-      if (!(spanSec > 0)) {
-        continue;
-      }
-      const deltaWh = Math.max(0, Number(curr.value || 0) - Number(prev.value || 0));
-      series.push({
-        secOfDay: curr.sec,
-        value: deltaWh > 0 ? (deltaWh * 3600) / spanSec : 0
-      });
-    }
-    return series;
-  }
-
   const fallbackStep = estimateSeriesStep(points);
   if (!(fallbackStep > 0)) {
     return [];
@@ -520,47 +460,6 @@ function buildFlowSummaryFromBins(bins) {
   };
 }
 
-function normalizeGeneratedBinsToTodayTotals(dailyBins, todayRaw) {
-  const source = Array.isArray(dailyBins) ? dailyBins : [];
-  if (!source.length) {
-    return source.slice();
-  }
-  const today = todayRaw || {};
-  const todayGeneratedWh = Math.max(0, Number(today.generatedKwh || 0) * 1000);
-  if (!(todayGeneratedWh > 0)) {
-    return source.slice();
-  }
-  let binsGeneratedWh = 0;
-  for (let i = 0; i < source.length; i += 1) {
-    binsGeneratedWh += Math.max(0, Number((source[i] && source[i].generatedWh) || 0));
-  }
-  if (!(binsGeneratedWh > 0)) {
-    return source.slice();
-  }
-  const ratio = todayGeneratedWh / binsGeneratedWh;
-  if (ratio <= 0 || (ratio >= 0.67 && ratio <= 1.5)) {
-    return source.slice();
-  }
-  const out = [];
-  for (let i = 0; i < source.length; i += 1) {
-    const bin = source[i] || {};
-    const generatedWh = Math.max(0, Number(bin.generatedWh || 0) * ratio);
-    const exportWh = Math.max(0, Number(bin.exportWh || 0));
-    const importWh = Math.max(0, Number(bin.importWh || 0));
-    const selfWh = Math.max(0, generatedWh - exportWh);
-    out.push({
-      dayKey: bin.dayKey || null,
-      binIndex: Number.isFinite(Number(bin.binIndex)) ? Number(bin.binIndex) : i,
-      generatedWh,
-      importWh,
-      exportWh,
-      selfWh,
-      loadWh: selfWh + importWh
-    });
-  }
-  return out;
-}
-
 function hasAnySolarBinsEnergy(bins) {
   const source = Array.isArray(bins) ? bins : [];
   for (let i = 0; i < source.length; i += 1) {
@@ -710,18 +609,6 @@ function aggregateDetailToDailyBins(detail, dayKey, timeZone) {
   function addSeriesAsValue(series, field) {
     const points = normalizeDetailSeriesPoints(series, dayKey, timeZone);
     if (!points.length) {
-      return;
-    }
-    if (isLikelyCumulativeSeries(points)) {
-      for (let i = 1; i < points.length; i += 1) {
-        const prev = points[i - 1];
-        const curr = points[i];
-        const delta = curr.value - prev.value;
-        if (delta <= 0) {
-          continue;
-        }
-        distributeDeltaAcrossBins(prev.sec, curr.sec, delta, field);
-      }
       return;
     }
     const fallbackStep = estimateSeriesStep(points);
@@ -1370,36 +1257,24 @@ function createServer(options) {
       return mergeGeneratedSeries(archiveSeries, realtimeSeries);
     },
     getSolarDailyBins: function getSolarDailyBins() {
-      const now = Date.now();
-      const froniusSnapshot = froniusState.getState(now);
-      return normalizeGeneratedBinsToTodayTotals(solarDailyBins, froniusSnapshot.today);
+      return solarDailyBins;
     },
     getSolarHourlyBins: function getSolarHourlyBins() {
-      const now = Date.now();
-      const froniusSnapshot = froniusState.getState(now);
-      const corrected = normalizeGeneratedBinsToTodayTotals(solarDailyBins, froniusSnapshot.today);
-      return aggregateDailyToHourlyBins(corrected);
+      return aggregateDailyToHourlyBins(solarDailyBins);
     },
     getSolarUsageHourly: function getSolarUsageHourly() {
-      const now = Date.now();
-      const froniusSnapshot = froniusState.getState(now);
-      const corrected = normalizeGeneratedBinsToTodayTotals(solarDailyBins, froniusSnapshot.today);
-      return buildUsageHourlyFromDailyBins(corrected);
+      return buildUsageHourlyFromDailyBins(solarDailyBins);
     },
     getSolarDawnQuarterly: function getSolarDawnQuarterly() {
       return buildDawnQuarterlyFromHistory(solarHistory, Date.now(), dashboardTimeZone);
     },
     getSolarFlowSummary: function getSolarFlowSummary() {
-      const now = Date.now();
-      const froniusSnapshot = froniusState.getState(now);
-      const corrected = normalizeGeneratedBinsToTodayTotals(solarDailyBins, froniusSnapshot.today);
-      return buildFlowSummaryFromBins(corrected);
+      return buildFlowSummaryFromBins(solarDailyBins);
     },
     getSolarMeta: function getSolarMeta() {
       const now = Date.now();
       const froniusSnapshot = froniusState.getState(now);
-      const corrected = normalizeGeneratedBinsToTodayTotals(solarDailyBins, froniusSnapshot.today);
-      return buildSolarMeta(now, dashboardTimeZone, froniusSnapshot, corrected, solarHistory);
+      return buildSolarMeta(now, dashboardTimeZone, froniusSnapshot, solarDailyBins, solarHistory);
     },
     getInternetState: function getInternetState() {
       return internetProbe.getState();
@@ -1621,7 +1496,6 @@ module.exports = {
   buildDawnQuarterlyFromHistory,
   buildFlowSummaryFromBins,
   buildGeneratedSeriesFromDetail,
-  normalizeGeneratedBinsToTodayTotals,
   buildSolarMeta,
   hasUsableArchiveDetail,
   shouldRefreshFromRealtimeHistory
