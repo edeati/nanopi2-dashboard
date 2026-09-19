@@ -274,7 +274,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('function updateSolarChartImage(') > -1, 'solar chart image refresh helper missing');
   assert.ok(html.indexOf('solarChartPendingAttempts < 4') > -1, 'solar chart should bound rapid empty-history retries');
   assert.ok(html.indexOf("var refreshMs = fastPendingRetry ? (15 * 1000) : (5 * 60 * 1000);") > -1, 'solar chart should fall back to the normal refresh cadence after startup retries');
-  assert.ok(html.indexOf("solarChartImage.src = '/api/solar/chart.svg?rev=2&mode=' + (ready ? 'ready' : 'pending') + '&refresh=' + encodeURIComponent(refreshKey);") > -1, 'solar chart should use a unique refresh-key URL');
+  assert.ok(html.indexOf("solarChartImage.src = '/api/solar/chart.svg?rev=2&mode=' + (ready ? 'ready' : 'pending') + '&slot=' + (bucket % 2);") > -1, 'solar chart should alternate bounded no-store URLs');
   assert.strictEqual(html.indexOf("solarChartImage.onerror"), -1, 'failed chart loads should wait for the next scheduled retry bucket');
   assert.ok(html.indexOf('object-fit: contain;') > -1, 'solar chart should preserve its aspect ratio in takeover layouts');
   assert.ok(html.indexOf("fetch('/api/state?compact=1')") > -1, 'dashboard should request compact state without raw chart histories');

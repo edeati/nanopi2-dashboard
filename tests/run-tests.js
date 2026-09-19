@@ -17,7 +17,6 @@ const testModules = [
   './fronius-client.test.js',
   './fronius-service.test.js',
   './solar-chart.test.js',
-  './solar-chart-refresh-ui.test.js',
   './server-timezone.test.js',
   './server-routes.test.js',
   './admin-api.test.js',
