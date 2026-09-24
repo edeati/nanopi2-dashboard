@@ -861,6 +861,23 @@ function createEmptySolarIsolationState() {
   };
 }
 
+// Fronius often omits live R_iso from /components/Inverter/readable.
+// Prefer a real live reading when present; otherwise use the latest archive sample.
+// Important: Number(null) === 0, so null must not be treated as 0 MΩ.
+function pickCurrentIsolationMohm(live, points) {
+  if (live && live.isolationMohm != null && Number.isFinite(Number(live.isolationMohm))) {
+    return Number(live.isolationMohm);
+  }
+  const list = Array.isArray(points) ? points : [];
+  for (let i = list.length - 1; i >= 0; i -= 1) {
+    const mohm = Number(list[i] && list[i].mohm);
+    if (Number.isFinite(mohm)) {
+      return mohm;
+    }
+  }
+  return null;
+}
+
 function scheduleFroniusPolling(client, froniusState, froniusConfig, onRealtime, onArchiveDetail, timers, timeZone, onIsolation) {
   let isolationBootstrapDone = false;
 
@@ -1617,9 +1634,6 @@ function createServer(options) {
     }, timers, dashboardTimeZone, function onIsolation(payload, now) {
       const live = payload && payload.live ? payload.live : null;
       if (live) {
-        if (Number.isFinite(Number(live.isolationMohm))) {
-          solarIsolation.currentMohm = Number(live.isolationMohm);
-        }
         solarIsolation.errorCode = Number(live.errorCode || 0);
         solarIsolation.statusCode = live.statusCode;
         solarIsolation.liveAt = now;
@@ -1634,6 +1648,7 @@ function createServer(options) {
         solarIsolation.points = solarIsolation.points.filter((point) => keep[point.day]);
         solarIsolation.historyAt = now;
       }
+      solarIsolation.currentMohm = pickCurrentIsolationMohm(live, solarIsolation.points);
     }));
 
     const sources = (options && options.externalSources) || createExternalSources(Object.assign({}, dashboardConfig, { logger }));
@@ -1759,5 +1774,6 @@ module.exports = {
   shouldRefreshFromRealtimeHistory,
   listRecentLocalDays,
   mergeIsolationPoints,
-  createEmptySolarIsolationState
+  createEmptySolarIsolationState,
+  pickCurrentIsolationMohm
 };

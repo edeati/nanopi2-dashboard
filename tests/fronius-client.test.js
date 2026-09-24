@@ -6,6 +6,7 @@ const { createFroniusClient } = require('../src/lib/fronius-client');
 
 module.exports = async function run() {
   let lastArchivePath = '';
+  let readableIsoPresent = true;
   const server = http.createServer((req, res) => {
     if (req.url.indexOf('/GetArchiveData.cgi') > -1) {
       if (req.url.indexOf('Channel=Generator_Isolation') > -1) {
@@ -278,15 +279,22 @@ module.exports = async function run() {
 
     if (req.url.indexOf('/components/Inverter/readable') > -1) {
       res.setHeader('Content-Type', 'application/json');
+      // Mirror the Primo night/low-output payload: status codes only, no R_iso channel.
+      const channels = readableIsoPresent
+        ? {
+            Generator_Isolation: 8600000,
+            CodeOfError: 0,
+            CodeOfState: 7
+          }
+        : {
+            CodeOfError: 307,
+            CodeOfState: 3
+          };
       res.end(JSON.stringify({
         Body: {
           Data: {
             '1': {
-              channels: {
-                Generator_Isolation: 8600000,
-                CodeOfError: 0,
-                CodeOfState: 7
-              }
+              channels: channels
             }
           }
         }
@@ -359,6 +367,10 @@ module.exports = async function run() {
     const liveIso = await client.fetchIsolationLive();
     assert.strictEqual(liveIso.isolationMohm, 8.6);
     assert.strictEqual(liveIso.errorCode, 0);
+    readableIsoPresent = false;
+    const liveIsoMissing = await client.fetchIsolationLive();
+    assert.strictEqual(liveIsoMissing.isolationMohm, null, 'missing Generator_Isolation must not become 0 MΩ');
+    assert.strictEqual(liveIsoMissing.errorCode, 307);
     const hist = await client.fetchIsolationHistoryDays(['2026-09-23']);
     assert.strictEqual(hist.length, 2);
     assert.strictEqual(hist[0].hhmm, '08:05');
