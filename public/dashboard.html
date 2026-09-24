@@ -3254,6 +3254,21 @@
         return false;
       }
 
+      function describeInverterCode(code) {
+        var err = Math.max(0, Math.round(Number(code || 0)));
+        // Expected / informational Fronius states — not red faults.
+        if (err === 0) {
+          return { label: 'OK', tone: 'ok' };
+        }
+        if (err === 306) {
+          return { label: 'LOW PV', tone: 'unknown' };
+        }
+        if (err === 522) {
+          return { label: 'LOW LIGHT', tone: 'unknown' };
+        }
+        return { label: 'ERR ' + err, tone: 'error' };
+      }
+
       function updateSolarChartOverlays(state) {
         var isolation = (state && state.solarIsolation) || {};
         var mohm = Number(isolation.currentMohm);
@@ -3261,11 +3276,15 @@
         if (tone !== 'ok' && tone !== 'watch' && tone !== 'critical') {
           tone = isFinite(mohm) ? (mohm < 5 ? 'critical' : (mohm < 15 ? 'watch' : 'ok')) : 'unknown';
         }
-        var err = Math.max(0, Math.round(Number(isolation.errorCode || 0)));
-        var invTone = err > 0 ? 'error' : (isFinite(mohm) || isolation.liveAt ? 'ok' : 'unknown');
-        var isoValue = isFinite(mohm) ? (mohm.toFixed(1) + ' M\u03a9') : '-- M\u03a9';
+        var inv = describeInverterCode(isolation.errorCode);
+        var invTone = inv.tone;
+        if (invTone === 'ok' && !(isFinite(mohm) || isolation.liveAt)) {
+          invTone = 'unknown';
+          inv = { label: '--', tone: 'unknown' };
+        }
+        var isoValue = isFinite(mohm) ? (mohm.toFixed(1) + ' MΩ') : '-- MΩ';
         var isoTone = tone === 'critical' ? 'CRIT' : (tone === 'watch' ? 'WATCH' : (tone === 'ok' ? 'OK' : '--'));
-        var invValue = err > 0 ? ('ERR ' + err) : (invTone === 'ok' ? 'OK' : '--');
+        var invValue = inv.label;
         var sig = isoValue + '|' + tone + '|' + invValue + '|' + invTone;
         if (sig === lastSolarOverlaySig) {
           return;
@@ -3307,7 +3326,7 @@
         }
         lastSolarChartRefreshKey = refreshKey;
         solarChartPendingAttempts = ready ? 0 : (solarChartPendingAttempts + 1);
-        solarChartImage.src = '/api/solar/chart.svg?rev=10&mode=' + (ready ? 'ready' : 'pending') + '&slot=' + (bucket % 2) + '&iso=' + isoPoints + '&err=' + (isFinite(isoErr) ? isoErr : 0);
+        solarChartImage.src = '/api/solar/chart.svg?rev=11&mode=' + (ready ? 'ready' : 'pending') + '&slot=' + (bucket % 2) + '&iso=' + isoPoints + '&err=' + (isFinite(isoErr) ? isoErr : 0);
       }
 
       function computeCosts(today) {
