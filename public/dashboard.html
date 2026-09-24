@@ -3256,16 +3256,25 @@
 
       function describeInverterCode(code) {
         var err = Math.max(0, Math.round(Number(code || 0)));
-        // Expected / informational Fronius states — not red faults.
+        // Fronius SnapINverter state codes:
+        // https://www.fronius.com/.../support-state-codes-snapinverter-primo-symo-eco
+        // Informational / expected low-output states — not red faults.
         if (err === 0) {
           return { label: 'OK', tone: 'ok' };
         }
         if (err === 306) {
-          return { label: 'LOW PV', tone: 'unknown' };
+          return { label: 'LOW PV', tone: 'unknown' }; // PV power low
+        }
+        if (err === 307) {
+          return { label: 'LOW V', tone: 'unknown' }; // DC voltage too low
+        }
+        if (err === 509) {
+          return { label: 'NO FEED', tone: 'unknown' }; // no feed-in for 24h
         }
         if (err === 522 || err === 523) {
-          return { label: 'LOW LIGHT', tone: 'unknown' };
+          return { label: 'LOW LIGHT', tone: 'unknown' }; // DC1/DC2 input voltage too low
         }
+        // 475/502 insulation resistance too low — and all other codes — remain ERR.
         return { label: 'ERR ' + err, tone: 'error' };
       }
 
@@ -3326,7 +3335,7 @@
         }
         lastSolarChartRefreshKey = refreshKey;
         solarChartPendingAttempts = ready ? 0 : (solarChartPendingAttempts + 1);
-        solarChartImage.src = '/api/solar/chart.svg?rev=13&mode=' + (ready ? 'ready' : 'pending') + '&slot=' + (bucket % 2) + '&iso=' + isoPoints + '&err=' + (isFinite(isoErr) ? isoErr : 0);
+        solarChartImage.src = '/api/solar/chart.svg?rev=14&mode=' + (ready ? 'ready' : 'pending') + '&slot=' + (bucket % 2) + '&iso=' + isoPoints + '&err=' + (isFinite(isoErr) ? isoErr : 0);
       }
 
       function computeCosts(today) {
