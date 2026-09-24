@@ -55,6 +55,8 @@ module.exports = async function run() {
   assert.ok(withIso.includes('stroke="#d48bff"'), 'solar chart should draw isolation as a purple line');
   assert.ok(withIso.includes('stroke-width="4.2"'), 'isolation line should be thick enough for small tablet displays');
   assert.ok(withIso.includes('stroke-opacity="0.62"'), 'isolation line should be slightly transparent');
+  assert.ok(withIso.includes('stroke="#ff7350"'), 'solar chart should mark the 5 MΩ isolation fault threshold in red');
+  assert.ok(withIso.includes('stroke-dasharray="3 5"'), '5 MΩ isolation threshold should be a faint dotted line');
   assert.strictEqual(withIso.includes('8.6 M'), false, 'live isolation value should live in HTML chrome, not the SVG');
   assert.strictEqual(withIso.includes('>OK</text>'), false, 'inverter badge should live in HTML chrome, not the SVG');
   assert.ok(withIso.includes('viewBox="0 0 900 260"'), 'isolation overlay should keep the main chart dimensions');

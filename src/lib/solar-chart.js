@@ -182,13 +182,21 @@ function renderSolarChartSvg(options) {
   }
 
   if (isolationPoints.length >= 2) {
+    // Faint red dotted threshold at 5 MΩ — Fronius isolation fault zone.
+    if (5 <= maxIso) {
+      const thresholdY = bottom - ((5 / maxIso) * plotHeight);
+      elements.push(
+        '<line x1="' + left + '" y1="' + fixed(thresholdY) + '" x2="' + (width - right) + '" y2="' + fixed(thresholdY) + '" stroke="#ff7350" stroke-width="1.6" stroke-opacity="0.42" stroke-dasharray="3 5"/>'
+      );
+    }
     [5, 15, 30].forEach(function drawIsoGuide(level) {
       if (level > maxIso) {
         return;
       }
       const y = bottom - ((level / maxIso) * plotHeight);
+      const isThreshold = level === 5;
       elements.push(
-        '<text x="' + (width - 6) + '" y="' + fixed(y + 3) + '" text-anchor="end" fill="#d48bff" fill-opacity="0.52" font-family="Arial,sans-serif" font-size="12">' + level + '</text>'
+        '<text x="' + (width - 6) + '" y="' + fixed(y + 3) + '" text-anchor="end" fill="' + (isThreshold ? '#ff7350' : '#d48bff') + '" fill-opacity="' + (isThreshold ? '0.72' : '0.52') + '" font-family="Arial,sans-serif" font-size="12">' + level + '</text>'
       );
     });
     renderIsolationLine(isolationPoints, dimensions, maxIso).forEach(function pushIso(part) {
