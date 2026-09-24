@@ -115,7 +115,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('id="solarUsageLegend"') > -1, 'solar usage chart legend container missing');
   assert.ok(html.indexOf('Isolation 14d') > -1, 'solar legend should include isolation series');
   assert.ok(html.indexOf('id="solarIsoOverlay"') > -1, 'isolation overlay badge missing inside chart-wrap');
-  assert.ok(html.indexOf('.solar-chart-overlay .ov-value {\n      font-family: var(--font-display);\n      font-size: 20px;') > -1, 'chart overlay values should be readable on Samsung 1024x768');
+  assert.ok(html.indexOf('.solar-chart-overlay .ov-value {\n      font-family: var(--font-display);\n      font-size: 14px;') > -1, 'chart overlay values should stay compact relative to the solar chart on 1024x768');
   assert.ok(html.indexOf('id="solarInvOverlay"') > -1, 'inverter overlay badge missing inside chart-wrap');
   assert.ok(html.indexOf('function updateSolarChartOverlays(') > -1, 'solar chart overlay updater missing');
   assert.ok(html.indexOf('function describeInverterCode(') > -1, 'inverter code classifier missing');
@@ -286,7 +286,7 @@ module.exports = async function run() {
   assert.ok(html.indexOf('function updateSolarChartImage(') > -1, 'solar chart image refresh helper missing');
   assert.ok(html.indexOf('solarChartPendingAttempts < 4') > -1, 'solar chart should bound rapid empty-history retries');
   assert.ok(html.indexOf("var refreshMs = fastPendingRetry ? (15 * 1000) : (5 * 60 * 1000);") > -1, 'solar chart should fall back to the normal refresh cadence after startup retries');
-  assert.ok(html.indexOf("solarChartImage.src = '/api/solar/chart.svg?rev=11&mode=' + (ready ? 'ready' : 'pending') + '&slot=' + (bucket % 2) + '&iso=' + isoPoints + '&err=' + (isFinite(isoErr) ? isoErr : 0);") > -1, 'solar chart should alternate bounded no-store URLs');
+  assert.ok(html.indexOf("solarChartImage.src = '/api/solar/chart.svg?rev=12&mode=' + (ready ? 'ready' : 'pending') + '&slot=' + (bucket % 2) + '&iso=' + isoPoints + '&err=' + (isFinite(isoErr) ? isoErr : 0);") > -1, 'solar chart should alternate bounded no-store URLs');
   assert.strictEqual(html.indexOf("solarChartImage.onerror"), -1, 'failed chart loads should wait for the next scheduled retry bucket');
   assert.ok(html.indexOf('object-fit: contain;') > -1, 'solar chart should preserve its aspect ratio in takeover layouts');
   assert.ok(html.indexOf("fetch('/api/state?compact=1')") > -1, 'dashboard should request compact state without raw chart histories');
