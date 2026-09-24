@@ -445,119 +445,8 @@
     }
     #solarChartsRow > div {
       display: grid;
-      grid-template-rows: auto 1fr auto;
-      gap: 4px;
+      grid-template-rows: auto 1fr;
       min-height: 0;
-    }
-
-    .solar-chart-chrome {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      min-height: 34px;
-      padding: 0 2px;
-    }
-
-    .solar-chart-chrome-top {
-      justify-content: flex-end;
-    }
-
-    .solar-chart-chrome-bottom {
-      align-items: center;
-    }
-
-    .solar-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 12px;
-      border-radius: 999px;
-      border: 1.5px solid rgba(114, 127, 146, 0.55);
-      background: rgba(14, 18, 24, 0.92);
-      white-space: nowrap;
-      line-height: 1;
-    }
-
-    .solar-chip-label {
-      font-size: 11px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: #95a5b6;
-      font-weight: 700;
-    }
-
-    .solar-chip-value {
-      font-family: var(--font-display);
-      font-size: 18px;
-      font-weight: 900;
-      color: #d7e2ee;
-    }
-
-    .solar-chip-tone {
-      font-size: 12px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      font-weight: 800;
-      padding: 3px 7px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.12);
-    }
-
-    .solar-chip.tone-ok {
-      border-color: rgba(63, 154, 95, 0.9);
-      background: rgba(29, 74, 47, 0.88);
-    }
-    .solar-chip.tone-ok .solar-chip-value,
-    .solar-chip.tone-ok .solar-chip-tone {
-      color: #8edb7c;
-    }
-    .solar-chip.tone-ok .solar-chip-tone {
-      background: rgba(142, 219, 124, 0.14);
-      border-color: rgba(142, 219, 124, 0.45);
-    }
-
-    .solar-chip.tone-watch {
-      border-color: rgba(242, 187, 60, 0.85);
-      background: rgba(74, 54, 18, 0.88);
-    }
-    .solar-chip.tone-watch .solar-chip-value,
-    .solar-chip.tone-watch .solar-chip-tone {
-      color: #f2bb3c;
-    }
-    .solar-chip.tone-watch .solar-chip-tone {
-      background: rgba(242, 187, 60, 0.14);
-      border-color: rgba(242, 187, 60, 0.45);
-    }
-
-    .solar-chip.tone-critical,
-    .solar-chip.tone-error {
-      border-color: rgba(255, 115, 80, 0.9);
-      background: rgba(109, 29, 40, 0.9);
-    }
-    .solar-chip.tone-critical .solar-chip-value,
-    .solar-chip.tone-critical .solar-chip-tone,
-    .solar-chip.tone-error .solar-chip-value,
-    .solar-chip.tone-error .solar-chip-tone {
-      color: #ff9d9d;
-    }
-    .solar-chip.tone-critical .solar-chip-tone,
-    .solar-chip.tone-error .solar-chip-tone {
-      background: rgba(255, 115, 80, 0.16);
-      border-color: rgba(255, 115, 80, 0.5);
-    }
-
-    .solar-chip.tone-unknown {
-      border-color: rgba(114, 127, 146, 0.55);
-    }
-    .solar-chip.tone-unknown .solar-chip-value,
-    .solar-chip.tone-unknown .solar-chip-tone {
-      color: #b8c5d3;
-    }
-
-    .solar-chip-inv .solar-chip-value {
-      font-size: 20px;
-      letter-spacing: 0.04em;
     }
 
     #solarFlowPanel {
@@ -669,13 +558,11 @@
       gap: 10px;
       align-items: center;
       flex-wrap: wrap;
-      padding: 0;
+      padding: 4px 2px 0;
       font-size: 10px;
       color: #b8c5d3;
       letter-spacing: 0.03em;
       text-transform: uppercase;
-      flex: 1 1 auto;
-      min-width: 0;
     }
 
     .chart-legend-item {
@@ -2404,25 +2291,12 @@
 
       <div id="solarChartsRow">
         <div class="solar-chart-main">
-          <div class="solar-chart-chrome solar-chart-chrome-top" id="solarChartChromeTop">
-            <div class="solar-chip solar-chip-iso tone-unknown" id="solarIsoChip">
-              <span class="solar-chip-label">Isolation</span>
-              <span class="solar-chip-value" id="solarIsoChipValue">-- MΩ</span>
-              <span class="solar-chip-tone" id="solarIsoChipTone">--</span>
-            </div>
-          </div>
           <div class="chart-wrap skeleton"><img id="solarUsageChartImage" class="chart solar-chart-image" alt="Solar generation and usage history"></div>
-          <div class="solar-chart-chrome solar-chart-chrome-bottom" id="solarChartChromeBottom">
-            <div class="chart-legend" id="solarUsageLegend">
-              <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#ffe27a;"></span>Generated</span>
-              <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#8edb7c;"></span>Self-used</span>
-              <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#70a8ff;"></span>Import</span>
-              <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:rgba(212,139,255,0.62);"></span>Isolation 14d</span>
-            </div>
-            <div class="solar-chip solar-chip-inv tone-unknown" id="solarInvChip">
-              <span class="solar-chip-label">Inverter</span>
-              <span class="solar-chip-value" id="solarInvChipValue">--</span>
-            </div>
+          <div class="chart-legend" id="solarUsageLegend">
+            <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#ffe27a;"></span>Generated</span>
+            <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#8edb7c;"></span>Self-used</span>
+            <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#70a8ff;"></span>Import</span>
+            <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:rgba(212,139,255,0.62);"></span>Isolation 14d</span>
           </div>
         </div>
       </div>
@@ -2527,12 +2401,6 @@
       var usageGaugeMainNode = document.getElementById('usageGaugeMain');
       var usageGaugeSubNode = document.getElementById('usageGaugeSub');
       var solarChartImage = document.getElementById('solarUsageChartImage');
-      var solarIsoChipNode = document.getElementById('solarIsoChip');
-      var solarIsoChipValueNode = document.getElementById('solarIsoChipValue');
-      var solarIsoChipToneNode = document.getElementById('solarIsoChipTone');
-      var solarInvChipNode = document.getElementById('solarInvChip');
-      var solarInvChipValueNode = document.getElementById('solarInvChipValue');
-      var lastSolarChromeSig = '';
       var newsTickerNode = document.getElementById('newsTicker');
       var weatherBinsStripTrackNode = document.getElementById('weatherBinsStripTrack');
       var poolCleanerStaticNode = document.getElementById('poolCleanerStatic');
@@ -3283,42 +3151,6 @@
         return false;
       }
 
-      function updateSolarChartChrome(state) {
-        var isolation = (state && state.solarIsolation) || {};
-        var mohm = Number(isolation.currentMohm);
-        var tone = String(isolation.tone || 'unknown');
-        if (tone !== 'ok' && tone !== 'watch' && tone !== 'critical') {
-          tone = isFinite(mohm) ? (mohm < 5 ? 'critical' : (mohm < 15 ? 'watch' : 'ok')) : 'unknown';
-        }
-        var err = Math.max(0, Math.round(Number(isolation.errorCode || 0)));
-        var invTone = err > 0 ? 'error' : (isFinite(mohm) || isolation.liveAt ? 'ok' : 'unknown');
-        var isoValue = isFinite(mohm) ? (mohm.toFixed(1) + ' M\u03a9') : '-- M\u03a9';
-        var isoTone = tone === 'critical' ? 'CRIT' : (tone === 'watch' ? 'WATCH' : (tone === 'ok' ? 'OK' : '--'));
-        var invValue = err > 0 ? ('ERR ' + err) : (invTone === 'ok' ? 'OK' : '--');
-        var sig = isoValue + '|' + tone + '|' + invValue + '|' + invTone;
-        if (sig === lastSolarChromeSig) {
-          return;
-        }
-        lastSolarChromeSig = sig;
-        if (solarIsoChipValueNode) {
-          solarIsoChipValueNode.textContent = isoValue;
-        }
-        if (solarIsoChipToneNode) {
-          solarIsoChipToneNode.textContent = isoTone;
-        }
-        if (solarIsoChipNode) {
-          solarIsoChipNode.classList.remove('tone-ok', 'tone-watch', 'tone-critical', 'tone-error', 'tone-unknown');
-          solarIsoChipNode.classList.add('tone-' + tone);
-        }
-        if (solarInvChipValueNode) {
-          solarInvChipValueNode.textContent = invValue;
-        }
-        if (solarInvChipNode) {
-          solarInvChipNode.classList.remove('tone-ok', 'tone-watch', 'tone-critical', 'tone-error', 'tone-unknown');
-          solarInvChipNode.classList.add('tone-' + invTone);
-        }
-      }
-
       function updateSolarChartImage(state) {
         var generatedAtMs = Date.parse((state && state.generatedAt) || '');
         var ready = hasSolarChartEnergy(state);
@@ -3336,7 +3168,7 @@
         }
         lastSolarChartRefreshKey = refreshKey;
         solarChartPendingAttempts = ready ? 0 : (solarChartPendingAttempts + 1);
-        solarChartImage.src = '/api/solar/chart.svg?rev=6&mode=' + (ready ? 'ready' : 'pending') + '&slot=' + (bucket % 2) + '&iso=' + isoPoints;
+        solarChartImage.src = '/api/solar/chart.svg?rev=7&mode=' + (ready ? 'ready' : 'pending') + '&slot=' + (bucket % 2) + '&iso=' + isoPoints + '&err=' + (isFinite(isoErr) ? isoErr : 0);
       }
 
       function computeCosts(today) {
@@ -4538,7 +4370,6 @@
         var bins = Array.isArray(state.solarDailyBins) ? state.solarDailyBins : [];
         var solarMeta = state.solarMeta || {};
         var flowSummary = state.solarFlowSummary || {};
-        updateSolarChartChrome(state);
         updateSolarChartImage(state);
         var flowSig = buildSolarFlowSignature(flowSummary);
         if (flowSig !== lastSolarFlowSig) {

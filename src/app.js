@@ -543,6 +543,7 @@ function createApp(options) {
         generatedSeries: getSolarGeneratedHistory(),
         isolationPoints: isolation && isolation.points,
         currentIsolationMohm: isolation && isolation.currentMohm,
+        inverterErrorCode: isolation && isolation.errorCode,
         inverterCapacityKw: dashboardConfig.pricing && dashboardConfig.pricing.inverterCapacityKw,
         width: 900,
         height: 260
