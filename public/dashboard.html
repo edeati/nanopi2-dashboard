@@ -445,7 +445,7 @@
     }
     #solarChartsRow > div {
       display: grid;
-      grid-template-rows: 1fr auto auto;
+      grid-template-rows: auto 1fr;
       min-height: 0;
     }
 
@@ -579,72 +579,6 @@
       box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15) inset;
     }
 
-    .solar-isolation-strip {
-      display: grid;
-      grid-template-columns: 92px minmax(0, 1fr);
-      gap: 8px;
-      align-items: stretch;
-      margin-top: 4px;
-      min-height: 0;
-    }
-
-    .solar-isolation-meta {
-      border: 1px solid rgba(96, 105, 118, 0.45);
-      border-radius: 10px;
-      background: rgba(14, 16, 20, 0.9);
-      padding: 8px 8px 7px;
-      display: grid;
-      align-content: center;
-      justify-items: center;
-      text-align: center;
-      gap: 2px;
-    }
-
-    .solar-isolation-label {
-      font-size: 10px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: #95a5b6;
-      font-family: var(--font-display);
-      font-weight: 700;
-    }
-
-    .solar-isolation-value {
-      font-family: var(--font-display);
-      font-size: 18px;
-      line-height: 1;
-      font-weight: 900;
-      color: #9eb0c3;
-      -webkit-text-stroke: 0.9px rgba(5, 8, 12, 0.95);
-      paint-order: stroke fill;
-    }
-
-    .solar-isolation-meta.tone-ok .solar-isolation-value { color: #8edb7c; }
-    .solar-isolation-meta.tone-watch .solar-isolation-value { color: #f2bb3c; }
-    .solar-isolation-meta.tone-critical .solar-isolation-value { color: #ff7350; }
-
-    .solar-isolation-sub {
-      font-size: 10px;
-      color: #8b98a8;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-
-    .solar-isolation-chart-wrap {
-      height: 56px;
-      min-height: 56px;
-      margin-bottom: 0;
-    }
-
-    .solar-isolation-chart {
-      height: 56px;
-    }
-
-    body.takeover-solar .solar-isolation-chart-wrap,
-    body.takeover-solar .solar-isolation-chart {
-      height: 72px;
-      min-height: 72px;
-    }
 
     #solarStatusGrid {
       display: grid;
@@ -2362,14 +2296,7 @@
             <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#ffe27a;"></span>Generated</span>
             <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#8edb7c;"></span>Self-used</span>
             <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#70a8ff;"></span>Import</span>
-          </div>
-          <div class="solar-isolation-strip" id="solarIsolationStrip">
-            <div class="solar-isolation-meta" id="solarIsolationMeta">
-              <div class="solar-isolation-label">Isolation</div>
-              <div id="solarIsolationValue" class="solar-isolation-value">-- MΩ</div>
-              <div id="solarIsolationSub" class="solar-isolation-sub">14-day</div>
-            </div>
-            <div class="chart-wrap solar-isolation-chart-wrap skeleton"><img id="solarIsolationChartImage" class="chart solar-chart-image solar-isolation-chart" alt="PV isolation resistance history"></div>
+            <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#d48bff;"></span>Isolation 14d</span>
           </div>
         </div>
       </div>
@@ -3230,51 +3157,17 @@
         var fastPendingRetry = !ready && solarChartPendingAttempts < 4;
         var refreshMs = fastPendingRetry ? (15 * 1000) : (5 * 60 * 1000);
         var bucket = isFinite(generatedAtMs) ? Math.floor(generatedAtMs / refreshMs) : 0;
-        var refreshKey = (ready ? 'ready:' : (fastPendingRetry ? 'pending-fast:' : 'pending-slow:')) + bucket;
+        var isolation = (state && state.solarIsolation) || {};
+        var isoPoints = Array.isArray(isolation.points) ? isolation.points.length : 0;
+        var isoMohm = Number(isolation.currentMohm);
+        var isoKey = String(isolation.historyAt || 0) + ':' + isoPoints + ':' + (isFinite(isoMohm) ? isoMohm.toFixed(2) : 'na');
+        var refreshKey = (ready ? 'ready:' : (fastPendingRetry ? 'pending-fast:' : 'pending-slow:')) + bucket + '|iso:' + isoKey;
         if (!solarChartImage || refreshKey === lastSolarChartRefreshKey) {
           return;
         }
         lastSolarChartRefreshKey = refreshKey;
         solarChartPendingAttempts = ready ? 0 : (solarChartPendingAttempts + 1);
-        solarChartImage.src = '/api/solar/chart.svg?rev=2&mode=' + (ready ? 'ready' : 'pending') + '&slot=' + (bucket % 2);
-      }
-
-      function updateSolarIsolationPanel(state) {
-        var isolation = (state && state.solarIsolation) || {};
-        var current = Number(isolation.currentMohm);
-        var tone = String(isolation.tone || 'unknown');
-        var points = Array.isArray(isolation.points) ? isolation.points : [];
-        var errorCode = Number(isolation.errorCode || 0);
-        var valueText = isFinite(current) ? (current.toFixed(1) + ' MΩ') : '-- MΩ';
-        var subText = errorCode > 0 ? ('ERR ' + errorCode) : (points.length ? (points.length + ' pts') : '14-day');
-        var sig = [
-          isFinite(current) ? current.toFixed(2) : 'na',
-          tone,
-          errorCode,
-          points.length,
-          isolation.liveAt || '',
-          isolation.historyAt || ''
-        ].join('|');
-        if (sig === lastSolarIsolationSig) {
-          return;
-        }
-        lastSolarIsolationSig = sig;
-        if (solarIsolationValueNode) {
-          solarIsolationValueNode.textContent = valueText;
-        }
-        if (solarIsolationSubNode) {
-          solarIsolationSubNode.textContent = subText;
-        }
-        if (solarIsolationMetaNode) {
-          solarIsolationMetaNode.classList.remove('tone-ok', 'tone-watch', 'tone-critical');
-          if (tone === 'ok' || tone === 'watch' || tone === 'critical') {
-            solarIsolationMetaNode.classList.add('tone-' + tone);
-          }
-        }
-        if (solarIsolationChartImage) {
-          var slot = Math.abs(Number(isolation.historyAt || isolation.liveAt || 0)) % 2;
-          solarIsolationChartImage.src = '/api/solar/isolation.svg?rev=1&slot=' + slot + '&n=' + points.length;
-        }
+        solarChartImage.src = '/api/solar/chart.svg?rev=3&mode=' + (ready ? 'ready' : 'pending') + '&slot=' + (bucket % 2) + '&iso=' + isoPoints;
       }
 
       function computeCosts(today) {

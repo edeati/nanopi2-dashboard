@@ -9,7 +9,6 @@ const { verifyPassword } = require('./lib/auth');
 const { saveDashboardConfig } = require('./lib/config-loader');
 const { DEFAULT_REDIRECT_URI, buildAuthUrl, exchangeCode } = require('./lib/beatbot/auth');
 const { renderSolarChartSvg } = require('./lib/solar-chart');
-const { renderIsolationChartSvg } = require('./lib/isolation-chart');
 
 const TRANSPARENT_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO9Wn2kAAAAASUVORK5CYII=',
@@ -538,27 +537,15 @@ function createApp(options) {
     }
 
     if (req.method === 'GET' && urlPath === '/api/solar/chart.svg') {
+      const isolation = getSolarIsolation();
       const svg = renderSolarChartSvg({
         bins: getSolarDailyBins(),
         generatedSeries: getSolarGeneratedHistory(),
+        isolationPoints: isolation && isolation.points,
+        currentIsolationMohm: isolation && isolation.currentMohm,
         inverterCapacityKw: dashboardConfig.pricing && dashboardConfig.pricing.inverterCapacityKw,
         width: 900,
         height: 260
-      });
-      const body = Buffer.from(svg, 'utf8');
-      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-      return sendBinary(res, 200, 'image/svg+xml; charset=utf-8', body);
-    }
-
-    if (req.method === 'GET' && urlPath === '/api/solar/isolation.svg') {
-      const isolation = getSolarIsolation();
-      const svg = renderIsolationChartSvg({
-        points: isolation && isolation.points,
-        currentMohm: isolation && isolation.currentMohm,
-        width: 900,
-        height: 72
       });
       const body = Buffer.from(svg, 'utf8');
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');

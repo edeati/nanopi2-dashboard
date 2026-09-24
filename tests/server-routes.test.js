@@ -224,17 +224,13 @@ module.exports = async function run() {
     assert.strictEqual(Object.prototype.hasOwnProperty.call(compactPayload, 'solarUsageHourly'), false, 'compact state should omit client chart data');
     assert.strictEqual(Object.prototype.hasOwnProperty.call(compactPayload, 'solarDawnQuarterly'), false, 'compact state should omit hidden dawn-chart data');
 
-    const solarChart = await request(server, { path: '/api/solar/chart.svg?rev=2&slot=0' });
+    const solarChart = await request(server, { path: '/api/solar/chart.svg?rev=3&slot=0' });
     assert.strictEqual(solarChart.statusCode, 200);
     assert.strictEqual(solarChart.headers['content-type'], 'image/svg+xml; charset=utf-8');
     assert.strictEqual(solarChart.headers['cache-control'], 'no-store, no-cache, must-revalidate, max-age=0');
     assert.strictEqual(solarChart.headers.pragma, 'no-cache');
     assert.ok(solarChart.body.startsWith('<svg '), 'solar chart endpoint should return an SVG image');
     assert.ok(solarChart.body.indexOf('Solar generation and usage history') > -1, 'solar chart should include accessible image context');
-    const isolationChart = await request(server, { path: '/api/solar/isolation.svg?rev=1&slot=0' });
-    assert.strictEqual(isolationChart.statusCode, 200, 'isolation chart should return 200');
-    assert.ok(String(isolationChart.headers['content-type'] || '').indexOf('image/svg+xml') > -1, 'isolation chart should be svg');
-    assert.ok(String(isolationChart.body || '').indexOf('<svg ') === 0, 'isolation chart body should be svg');
     assert.strictEqual(statePayload.reminders[0].title, 'Lita Nexgard');
 
     const startupState = await request(server, { path: '/api/state/startup' });

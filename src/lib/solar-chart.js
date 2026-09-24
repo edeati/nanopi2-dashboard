@@ -60,21 +60,64 @@ function renderGeneratedArea(series, dimensions) {
   return paths;
 }
 
+function renderIsolationLine(points, dimensions, maxIso) {
+  const list = Array.isArray(points) ? points : [];
+  if (list.length < 1) {
+    return [];
+  }
+  const left = dimensions.left;
+  const bottom = dimensions.bottom;
+  const plotWidth = dimensions.plotWidth;
+  const plotHeight = dimensions.plotHeight;
+  const coords = list.map(function toCoord(point, index) {
+    const x = list.length === 1
+      ? left + (plotWidth / 2)
+      : left + ((index / (list.length - 1)) * plotWidth);
+    const y = bottom - ((Math.max(0, finiteNumber(point.mohm, 0)) / maxIso) * plotHeight);
+    return { x: x, y: y };
+  });
+  const out = [];
+  if (coords.length >= 2) {
+    const line = coords.map(function toPair(coord, index) {
+      return (index === 0 ? 'M ' : 'L ') + fixed(coord.x) + ' ' + fixed(coord.y);
+    }).join(' ');
+    out.push('<path d="' + line + '" fill="none" stroke="#d48bff" stroke-width="2.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.95"/>');
+  }
+  const last = coords[coords.length - 1];
+  out.push('<circle cx="' + fixed(last.x) + '" cy="' + fixed(last.y) + '" r="3" fill="#d48bff"/>');
+  return out;
+}
+
 function renderSolarChartSvg(options) {
   const opts = options || {};
   const width = Math.max(320, Math.min(1600, Math.round(finiteNumber(opts.width, 900))));
   const height = Math.max(140, Math.min(800, Math.round(finiteNumber(opts.height, 260))));
   const bins = (Array.isArray(opts.bins) ? opts.bins : []).slice(0, 96);
   const generatedSeries = (Array.isArray(opts.generatedSeries) ? opts.generatedSeries : []).slice(-720);
+  const isolationPoints = (Array.isArray(opts.isolationPoints) ? opts.isolationPoints : [])
+    .map(function mapIso(point) {
+      return {
+        day: String((point && point.day) || ''),
+        hhmm: String((point && point.hhmm) || ''),
+        mohm: Number(point && point.mohm)
+      };
+    })
+    .filter(function keepIso(point) {
+      return Number.isFinite(point.mohm);
+    });
+  const currentIsolationMohm = Number.isFinite(Number(opts.currentIsolationMohm))
+    ? Number(opts.currentIsolationMohm)
+    : (isolationPoints.length ? isolationPoints[isolationPoints.length - 1].mohm : null);
   const inverterW = Math.max(2000, finiteNumber(opts.inverterCapacityKw, 6.3) * 1000);
   const left = 44;
-  const right = 12;
+  const right = isolationPoints.length ? 40 : 12;
   const top = 12;
   const bottom = height - 28;
   const plotWidth = Math.max(1, width - left - right);
   const plotHeight = Math.max(1, bottom - top);
   const bucketHours = bins.length ? 24 / bins.length : 1;
   let maxY = inverterW;
+  let maxIso = 30;
 
   bins.forEach((item) => {
     const bin = item || {};
@@ -85,6 +128,13 @@ function renderSolarChartSvg(options) {
   generatedSeries.forEach((point) => {
     maxY = Math.max(maxY, Math.max(0, finiteNumber(point && point.value, 0)));
   });
+  isolationPoints.forEach(function trackIso(point) {
+    maxIso = Math.max(maxIso, point.mohm);
+  });
+  if (Number.isFinite(currentIsolationMohm)) {
+    maxIso = Math.max(maxIso, currentIsolationMohm);
+  }
+  maxIso = Math.max(10, maxIso * 1.08);
 
   const dimensions = { left, bottom, plotWidth, plotHeight, maxY };
   const elements = [
@@ -129,6 +179,26 @@ function renderSolarChartSvg(options) {
         elements.push('<rect x="' + fixed(x) + '" y="' + fixed(bottom - importHeight - selfHeight) + '" width="' + fixed(barWidth) + '" height="' + fixed(selfHeight) + '" fill="#8edb7c"/>');
       }
     });
+  }
+
+  if (isolationPoints.length) {
+    [5, 15, 30].forEach(function drawIsoGuide(level) {
+      if (level > maxIso) {
+        return;
+      }
+      const y = bottom - ((level / maxIso) * plotHeight);
+      elements.push(
+        '<text x="' + (width - 6) + '" y="' + fixed(y + 3) + '" text-anchor="end" fill="#d48bff" fill-opacity="0.78" font-family="Arial,sans-serif" font-size="10">' + level + '</text>'
+      );
+    });
+    renderIsolationLine(isolationPoints, dimensions, maxIso).forEach(function pushIso(part) {
+      elements.push(part);
+    });
+    if (Number.isFinite(currentIsolationMohm)) {
+      elements.push(
+        '<text x="' + (width - 6) + '" y="' + (top + 11) + '" text-anchor="end" fill="#d48bff" font-family="Arial,sans-serif" font-size="12" font-weight="700">' + currentIsolationMohm.toFixed(1) + ' M\u03a9</text>'
+      );
+    }
   }
 
   elements.push(

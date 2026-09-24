@@ -30,6 +30,29 @@ module.exports = async function run() {
   assert.ok(svg.includes('>6kW</text>'), 'solar chart should render the inverter-scale label');
   assert.strictEqual(svg.includes('NaN'), false, 'solar chart must not emit invalid numeric coordinates');
 
+  const withIso = renderSolarChartSvg({
+    width: 900,
+    height: 260,
+    inverterCapacityKw: 6,
+    bins: [
+      { selfWh: 100, importWh: 20, generatedWh: 120 },
+      { selfWh: 80, importWh: 0, generatedWh: 160 }
+    ],
+    generatedSeries: [
+      { secOfDay: 21600, value: 1000 },
+      { secOfDay: 25200, value: 2200 }
+    ],
+    currentIsolationMohm: 8.6,
+    isolationPoints: [
+      { day: '2026-09-22', hhmm: '08:05', mohm: 27 },
+      { day: '2026-09-23', hhmm: '20:05', mohm: 4.9 },
+      { day: '2026-09-24', hhmm: '08:05', mohm: 8.6 }
+    ]
+  });
+  assert.ok(withIso.includes('stroke="#d48bff"'), 'solar chart should draw isolation as a purple line');
+  assert.ok(withIso.includes('8.6 M'), 'solar chart should show current isolation value');
+  assert.ok(withIso.includes('viewBox="0 0 900 260"'), 'isolation overlay should keep the main chart dimensions');
+
   const empty = renderSolarChartSvg({ bins: [], generatedSeries: [] });
   assert.ok(empty.includes('Waiting for solar history'), 'empty chart should have a useful placeholder');
 
