@@ -3263,7 +3263,7 @@
         if (err === 306) {
           return { label: 'LOW PV', tone: 'unknown' };
         }
-        if (err === 522) {
+        if (err === 522 || err === 523) {
           return { label: 'LOW LIGHT', tone: 'unknown' };
         }
         return { label: 'ERR ' + err, tone: 'error' };
@@ -3326,7 +3326,7 @@
         }
         lastSolarChartRefreshKey = refreshKey;
         solarChartPendingAttempts = ready ? 0 : (solarChartPendingAttempts + 1);
-        solarChartImage.src = '/api/solar/chart.svg?rev=12&mode=' + (ready ? 'ready' : 'pending') + '&slot=' + (bucket % 2) + '&iso=' + isoPoints + '&err=' + (isFinite(isoErr) ? isoErr : 0);
+        solarChartImage.src = '/api/solar/chart.svg?rev=13&mode=' + (ready ? 'ready' : 'pending') + '&slot=' + (bucket % 2) + '&iso=' + isoPoints + '&err=' + (isFinite(isoErr) ? isoErr : 0);
       }
 
       function computeCosts(today) {
