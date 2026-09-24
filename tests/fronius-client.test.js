@@ -8,6 +8,26 @@ module.exports = async function run() {
   let lastArchivePath = '';
   const server = http.createServer((req, res) => {
     if (req.url.indexOf('/GetArchiveData.cgi') > -1) {
+      if (req.url.indexOf('Channel=Generator_Isolation') > -1) {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({
+          Body: {
+            Data: {
+              'inv': {
+                Data: {
+                  Generator_Isolation: {
+                    Values: {
+                      '29116': 8100000,
+                      '72316': 4900000
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }));
+        return;
+      }
       if (req.url.indexOf('SeriesType=Detail') > -1) {
         if (req.url.indexOf('StartDate=2026-02-19') > -1) {
           res.setHeader('Content-Type', 'application/json');
@@ -256,6 +276,23 @@ module.exports = async function run() {
       return;
     }
 
+    if (req.url.indexOf('/components/Inverter/readable') > -1) {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({
+        Body: {
+          Data: {
+            '1': {
+              channels: {
+                Generator_Isolation: 8600000,
+                CodeOfError: 0,
+                CodeOfState: 7
+              }
+            }
+          }
+        }
+      }));
+      return;
+    }
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({
       Body: {
@@ -318,6 +355,15 @@ module.exports = async function run() {
       global.Date = RealDate;
     }
     assert.ok(lastArchivePath.indexOf('StartDate=2026-02-16') > -1, 'default daily sum query should use local day, not UTC ISO day');
+
+    const liveIso = await client.fetchIsolationLive();
+    assert.strictEqual(liveIso.isolationMohm, 8.6);
+    assert.strictEqual(liveIso.errorCode, 0);
+    const hist = await client.fetchIsolationHistoryDays(['2026-09-23']);
+    assert.strictEqual(hist.length, 2);
+    assert.strictEqual(hist[0].hhmm, '08:05');
+    assert.strictEqual(hist[0].mohm, 8.1);
+    assert.strictEqual(hist[1].mohm, 4.9);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

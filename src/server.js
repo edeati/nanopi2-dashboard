@@ -7,6 +7,7 @@ const { loadAuthConfig } = require('./lib/config-loader');
 const { loadRuntimeConfig } = require('./lib/runtime-config');
 const { createFroniusStateManager } = require('./lib/fronius-state');
 const { createFroniusClient } = require('./lib/fronius-client');
+const { toneForMohm } = require('./lib/isolation-chart');
 const { createGitSyncService } = require('./lib/git-sync');
 const { createExternalSources } = require('./lib/external-sources');
 const { createRainViewerClient } = require('./lib/rainviewer');
@@ -811,7 +812,56 @@ function aggregateHistoryToDailyBins(solarHistory, nowMs, timeZone) {
   return bins;
 }
 
-function scheduleFroniusPolling(client, froniusState, froniusConfig, onRealtime, onArchiveDetail, timers, timeZone) {
+function listRecentLocalDays(nowMs, timeZone, dayCount) {
+  const count = Math.max(1, Math.min(31, Number(dayCount) || 14));
+  const days = [];
+  for (let i = count - 1; i >= 0; i -= 1) {
+    days.push(formatDateLocal(nowMs - (i * 24 * 60 * 60 * 1000), timeZone));
+  }
+  return days;
+}
+
+function mergeIsolationPoints(existing, incoming) {
+  const map = new Map();
+  function addAll(list) {
+    (Array.isArray(list) ? list : []).forEach((point) => {
+      if (!point || !point.day || !Number.isFinite(Number(point.mohm))) {
+        return;
+      }
+      const seconds = Number(point.seconds);
+      const key = point.day + "|" + (Number.isFinite(seconds) ? seconds : String(point.hhmm || ""));
+      map.set(key, {
+        day: String(point.day),
+        seconds: Number.isFinite(seconds) ? seconds : 0,
+        hhmm: String(point.hhmm || "00:00"),
+        ohm: Number.isFinite(Number(point.ohm)) ? Number(point.ohm) : (Number(point.mohm) * 1e6),
+        mohm: Number(point.mohm)
+      });
+    });
+  }
+  addAll(existing);
+  addAll(incoming);
+  return Array.from(map.values()).sort((a, b) => {
+    if (a.day === b.day) {
+      return a.seconds - b.seconds;
+    }
+    return a.day < b.day ? -1 : 1;
+  });
+}
+
+function createEmptySolarIsolationState() {
+  return {
+    currentMohm: null,
+    errorCode: 0,
+    statusCode: null,
+    points: [],
+    liveAt: null,
+    historyAt: null,
+    error: null
+  };
+}
+
+function scheduleFroniusPolling(client, froniusState, froniusConfig, onRealtime, onArchiveDetail, timers, timeZone, onIsolation) {
   async function realtimeTick() {
     const now = Date.now();
     try {
@@ -831,11 +881,42 @@ function scheduleFroniusPolling(client, froniusState, froniusConfig, onRealtime,
         const detail = await client.fetchDailyDetail(dayISO);
         onArchiveDetail(detail, now);
       }
+      if (typeof onIsolation === 'function' && typeof client.fetchIsolationLive === 'function') {
+        try {
+          const live = await client.fetchIsolationLive();
+          let historyPoints = [];
+          if (typeof client.fetchIsolationHistoryDays === 'function') {
+            historyPoints = await client.fetchIsolationHistoryDays([dayISO]);
+          }
+          onIsolation({ live: live, historyPoints: historyPoints, bootstrap: false }, now);
+        } catch (_isolationError) {}
+      }
     } catch (error) {}
   }
 
   realtimeTick();
   archiveTick();
+
+  async function isolationBootstrap() {
+    if (typeof onIsolation !== 'function') {
+      return;
+    }
+    if (typeof client.fetchIsolationLive !== 'function' && typeof client.fetchIsolationHistoryDays !== 'function') {
+      return;
+    }
+    const now = Date.now();
+    try {
+      const live = typeof client.fetchIsolationLive === 'function'
+        ? await client.fetchIsolationLive()
+        : null;
+      const days = listRecentLocalDays(now, timeZone, Number((froniusConfig && froniusConfig.isolationHistoryDays) || 14));
+      const historyPoints = typeof client.fetchIsolationHistoryDays === 'function'
+        ? await client.fetchIsolationHistoryDays(days)
+        : [];
+      onIsolation({ live: live, historyPoints: historyPoints, bootstrap: true }, now);
+    } catch (_error) {}
+  }
+  isolationBootstrap();
 
   const realtimeMs = Math.max(5, Number(froniusConfig.realtimeRefreshSeconds || 8)) * 1000;
   const archiveMs = Math.max(60, Number(froniusConfig.archiveRefreshSeconds || 1800)) * 1000;
@@ -1089,6 +1170,10 @@ function createServer(options) {
   let solarGeneratedArchiveHistory = ((options && options.initialSolarGeneratedHistory) || []).slice();
   let solarGeneratedArchiveDayKey = String((options && options.initialSolarGeneratedDayKey) || binsDayKey(solarDailyBins) || '');
   let solarHourlyBins = aggregateDailyToHourlyBins(solarDailyBins);
+  let solarIsolation = Object.assign(createEmptySolarIsolationState(), (options && options.initialSolarIsolation) || {});
+  if (!Array.isArray(solarIsolation.points)) {
+    solarIsolation.points = [];
+  }
   let archiveDetailReady = false;
   const startupMs = Date.now();
 
@@ -1401,6 +1486,18 @@ function createServer(options) {
       const corrected = normalizeGeneratedBinsToTodayTotals(solarDailyBins, froniusSnapshot.today);
       return buildSolarMeta(now, dashboardTimeZone, froniusSnapshot, corrected, solarHistory);
     },
+    getSolarIsolation: function getSolarIsolation() {
+      return {
+        currentMohm: solarIsolation.currentMohm,
+        tone: toneForMohm(solarIsolation.currentMohm),
+        errorCode: Number(solarIsolation.errorCode || 0),
+        statusCode: solarIsolation.statusCode,
+        points: Array.isArray(solarIsolation.points) ? solarIsolation.points.slice() : [],
+        liveAt: solarIsolation.liveAt,
+        historyAt: solarIsolation.historyAt,
+        error: solarIsolation.error || null
+      };
+    },
     getInternetState: function getInternetState() {
       return internetProbe.getState();
     },
@@ -1502,7 +1599,27 @@ function createServer(options) {
         solarGeneratedArchiveDayKey = '';
       }
       solarHourlyBins = aggregateDailyToHourlyBins(solarDailyBins);
-    }, timers, dashboardTimeZone));
+    }, timers, dashboardTimeZone, function onIsolation(payload, now) {
+      const live = payload && payload.live ? payload.live : null;
+      if (live) {
+        if (Number.isFinite(Number(live.isolationMohm))) {
+          solarIsolation.currentMohm = Number(live.isolationMohm);
+        }
+        solarIsolation.errorCode = Number(live.errorCode || 0);
+        solarIsolation.statusCode = live.statusCode;
+        solarIsolation.liveAt = now;
+        solarIsolation.error = null;
+      }
+      if (payload && Array.isArray(payload.historyPoints) && payload.historyPoints.length) {
+        solarIsolation.points = mergeIsolationPoints(solarIsolation.points, payload.historyPoints);
+        // Keep a rolling ~14 day window
+        const keepDays = listRecentLocalDays(now, dashboardTimeZone, Number((dashboardConfig.fronius && dashboardConfig.fronius.isolationHistoryDays) || 14));
+        const keep = {};
+        keepDays.forEach((day) => { keep[day] = true; });
+        solarIsolation.points = solarIsolation.points.filter((point) => keep[point.day]);
+        solarIsolation.historyAt = now;
+      }
+    }));
 
     const sources = (options && options.externalSources) || createExternalSources(Object.assign({}, dashboardConfig, { logger }));
     stoppers.push(scheduleExternalPolling(sources, externalState, dashboardConfig, timers));
@@ -1624,5 +1741,8 @@ module.exports = {
   normalizeGeneratedBinsToTodayTotals,
   buildSolarMeta,
   hasUsableArchiveDetail,
-  shouldRefreshFromRealtimeHistory
+  shouldRefreshFromRealtimeHistory,
+  listRecentLocalDays,
+  mergeIsolationPoints,
+  createEmptySolarIsolationState
 };

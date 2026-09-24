@@ -276,6 +276,70 @@ function createFroniusClient(baseUrl, options) {
         selfWhBySecond: selfFromBest,
         loadWhBySecond: loadFromBest
       };
+    },
+
+    async fetchIsolationLive() {
+      const payload = await getJson(root + '/components/Inverter/readable', logger, 'external.fronius.isolation_live');
+      const data = payload && payload.Body && payload.Body.Data ? payload.Body.Data : {};
+      const keys = Object.keys(data);
+      const first = keys.length > 0 ? data[keys[0]] : {};
+      const channels = first && first.channels ? first.channels : {};
+      const isolationOhm = Number(channels.Generator_Isolation);
+      return {
+        isolationOhm: Number.isFinite(isolationOhm) ? isolationOhm : null,
+        isolationMohm: Number.isFinite(isolationOhm) ? isolationOhm / 1e6 : null,
+        errorCode: Number(channels.CodeOfError || 0),
+        statusCode: Number(channels.CodeOfState || 0)
+      };
+    },
+
+    async fetchIsolationHistoryDays(dayISOs) {
+      const days = Array.isArray(dayISOs) ? dayISOs : [];
+      const points = [];
+      for (let i = 0; i < days.length; i += 1) {
+        const dayISO = String(days[i] || '').trim();
+        if (!dayISO) {
+          continue;
+        }
+        const payload = await getJson(
+          root +
+          '/solar_api/v1/GetArchiveData.cgi?Scope=System&SeriesType=Detail' +
+          '&StartDate=' + encodeURIComponent(dayISO) +
+          '&EndDate=' + encodeURIComponent(dayISO) +
+          '&Channel=Generator_Isolation',
+          logger,
+          'external.fronius.isolation_history'
+        );
+        const data = payload && payload.Body && payload.Body.Data ? payload.Body.Data : {};
+        const nodes = Object.values(data);
+        for (let n = 0; n < nodes.length; n += 1) {
+          const series = extractSeriesMap(nodes[n], 'Generator_Isolation');
+          const seconds = Object.keys(series);
+          for (let s = 0; s < seconds.length; s += 1) {
+            const sec = Number(seconds[s]);
+            const ohm = Number(series[seconds[s]]);
+            if (!Number.isFinite(sec) || !Number.isFinite(ohm)) {
+              continue;
+            }
+            const hour = Math.floor(sec / 3600);
+            const minute = Math.floor((sec % 3600) / 60);
+            points.push({
+              day: dayISO,
+              seconds: sec,
+              hhmm: String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0'),
+              ohm: ohm,
+              mohm: ohm / 1e6
+            });
+          }
+        }
+      }
+      points.sort(function sortIsolationPoints(a, b) {
+        if (a.day === b.day) {
+          return a.seconds - b.seconds;
+        }
+        return a.day < b.day ? -1 : 1;
+      });
+      return points;
     }
   };
 }

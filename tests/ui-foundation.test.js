@@ -112,6 +112,9 @@ module.exports = async function run() {
   assert.ok(html.indexOf('body.takeover-solar .chart-wrap {\n      height: 392px;') > -1, 'solar chart card should be doubled in takeover/fullscreen mode');
   assert.ok(html.indexOf('body.takeover-solar .chart {\n      height: 392px;') > -1, 'solar chart canvas should be doubled in takeover/fullscreen mode');
   assert.ok(html.indexOf('id="solarUsageLegend"') > -1, 'solar usage chart legend container missing');
+  assert.ok(html.indexOf('id="solarIsolationStrip"') > -1, 'solar isolation strip missing');
+  assert.ok(html.indexOf('id="solarIsolationChartImage"') > -1, 'solar isolation chart image missing');
+  assert.ok(html.indexOf('/api/solar/isolation.svg') > -1, 'solar isolation chart URL missing');
   assert.strictEqual(html.indexOf('Usage (Self + Import)'), -1, 'primary solar chart label should be removed');
   assert.ok(html.indexOf('Generated') > -1, 'solar usage chart legend should include generated series');
   assert.ok(html.indexOf('Self-used') > -1, 'solar usage chart legend should include self-used series');
