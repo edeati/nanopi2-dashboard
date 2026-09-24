@@ -862,6 +862,8 @@ function createEmptySolarIsolationState() {
 }
 
 function scheduleFroniusPolling(client, froniusState, froniusConfig, onRealtime, onArchiveDetail, timers, timeZone, onIsolation) {
+  let isolationBootstrapDone = false;
+
   async function realtimeTick() {
     const now = Date.now();
     try {
@@ -885,7 +887,8 @@ function scheduleFroniusPolling(client, froniusState, froniusConfig, onRealtime,
         try {
           const live = await client.fetchIsolationLive();
           let historyPoints = [];
-          if (typeof client.fetchIsolationHistoryDays === 'function') {
+          // Wait for bootstrap so a single "today" sample does not flash as one lonely dot.
+          if (isolationBootstrapDone && typeof client.fetchIsolationHistoryDays === 'function') {
             historyPoints = await client.fetchIsolationHistoryDays([dayISO]);
           }
           onIsolation({ live: live, historyPoints: historyPoints, bootstrap: false }, now);
@@ -899,9 +902,11 @@ function scheduleFroniusPolling(client, froniusState, froniusConfig, onRealtime,
 
   async function isolationBootstrap() {
     if (typeof onIsolation !== 'function') {
+      isolationBootstrapDone = true;
       return;
     }
     if (typeof client.fetchIsolationLive !== 'function' && typeof client.fetchIsolationHistoryDays !== 'function') {
+      isolationBootstrapDone = true;
       return;
     }
     const now = Date.now();
@@ -915,10 +920,16 @@ function scheduleFroniusPolling(client, froniusState, froniusConfig, onRealtime,
     if (typeof client.fetchIsolationHistoryDays === 'function') {
       try {
         const days = listRecentLocalDays(now, timeZone, Number((froniusConfig && froniusConfig.isolationHistoryDays) || 14));
-        const historyPoints = await client.fetchIsolationHistoryDays(days);
-        onIsolation({ live: live, historyPoints: historyPoints, bootstrap: true }, Date.now());
+        // Emit day-by-day so the line grows instead of waiting for all 14 archive calls.
+        for (let i = 0; i < days.length; i += 1) {
+          const historyPoints = await client.fetchIsolationHistoryDays([days[i]]);
+          if (historyPoints && historyPoints.length) {
+            onIsolation({ live: live, historyPoints: historyPoints, bootstrap: true }, Date.now());
+          }
+        }
       } catch (_historyError) {}
     }
+    isolationBootstrapDone = true;
   }
   isolationBootstrap();
 

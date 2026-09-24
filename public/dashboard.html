@@ -2296,7 +2296,7 @@
             <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#ffe27a;"></span>Generated</span>
             <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#8edb7c;"></span>Self-used</span>
             <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#70a8ff;"></span>Import</span>
-            <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:#d48bff;"></span>Isolation 14d</span>
+            <span class="chart-legend-item"><span class="chart-legend-swatch" style="background:rgba(212,139,255,0.62);"></span>Isolation 14d</span>
           </div>
         </div>
       </div>
@@ -3160,14 +3160,15 @@
         var isolation = (state && state.solarIsolation) || {};
         var isoPoints = Array.isArray(isolation.points) ? isolation.points.length : 0;
         var isoMohm = Number(isolation.currentMohm);
-        var isoKey = String(isolation.historyAt || 0) + ':' + isoPoints + ':' + (isFinite(isoMohm) ? isoMohm.toFixed(2) : 'na');
+        var isoErr = Number(isolation.errorCode || 0);
+        var isoKey = String(isolation.historyAt || 0) + ':' + isoPoints + ':' + (isFinite(isoMohm) ? isoMohm.toFixed(2) : 'na') + ':e' + (isFinite(isoErr) ? isoErr : 0);
         var refreshKey = (ready ? 'ready:' : (fastPendingRetry ? 'pending-fast:' : 'pending-slow:')) + bucket + '|iso:' + isoKey;
         if (!solarChartImage || refreshKey === lastSolarChartRefreshKey) {
           return;
         }
         lastSolarChartRefreshKey = refreshKey;
         solarChartPendingAttempts = ready ? 0 : (solarChartPendingAttempts + 1);
-        solarChartImage.src = '/api/solar/chart.svg?rev=4&mode=' + (ready ? 'ready' : 'pending') + '&slot=' + (bucket % 2) + '&iso=' + isoPoints;
+        solarChartImage.src = '/api/solar/chart.svg?rev=5&mode=' + (ready ? 'ready' : 'pending') + '&slot=' + (bucket % 2) + '&iso=' + isoPoints + '&err=' + (isFinite(isoErr) ? isoErr : 0);
       }
 
       function computeCosts(today) {

@@ -62,7 +62,8 @@ function renderGeneratedArea(series, dimensions) {
 
 function renderIsolationLine(points, dimensions, maxIso) {
   const list = Array.isArray(points) ? points : [];
-  if (list.length < 1) {
+  // Avoid the "single floating dot" flash while 14-day history is still warming.
+  if (list.length < 2) {
     return [];
   }
   const left = dimensions.left;
@@ -70,23 +71,40 @@ function renderIsolationLine(points, dimensions, maxIso) {
   const plotWidth = dimensions.plotWidth;
   const plotHeight = dimensions.plotHeight;
   const coords = list.map(function toCoord(point, index) {
-    const x = list.length === 1
-      ? left + (plotWidth / 2)
-      : left + ((index / (list.length - 1)) * plotWidth);
+    const x = left + ((index / (list.length - 1)) * plotWidth);
     const y = bottom - ((Math.max(0, finiteNumber(point.mohm, 0)) / maxIso) * plotHeight);
     return { x: x, y: y };
   });
-  const out = [];
-  if (coords.length >= 2) {
-    const line = coords.map(function toPair(coord, index) {
-      return (index === 0 ? 'M ' : 'L ') + fixed(coord.x) + ' ' + fixed(coord.y);
-    }).join(' ');
-    out.push('<path d="' + line + '" fill="none" stroke="#1a1020" stroke-width="6.5" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.55"/>');
-    out.push('<path d="' + line + '" fill="none" stroke="#d48bff" stroke-width="4.2" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.98"/>');
-  }
+  const line = coords.map(function toPair(coord, index) {
+    return (index === 0 ? 'M ' : 'L ') + fixed(coord.x) + ' ' + fixed(coord.y);
+  }).join(' ');
   const last = coords[coords.length - 1];
-  out.push('<circle cx="' + fixed(last.x) + '" cy="' + fixed(last.y) + '" r="5.2" fill="#d48bff" stroke="#1a1020" stroke-width="1.6"/>');
-  return out;
+  return [
+    '<path d="' + line + '" fill="none" stroke="#1a1020" stroke-width="6.5" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.34"/>',
+    '<path d="' + line + '" fill="none" stroke="#d48bff" stroke-width="4.2" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.62"/>',
+    '<circle cx="' + fixed(last.x) + '" cy="' + fixed(last.y) + '" r="5.2" fill="#d48bff" fill-opacity="0.72" stroke="#1a1020" stroke-width="1.6" stroke-opacity="0.7"/>'
+  ];
+}
+
+function renderInverterStatusBadge(options) {
+  const opts = options || {};
+  const width = opts.width;
+  const bottom = opts.bottom;
+  const right = opts.right;
+  const errorCode = Math.max(0, Math.round(finiteNumber(opts.errorCode, 0)));
+  const hasError = errorCode > 0;
+  const label = hasError ? ('ERR ' + errorCode) : 'OK';
+  const bg = hasError ? '#6d1d28' : '#1d4a2f';
+  const fg = hasError ? '#ff9d9d' : '#8edb7c';
+  const border = hasError ? '#ff7350' : '#3f9a5f';
+  const badgeWidth = Math.max(46, 18 + (label.length * 8.2));
+  const badgeHeight = 24;
+  const x = width - right - badgeWidth;
+  const y = bottom - badgeHeight - 6;
+  return [
+    '<rect x="' + fixed(x) + '" y="' + fixed(y) + '" width="' + fixed(badgeWidth) + '" height="' + fixed(badgeHeight) + '" rx="7" ry="7" fill="' + bg + '" fill-opacity="0.92" stroke="' + border + '" stroke-width="1.4"/>',
+    '<text x="' + fixed(x + (badgeWidth / 2)) + '" y="' + fixed(y + 16) + '" text-anchor="middle" fill="' + fg + '" font-family="Arial,sans-serif" font-size="13" font-weight="700">' + label + '</text>'
+  ];
 }
 
 function renderSolarChartSvg(options) {
@@ -109,9 +127,11 @@ function renderSolarChartSvg(options) {
   const currentIsolationMohm = Number.isFinite(Number(opts.currentIsolationMohm))
     ? Number(opts.currentIsolationMohm)
     : (isolationPoints.length ? isolationPoints[isolationPoints.length - 1].mohm : null);
+  const inverterErrorCode = Math.max(0, Math.round(finiteNumber(opts.inverterErrorCode, 0)));
+  const showIsolationAxis = isolationPoints.length >= 2 || Number.isFinite(currentIsolationMohm);
   const inverterW = Math.max(2000, finiteNumber(opts.inverterCapacityKw, 6.3) * 1000);
   const left = 44;
-  const right = isolationPoints.length ? 40 : 12;
+  const right = showIsolationAxis ? 40 : 12;
   const top = 12;
   const bottom = height - 28;
   const plotWidth = Math.max(1, width - left - right);
@@ -182,25 +202,33 @@ function renderSolarChartSvg(options) {
     });
   }
 
-  if (isolationPoints.length) {
+  if (isolationPoints.length >= 2) {
     [5, 15, 30].forEach(function drawIsoGuide(level) {
       if (level > maxIso) {
         return;
       }
       const y = bottom - ((level / maxIso) * plotHeight);
       elements.push(
-        '<text x="' + (width - 6) + '" y="' + fixed(y + 3) + '" text-anchor="end" fill="#d48bff" fill-opacity="0.78" font-family="Arial,sans-serif" font-size="12">' + level + '</text>'
+        '<text x="' + (width - 6) + '" y="' + fixed(y + 3) + '" text-anchor="end" fill="#d48bff" fill-opacity="0.52" font-family="Arial,sans-serif" font-size="12">' + level + '</text>'
       );
     });
     renderIsolationLine(isolationPoints, dimensions, maxIso).forEach(function pushIso(part) {
       elements.push(part);
     });
-    if (Number.isFinite(currentIsolationMohm)) {
-      elements.push(
-        '<text x="' + (width - 6) + '" y="' + (top + 11) + '" text-anchor="end" fill="#d48bff" font-family="Arial,sans-serif" font-size="14" font-weight="700">' + currentIsolationMohm.toFixed(1) + ' M\u03a9</text>'
-      );
-    }
   }
+  if (Number.isFinite(currentIsolationMohm)) {
+    elements.push(
+      '<text x="' + (width - 6) + '" y="' + (top + 11) + '" text-anchor="end" fill="#d48bff" fill-opacity="0.78" font-family="Arial,sans-serif" font-size="14" font-weight="700">' + currentIsolationMohm.toFixed(1) + ' M\u03a9</text>'
+    );
+  }
+  renderInverterStatusBadge({
+    width: width,
+    bottom: bottom,
+    right: right,
+    errorCode: inverterErrorCode
+  }).forEach(function pushBadge(part) {
+    elements.push(part);
+  });
 
   elements.push(
     '<line x1="' + left + '" y1="' + bottom + '" x2="' + (width - right) + '" y2="' + bottom + '" stroke="#a6b2c4" stroke-opacity="0.46"/>',
