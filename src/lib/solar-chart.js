@@ -81,10 +81,11 @@ function renderIsolationLine(points, dimensions, maxIso) {
     const line = coords.map(function toPair(coord, index) {
       return (index === 0 ? 'M ' : 'L ') + fixed(coord.x) + ' ' + fixed(coord.y);
     }).join(' ');
-    out.push('<path d="' + line + '" fill="none" stroke="#d48bff" stroke-width="2.1" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.95"/>');
+    out.push('<path d="' + line + '" fill="none" stroke="#1a1020" stroke-width="6.5" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.55"/>');
+    out.push('<path d="' + line + '" fill="none" stroke="#d48bff" stroke-width="4.2" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.98"/>');
   }
   const last = coords[coords.length - 1];
-  out.push('<circle cx="' + fixed(last.x) + '" cy="' + fixed(last.y) + '" r="3" fill="#d48bff"/>');
+  out.push('<circle cx="' + fixed(last.x) + '" cy="' + fixed(last.y) + '" r="5.2" fill="#d48bff" stroke="#1a1020" stroke-width="1.6"/>');
   return out;
 }
 
@@ -188,7 +189,7 @@ function renderSolarChartSvg(options) {
       }
       const y = bottom - ((level / maxIso) * plotHeight);
       elements.push(
-        '<text x="' + (width - 6) + '" y="' + fixed(y + 3) + '" text-anchor="end" fill="#d48bff" fill-opacity="0.78" font-family="Arial,sans-serif" font-size="10">' + level + '</text>'
+        '<text x="' + (width - 6) + '" y="' + fixed(y + 3) + '" text-anchor="end" fill="#d48bff" fill-opacity="0.78" font-family="Arial,sans-serif" font-size="12">' + level + '</text>'
       );
     });
     renderIsolationLine(isolationPoints, dimensions, maxIso).forEach(function pushIso(part) {
@@ -196,7 +197,7 @@ function renderSolarChartSvg(options) {
     });
     if (Number.isFinite(currentIsolationMohm)) {
       elements.push(
-        '<text x="' + (width - 6) + '" y="' + (top + 11) + '" text-anchor="end" fill="#d48bff" font-family="Arial,sans-serif" font-size="12" font-weight="700">' + currentIsolationMohm.toFixed(1) + ' M\u03a9</text>'
+        '<text x="' + (width - 6) + '" y="' + (top + 11) + '" text-anchor="end" fill="#d48bff" font-family="Arial,sans-serif" font-size="14" font-weight="700">' + currentIsolationMohm.toFixed(1) + ' M\u03a9</text>'
       );
     }
   }

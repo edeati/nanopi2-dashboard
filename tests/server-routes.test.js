@@ -224,7 +224,7 @@ module.exports = async function run() {
     assert.strictEqual(Object.prototype.hasOwnProperty.call(compactPayload, 'solarUsageHourly'), false, 'compact state should omit client chart data');
     assert.strictEqual(Object.prototype.hasOwnProperty.call(compactPayload, 'solarDawnQuarterly'), false, 'compact state should omit hidden dawn-chart data');
 
-    const solarChart = await request(server, { path: '/api/solar/chart.svg?rev=3&slot=0' });
+    const solarChart = await request(server, { path: '/api/solar/chart.svg?rev=4&slot=0' });
     assert.strictEqual(solarChart.statusCode, 200);
     assert.strictEqual(solarChart.headers['content-type'], 'image/svg+xml; charset=utf-8');
     assert.strictEqual(solarChart.headers['cache-control'], 'no-store, no-cache, must-revalidate, max-age=0');

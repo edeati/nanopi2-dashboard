@@ -50,6 +50,7 @@ module.exports = async function run() {
     ]
   });
   assert.ok(withIso.includes('stroke="#d48bff"'), 'solar chart should draw isolation as a purple line');
+  assert.ok(withIso.includes('stroke-width="4.2"'), 'isolation line should be thick enough for small tablet displays');
   assert.ok(withIso.includes('8.6 M'), 'solar chart should show current isolation value');
   assert.ok(withIso.includes('viewBox="0 0 900 260"'), 'isolation overlay should keep the main chart dimensions');
 
