@@ -905,16 +905,20 @@ function scheduleFroniusPolling(client, froniusState, froniusConfig, onRealtime,
       return;
     }
     const now = Date.now();
-    try {
-      const live = typeof client.fetchIsolationLive === 'function'
-        ? await client.fetchIsolationLive()
-        : null;
-      const days = listRecentLocalDays(now, timeZone, Number((froniusConfig && froniusConfig.isolationHistoryDays) || 14));
-      const historyPoints = typeof client.fetchIsolationHistoryDays === 'function'
-        ? await client.fetchIsolationHistoryDays(days)
-        : [];
-      onIsolation({ live: live, historyPoints: historyPoints, bootstrap: true }, now);
-    } catch (_error) {}
+    let live = null;
+    if (typeof client.fetchIsolationLive === 'function') {
+      try {
+        live = await client.fetchIsolationLive();
+        onIsolation({ live: live, historyPoints: [], bootstrap: true }, now);
+      } catch (_liveError) {}
+    }
+    if (typeof client.fetchIsolationHistoryDays === 'function') {
+      try {
+        const days = listRecentLocalDays(now, timeZone, Number((froniusConfig && froniusConfig.isolationHistoryDays) || 14));
+        const historyPoints = await client.fetchIsolationHistoryDays(days);
+        onIsolation({ live: live, historyPoints: historyPoints, bootstrap: true }, Date.now());
+      } catch (_historyError) {}
+    }
   }
   isolationBootstrap();
 

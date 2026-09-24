@@ -301,15 +301,20 @@ function createFroniusClient(baseUrl, options) {
         if (!dayISO) {
           continue;
         }
-        const payload = await getJson(
-          root +
-          '/solar_api/v1/GetArchiveData.cgi?Scope=System&SeriesType=Detail' +
-          '&StartDate=' + encodeURIComponent(dayISO) +
-          '&EndDate=' + encodeURIComponent(dayISO) +
-          '&Channel=Generator_Isolation',
-          logger,
-          'external.fronius.isolation_history'
-        );
+        let payload;
+        try {
+          payload = await getJson(
+            root +
+            '/solar_api/v1/GetArchiveData.cgi?Scope=System&SeriesType=Detail' +
+            '&StartDate=' + encodeURIComponent(dayISO) +
+            '&EndDate=' + encodeURIComponent(dayISO) +
+            '&Channel=Generator_Isolation',
+            logger,
+            'external.fronius.isolation_history'
+          );
+        } catch (_error) {
+          continue;
+        }
         const data = payload && payload.Body && payload.Body.Data ? payload.Body.Data : {};
         const nodes = Object.values(data);
         for (let n = 0; n < nodes.length; n += 1) {
