@@ -87,72 +87,6 @@ function renderIsolationLine(points, dimensions, maxIso) {
 }
 
 
-function toneForMohm(mohm) {
-  const value = Number(mohm);
-  if (!Number.isFinite(value)) {
-    return 'unknown';
-  }
-  if (value < 5) {
-    return 'critical';
-  }
-  if (value < 15) {
-    return 'watch';
-  }
-  return 'ok';
-}
-
-function renderCompactBadge(options) {
-  const opts = options || {};
-  const label = String(opts.label || '');
-  const tone = String(opts.tone || 'unknown');
-  const anchor = String(opts.anchor || 'top-right');
-  const width = opts.width;
-  const top = opts.top;
-  const bottom = opts.bottom;
-  const right = opts.right;
-  const left = opts.left;
-  const fontSize = 12;
-  const padX = 8;
-  const badgeHeight = 18;
-  const badgeWidth = Math.max(34, padX * 2 + (label.length * 7.0));
-  let x;
-  let y;
-  if (anchor === 'bottom-right') {
-    x = width - right - badgeWidth - 4;
-    y = bottom - badgeHeight - 8;
-  } else if (anchor === 'bottom-left') {
-    x = left + 4;
-    y = bottom - badgeHeight - 8;
-  } else if (anchor === 'top-left') {
-    x = left + 4;
-    y = top + 4;
-  } else {
-    // top-right
-    x = width - right - badgeWidth - 4;
-    y = top + 4;
-  }
-  let bg = '#1b2430';
-  let fg = '#b8c5d3';
-  let border = '#627086';
-  if (tone === 'ok') {
-    bg = '#163528';
-    fg = '#8edb7c';
-    border = '#3f9a5f';
-  } else if (tone === 'watch') {
-    bg = '#3a2c12';
-    fg = '#f2bb3c';
-    border = '#c7942c';
-  } else if (tone === 'critical' || tone === 'error') {
-    bg = '#4a1820';
-    fg = '#ff9d9d';
-    border = '#ff7350';
-  }
-  return [
-    '<rect x="' + fixed(x) + '" y="' + fixed(y) + '" width="' + fixed(badgeWidth) + '" height="' + fixed(badgeHeight) + '" rx="6" ry="6" fill="' + bg + '" fill-opacity="0.88" stroke="' + border + '" stroke-width="1.2"/>',
-    '<text x="' + fixed(x + (badgeWidth / 2)) + '" y="' + fixed(y + 12.5) + '" text-anchor="middle" fill="' + fg + '" font-family="Arial,sans-serif" font-size="' + fontSize + '" font-weight="700">' + label + '</text>'
-  ];
-}
-
 function renderSolarChartSvg(options) {
   const opts = options || {};
   const width = Math.max(320, Math.min(1600, Math.round(finiteNumber(opts.width, 900))));
@@ -173,7 +107,6 @@ function renderSolarChartSvg(options) {
   const currentIsolationMohm = Number.isFinite(Number(opts.currentIsolationMohm))
     ? Number(opts.currentIsolationMohm)
     : (isolationPoints.length ? isolationPoints[isolationPoints.length - 1].mohm : null);
-  const inverterErrorCode = Math.max(0, Math.round(finiteNumber(opts.inverterErrorCode, 0)));
   const showIsolationAxis = isolationPoints.length >= 2;
   const inverterW = Math.max(2000, finiteNumber(opts.inverterCapacityKw, 6.3) * 1000);
   const left = 44;
@@ -267,41 +200,6 @@ function renderSolarChartSvg(options) {
       );
     });
     renderIsolationLine(isolationPoints, dimensions, maxIso).forEach(function pushIso(part) {
-      elements.push(part);
-    });
-  }
-
-  // Compact status badges in empty plot corners (no HTML chrome / no layout push).
-  if (Number.isFinite(currentIsolationMohm)) {
-    const isoTone = toneForMohm(currentIsolationMohm);
-    const isoToneLabel = isoTone === 'critical' ? 'CRIT' : (isoTone === 'watch' ? 'WATCH' : (isoTone === 'ok' ? 'OK' : ''));
-    const isoLabel = currentIsolationMohm.toFixed(1) + ' MΩ' + (isoToneLabel ? (' · ' + isoToneLabel) : '');
-    renderCompactBadge({
-      label: isoLabel,
-      tone: isoTone,
-      anchor: 'top-right',
-      width: width,
-      top: top,
-      bottom: bottom,
-      right: right,
-      left: left
-    }).forEach(function pushIsoBadge(part) {
-      elements.push(part);
-    });
-  }
-  {
-    const hasError = inverterErrorCode > 0;
-    const invLabel = hasError ? ('ERR ' + inverterErrorCode) : 'OK';
-    renderCompactBadge({
-      label: invLabel,
-      tone: hasError ? 'error' : 'ok',
-      anchor: 'bottom-right',
-      width: width,
-      top: top,
-      bottom: bottom,
-      right: right,
-      left: left
-    }).forEach(function pushInvBadge(part) {
       elements.push(part);
     });
   }

@@ -57,26 +57,9 @@ module.exports = async function run() {
   assert.ok(withIso.includes('stroke-opacity="0.62"'), 'isolation line should be slightly transparent');
   assert.ok(withIso.includes('stroke="#ff7350"'), 'solar chart should mark the 5 MΩ isolation fault threshold in red');
   assert.ok(withIso.includes('stroke-dasharray="3 5"'), '5 MΩ isolation threshold should be a faint dotted line');
-  assert.ok(withIso.includes('8.6 M'), 'solar chart should show a compact isolation badge in the plot');
-  assert.ok(withIso.includes('WATCH'), 'isolation badge should include tone when below 15 MΩ');
-  assert.ok(withIso.includes('>OK</text>'), 'solar chart should show a compact OK badge in the plot');
+  assert.strictEqual(withIso.includes('WATCH'), false, 'status badges belong in HTML overlays, not the SVG');
+  assert.strictEqual(withIso.includes('>OK</text>'), false, 'inverter badge belongs in HTML overlay, not the SVG');
   assert.ok(withIso.includes('viewBox="0 0 900 260"'), 'isolation overlay should keep the main chart dimensions');
-
-  const withErr = renderSolarChartSvg({
-    width: 900,
-    height: 260,
-    inverterCapacityKw: 6,
-    bins: [{ selfWh: 100, importWh: 20, generatedWh: 120 }],
-    generatedSeries: [{ secOfDay: 21600, value: 1000 }],
-    currentIsolationMohm: 4.9,
-    inverterErrorCode: 475,
-    isolationPoints: [
-      { day: '2026-09-23', hhmm: '20:05', mohm: 4.9 },
-      { day: '2026-09-24', hhmm: '08:05', mohm: 8.6 }
-    ]
-  });
-  assert.ok(withErr.includes('ERR 475'), 'solar chart should show compact ERR badge when inverter reports a fault');
-  assert.ok(withErr.includes('CRIT'), 'critical isolation should be labeled CRIT in the compact badge');
 
   const singlePoint = renderSolarChartSvg({
     width: 900,
@@ -87,8 +70,6 @@ module.exports = async function run() {
     isolationPoints: [{ day: '2026-09-24', hhmm: '08:05', mohm: 8.6 }]
   });
   assert.strictEqual(singlePoint.includes('stroke="#d48bff"'), false, 'single isolation sample should not draw a lonely purple line/dot');
-  assert.ok(singlePoint.includes('8.6 M'), 'single isolation sample should still show compact MΩ badge');
-  assert.ok(singlePoint.includes('>OK</text>'), 'single isolation sample should still show inverter OK badge');
 
   const empty = renderSolarChartSvg({ bins: [], generatedSeries: [] });
   assert.ok(empty.includes('Waiting for solar history'), 'empty chart should have a useful placeholder');
