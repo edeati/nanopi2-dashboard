@@ -86,27 +86,6 @@ function renderIsolationLine(points, dimensions, maxIso) {
   ];
 }
 
-function renderInverterStatusBadge(options) {
-  const opts = options || {};
-  const width = opts.width;
-  const bottom = opts.bottom;
-  const right = opts.right;
-  const errorCode = Math.max(0, Math.round(finiteNumber(opts.errorCode, 0)));
-  const hasError = errorCode > 0;
-  const label = hasError ? ('ERR ' + errorCode) : 'OK';
-  const bg = hasError ? '#6d1d28' : '#1d4a2f';
-  const fg = hasError ? '#ff9d9d' : '#8edb7c';
-  const border = hasError ? '#ff7350' : '#3f9a5f';
-  const badgeWidth = Math.max(46, 18 + (label.length * 8.2));
-  const badgeHeight = 24;
-  const x = width - right - badgeWidth;
-  const y = bottom - badgeHeight - 6;
-  return [
-    '<rect x="' + fixed(x) + '" y="' + fixed(y) + '" width="' + fixed(badgeWidth) + '" height="' + fixed(badgeHeight) + '" rx="7" ry="7" fill="' + bg + '" fill-opacity="0.92" stroke="' + border + '" stroke-width="1.4"/>',
-    '<text x="' + fixed(x + (badgeWidth / 2)) + '" y="' + fixed(y + 16) + '" text-anchor="middle" fill="' + fg + '" font-family="Arial,sans-serif" font-size="13" font-weight="700">' + label + '</text>'
-  ];
-}
-
 function renderSolarChartSvg(options) {
   const opts = options || {};
   const width = Math.max(320, Math.min(1600, Math.round(finiteNumber(opts.width, 900))));
@@ -127,8 +106,8 @@ function renderSolarChartSvg(options) {
   const currentIsolationMohm = Number.isFinite(Number(opts.currentIsolationMohm))
     ? Number(opts.currentIsolationMohm)
     : (isolationPoints.length ? isolationPoints[isolationPoints.length - 1].mohm : null);
-  const inverterErrorCode = Math.max(0, Math.round(finiteNumber(opts.inverterErrorCode, 0)));
-  const showIsolationAxis = isolationPoints.length >= 2 || Number.isFinite(currentIsolationMohm);
+  // Live MΩ + inverter OK/ERR live in HTML chrome around the chart, not inside the SVG.
+  const showIsolationAxis = isolationPoints.length >= 2;
   const inverterW = Math.max(2000, finiteNumber(opts.inverterCapacityKw, 6.3) * 1000);
   const left = 44;
   const right = showIsolationAxis ? 40 : 12;
@@ -180,7 +159,7 @@ function renderSolarChartSvg(options) {
   }
 
   renderGeneratedArea(generatedSeries, dimensions).forEach((pathData) => {
-    elements.push('<path d="' + pathData + '" fill="#ffe27a" fill-opacity="0.34"/>');
+    elements.push('<path d="' + pathData + '" fill="#ffe27a" fill-opacity="0.28"/>');
   });
 
   if (bins.length) {
@@ -194,10 +173,10 @@ function renderSolarChartSvg(options) {
       const x = left + (index * slotWidth);
       const barWidth = Math.max(1, slotWidth - 1);
       if (importHeight > 0) {
-        elements.push('<rect x="' + fixed(x) + '" y="' + fixed(bottom - importHeight) + '" width="' + fixed(barWidth) + '" height="' + fixed(importHeight) + '" fill="#70a8ff" fill-opacity="0.55"/>');
+        elements.push('<rect x="' + fixed(x) + '" y="' + fixed(bottom - importHeight) + '" width="' + fixed(barWidth) + '" height="' + fixed(importHeight) + '" fill="#70a8ff" fill-opacity="0.46"/>');
       }
       if (selfHeight > 0) {
-        elements.push('<rect x="' + fixed(x) + '" y="' + fixed(bottom - importHeight - selfHeight) + '" width="' + fixed(barWidth) + '" height="' + fixed(selfHeight) + '" fill="#8edb7c"/>');
+        elements.push('<rect x="' + fixed(x) + '" y="' + fixed(bottom - importHeight - selfHeight) + '" width="' + fixed(barWidth) + '" height="' + fixed(selfHeight) + '" fill="#8edb7c" fill-opacity="0.82"/>');
       }
     });
   }
@@ -216,19 +195,6 @@ function renderSolarChartSvg(options) {
       elements.push(part);
     });
   }
-  if (Number.isFinite(currentIsolationMohm)) {
-    elements.push(
-      '<text x="' + (width - 6) + '" y="' + (top + 11) + '" text-anchor="end" fill="#d48bff" fill-opacity="0.78" font-family="Arial,sans-serif" font-size="14" font-weight="700">' + currentIsolationMohm.toFixed(1) + ' M\u03a9</text>'
-    );
-  }
-  renderInverterStatusBadge({
-    width: width,
-    bottom: bottom,
-    right: right,
-    errorCode: inverterErrorCode
-  }).forEach(function pushBadge(part) {
-    elements.push(part);
-  });
 
   elements.push(
     '<line x1="' + left + '" y1="' + bottom + '" x2="' + (width - right) + '" y2="' + bottom + '" stroke="#a6b2c4" stroke-opacity="0.46"/>',
