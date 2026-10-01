@@ -85,6 +85,7 @@ module.exports = async function run() {
     }));
 
     const calls = [];
+    let beatbotStatus = { stale: true, error: 'Reconnect Beatbot in the dashboard admin page' };
     const debugEventStore = createDebugEventStore({ maxEntries: 10 });
     debugEventStore.push({
       ts: '2026-02-15T00:00:00.000Z',
@@ -94,6 +95,10 @@ module.exports = async function run() {
     server = createServer({
       configDir: dir,
       disablePolling: true,
+      beatbotService: {
+        getDevices: () => [],
+        getStatus: () => beatbotStatus
+      },
       gitRunner: async (args) => {
         calls.push(args.join(' '));
         return { ok: true, stdout: 'ok', stderr: '' };
@@ -103,6 +108,22 @@ module.exports = async function run() {
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 
     const cookie = await loginAndGetCookie(server);
+
+    const disconnectedBeatbot = await request(server, { path: '/api/beatbot/status' });
+    assert.strictEqual(JSON.parse(disconnectedBeatbot.body).authenticated, false);
+    require('../src/lib/beatbot/auth').saveTokens(path.join(dir, 'beatbot-tokens.json'), {
+      accessToken: 'PRIVATE_ACCESS', refreshToken: 'PRIVATE_REFRESH', region: 'eu', expiresAt: 0
+    });
+    const failedBeatbot = await request(server, { path: '/api/beatbot/status' });
+    assert.strictEqual(failedBeatbot.statusCode, 200);
+    assert.deepStrictEqual(JSON.parse(failedBeatbot.body), {
+      authenticated: true, region: 'eu', devices: [], ...beatbotStatus
+    });
+    assert.ok(!failedBeatbot.body.includes('PRIVATE'), 'status must not expose credentials');
+    beatbotStatus = { stale: false, error: null };
+    const recoveredBeatbot = await request(server, { path: '/api/beatbot/status' });
+    assert.strictEqual(JSON.parse(recoveredBeatbot.body).error, null);
+    assert.strictEqual(JSON.parse(recoveredBeatbot.body).stale, false);
 
     const statusRes = await request(server, {
       path: '/api/admin/status',

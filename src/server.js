@@ -1659,10 +1659,11 @@ function createServer(options) {
       // source of truth; expose it via externalState so /api/state picks it up.
       function syncBeatbotState() {
         try {
+          const status = beatbotService.getStatus();
           externalState.beatbot = {
             devices: beatbotService.getDevices(),
-            stale: false,
-            error: null
+            stale: status.stale,
+            error: status.error
           };
         } catch (err) {
           externalState.beatbot = {

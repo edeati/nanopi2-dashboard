@@ -86,6 +86,16 @@ function decodeAccessToken(token) {
   }
 }
 
+function tokenRequestError(statusCode, data) {
+  let oauthError = null;
+  try { oauthError = JSON.parse(data).error; } catch (_err) {}
+  const err = new Error('Token request failed: HTTP ' + statusCode);
+  if (oauthError === 'invalid_grant') {
+    err.code = 'beatbot_reauthentication_required';
+  }
+  return err;
+}
+
 function postForm(urlString, params) {
   return new Promise((resolve, reject) => {
     const body = new URLSearchParams(params).toString();
@@ -109,12 +119,12 @@ function postForm(urlString, params) {
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => {
         if (res.statusCode >= 400) {
-          return reject(new Error('Token request failed: HTTP ' + res.statusCode + ' ' + data));
+          return reject(tokenRequestError(res.statusCode, data));
         }
         try {
           resolve(JSON.parse(data));
         } catch (err) {
-          reject(new Error('Token response is not JSON: ' + data));
+          reject(new Error('Token response is not JSON'));
         }
       });
     });

@@ -269,7 +269,10 @@ function createBeatbotEventClient(opts) {
               failures += 1;
             }
           } else {
-            onError(new Error('Beatbot WS authentication permanently failed'));
+            onError(Object.assign(new Error('Beatbot WS authentication permanently failed'), {
+              beatbotAuth: true,
+              code: 'beatbot_reauthentication_required'
+            }));
             return;
           }
         } else if (err && err.beatbotAuth) {

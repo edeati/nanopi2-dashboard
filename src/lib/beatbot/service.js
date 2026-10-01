@@ -168,6 +168,15 @@ function createBeatbotService(opts) {
   let eventClient = null;
   let reconcileTimer = null;
   let started = false;
+  let stale = true;
+  let error = null;
+
+  function recordFailure(err) {
+    stale = true;
+    error = err && (err.code === 'beatbot_reauthentication_required' || err.message === 'beatbot_not_authenticated')
+      ? 'Reconnect Beatbot in the dashboard admin page'
+      : 'Beatbot connection failed; retrying';
+  }
 
   // ── Token provider ────────────────────────────────────────────────────────
 
@@ -177,7 +186,7 @@ function createBeatbotService(opts) {
   }
 
   async function buildClient() {
-    const { accessToken, region } = await getValidAccessToken(tokensPath);
+    const { region } = await getValidAccessToken(tokensPath);
     return new BeatbotClient({ region, getAccessToken });
   }
 
@@ -210,6 +219,7 @@ function createBeatbotService(opts) {
       try {
         client = await buildClient();
       } catch (err) {
+        recordFailure(err);
         logger.warn('[beatbot] reconcile: cannot build client: ' + (err && err.message));
         return;
       }
@@ -219,6 +229,7 @@ function createBeatbotService(opts) {
     try {
       devices = await client.getDevices();
     } catch (err) {
+      recordFailure(err);
       logger.warn('[beatbot] reconcile: device discovery failed: ' + (err && err.message));
       return;
     }
@@ -256,7 +267,10 @@ function createBeatbotService(opts) {
     let states;
     try {
       states = await client.getDeviceStates();
+      stale = false;
+      error = null;
     } catch (err) {
+      recordFailure(err);
       logger.warn('[beatbot] reconcile: state fetch failed: ' + (err && err.message));
       states = {};
     }
@@ -273,6 +287,40 @@ function createBeatbotService(opts) {
     }
 
     logger.debug('[beatbot] reconcile complete: ' + rawDevices.size + ' pool device(s)');
+    startEventStream();
+  }
+
+  function startEventStream() {
+    if (!started || eventClient || stale) {
+      return;
+    }
+    const createEventClient = opts.createEventClient || createBeatbotEventClient;
+    eventClient = createEventClient({
+      url: client.eventStreamUrl,
+      getAccessToken,
+      onEvent: handleEvent,
+      onReconnect: () => {
+        reconcile().catch((err) => {
+          logger.warn('[beatbot] reconcile after WS reconnect failed: ' + (err && err.message));
+        });
+      },
+      onTokenRejected: handleTokenRejected,
+      onError: (err) => {
+        if (err && err.beatbotAuth) {
+          recordFailure(err);
+          stopEventStream();
+        }
+        logger.warn('[beatbot] WS error: ' + (err && err.message));
+      }
+    });
+    eventClient.start();
+  }
+
+  function stopEventStream() {
+    if (eventClient) {
+      eventClient.stop();
+      eventClient = null;
+    }
   }
 
   // ── WebSocket event handler ───────────────────────────────────────────────
@@ -306,17 +354,23 @@ function createBeatbotService(opts) {
   async function handleTokenRejected(_oldToken) {
     // Force a refresh (getValidAccessToken already expires-checks; force by
     // temporarily expiring the stored token)
-    const tokens = loadTokens(tokensPath);
-    if (!tokens) {
-      throw new Error('No tokens to refresh');
+    try {
+      const tokens = loadTokens(tokensPath);
+      if (!tokens) {
+        throw new Error('beatbot_not_authenticated');
+      }
+      // Mark as expired to force refresh
+      tokens.expiresAt = 0;
+      saveTokens(tokensPath, tokens);
+      const { accessToken } = await getValidAccessToken(tokensPath);
+      // Also rebuild the client with potentially a new region
+      client = await buildClient();
+      return accessToken;
+    } catch (err) {
+      recordFailure(err);
+      stopEventStream();
+      throw err;
     }
-    // Mark as expired to force refresh
-    tokens.expiresAt = 0;
-    saveTokens(tokensPath, tokens);
-    const { accessToken } = await getValidAccessToken(tokensPath);
-    // Also rebuild the client with potentially a new region
-    client = await buildClient();
-    return accessToken;
   }
 
   // ── Capability guard ──────────────────────────────────────────────────────
@@ -346,6 +400,10 @@ function createBeatbotService(opts) {
       return Array.from(stateCache.values());
     },
 
+    getStatus() {
+      return { stale, error };
+    },
+
     getDevice(deviceId) {
       return stateCache.get(deviceId) || null;
     },
@@ -356,47 +414,20 @@ function createBeatbotService(opts) {
       }
       started = true;
 
-      // Initial reconciliation
-      try {
-        client = await buildClient();
-      } catch (err) {
-        logger.warn('[beatbot] start: not authenticated yet (' + (err && err.message) + ')');
-        return;
-      }
-
-      await reconcile();
-
-      // Start WebSocket event stream
-      eventClient = createBeatbotEventClient({
-        url: client.eventStreamUrl,
-        getAccessToken,
-        onEvent: handleEvent,
-        onReconnect: () => {
-          reconcile().catch((err) => {
-            logger.warn('[beatbot] reconcile after WS reconnect failed: ' + (err && err.message));
-          });
-        },
-        onTokenRejected: handleTokenRejected,
-        onError: (err) => {
-          logger.warn('[beatbot] WS error: ' + (err && err.message));
-        }
-      });
-      eventClient.start();
-
-      // Periodic REST reconciliation
+      // Schedule retries even if authentication or the initial request fails.
       reconcileTimer = timers.setInterval(() => {
-        reconcile().catch((err) => {
+        return reconcile().catch((err) => {
           logger.warn('[beatbot] periodic reconcile failed: ' + (err && err.message));
         });
       }, reconcileMs);
+      await reconcile();
     },
 
     stop() {
       started = false;
-      if (eventClient) {
-        eventClient.stop();
-        eventClient = null;
-      }
+      client = null;
+      stale = true;
+      stopEventStream();
       if (reconcileTimer !== null) {
         timers.clearInterval(reconcileTimer);
         reconcileTimer = null;
@@ -404,7 +435,12 @@ function createBeatbotService(opts) {
     },
 
     async reconcileNow() {
-      client = await buildClient();
+      client = null;
+      stopEventStream();
+      if (!started) {
+        await this.start();
+        return;
+      }
       await reconcile();
     },
 

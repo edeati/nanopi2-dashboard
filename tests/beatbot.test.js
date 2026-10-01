@@ -4,16 +4,19 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const https = require('https');
+const { EventEmitter } = require('events');
+const vm = require('vm');
 
 const {
   statusFor, statusLabel, errorsFor, errorLabels,
   INTERFACES, STATUS_MAP, ERROR_BITS
 } = require('../src/lib/beatbot/protocol');
 const {
-  DEFAULT_REDIRECT_URI, buildAuthUrl, decodeAccessToken, loadTokens, saveTokens
+  DEFAULT_REDIRECT_URI, buildAuthUrl, decodeAccessToken, loadTokens, saveTokens, getValidAccessToken
 } = require('../src/lib/beatbot/auth');
 const { BeatbotClient } = require('../src/lib/beatbot/client');
-const { normalizeDevice, applyEvent, applyState } = require('../src/lib/beatbot/service');
+const { createBeatbotService, normalizeDevice, applyEvent, applyState } = require('../src/lib/beatbot/service');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -473,6 +476,206 @@ function testTokensNotInLogs() {
   });
 }
 
+async function testAuthenticationRecovery() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'beatbot-recovery-'));
+  const tokensPath = path.join(dir, 'tokens.json');
+  const originalRequest = https.request;
+  const originalDiscovery = BeatbotClient.prototype.getDevices;
+  const originalStates = BeatbotClient.prototype.getDeviceStates;
+  const logs = [];
+  const intervals = new Set();
+  let streamStarts = 0;
+  let streamStops = 0;
+  let discoveryFails = false;
+  let statesFail = false;
+  let pendingState = null;
+  let stateRequested = null;
+  let streamOptions = null;
+  const tokens = { accessToken: 'PRIVATE_ACCESS', refreshToken: 'PRIVATE_REFRESH', region: 'eu', expiresAt: 0 };
+  const service = createBeatbotService({
+    tokensPath,
+    logger: { warn: (message) => logs.push(message), debug() {} },
+    timers: {
+      setInterval(fn) { intervals.add(fn); return fn; },
+      clearInterval(fn) { intervals.delete(fn); }
+    },
+    createEventClient(options) {
+      streamOptions = options;
+      return { start() { streamStarts += 1; }, stop() { streamStops += 1; } };
+    }
+  });
+  try {
+    https.request = (_options, onResponse) => {
+      const req = new EventEmitter();
+      req.setTimeout = req.write = () => {};
+      req.end = () => {
+        const res = new EventEmitter();
+        res.statusCode = 400;
+        res.setEncoding = () => {};
+        onResponse(res);
+        res.emit('data', JSON.stringify({ error: 'invalid_grant', error_description: tokens.refreshToken }));
+        res.emit('end');
+      };
+      return req;
+    };
+    BeatbotClient.prototype.getDevices = async () => {
+      if (discoveryFails) { throw new Error('discovery unavailable'); }
+      return [makeRawDevice()];
+    };
+    BeatbotClient.prototype.getDeviceStates = async () => {
+      if (pendingState) {
+        stateRequested();
+        return pendingState;
+      }
+      if (statesFail) { throw new Error('state unavailable'); }
+      return {};
+    };
+    saveTokens(tokensPath, tokens);
+    await assert.rejects(getValidAccessToken(tokensPath), (err) => {
+      assert.strictEqual(err.code, 'beatbot_reauthentication_required');
+      assert.ok(!err.message.includes(tokens.refreshToken));
+      return true;
+    });
+    await service.start();
+    assert.strictEqual(intervals.size, 1, 'failed authentication must still schedule retries');
+    assert.deepStrictEqual(service.getStatus(), { stale: true, error: 'Reconnect Beatbot in the dashboard admin page' });
+    assert.strictEqual(streamStarts, 0);
+    assert.deepStrictEqual(service.getDevices(), []);
+    assert.ok(logs.every((line) => !line.includes(tokens.refreshToken)));
+
+    saveTokens(tokensPath, { ...tokens, expiresAt: Date.now() + 3600000 });
+    const tick = Array.from(intervals)[0];
+    await tick();
+    assert.strictEqual(service.getDevices()[0].battery, 87);
+    assert.deepStrictEqual(service.getStatus(), { stale: false, error: null });
+    assert.strictEqual(streamStarts, 1, 'recovery must start the event stream');
+    await service.start();
+    await tick();
+    assert.strictEqual(intervals.size, 1);
+    assert.strictEqual(streamStarts, 1, 'polls must not create duplicate streams');
+
+    discoveryFails = true;
+    await tick();
+    assert.strictEqual(service.getStatus().stale, true);
+    assert.strictEqual(service.getDevices()[0].battery, 87, 'discovery failure must preserve cached state');
+    discoveryFails = false;
+    statesFail = true;
+    await tick();
+    assert.strictEqual(service.getStatus().stale, true);
+    assert.ok(service.getStatus().error);
+    statesFail = false;
+    let resolveState;
+    pendingState = new Promise((resolve) => { resolveState = resolve; });
+    const requested = new Promise((resolve) => { stateRequested = resolve; });
+    const inFlight = tick();
+    await requested;
+    assert.strictEqual(service.getStatus().stale, true, 'in-flight requests must not clear the previous failure');
+    assert.ok(service.getStatus().error);
+    resolveState({});
+    await inFlight;
+    pendingState = null;
+    assert.deepStrictEqual(service.getStatus(), { stale: false, error: null });
+
+    await assert.rejects(streamOptions.onTokenRejected(tokens.accessToken), { code: 'beatbot_reauthentication_required' });
+    assert.deepStrictEqual(service.getStatus(), { stale: true, error: 'Reconnect Beatbot in the dashboard admin page' });
+    assert.strictEqual(streamStops, 1, 'a rejected refresh must release the failed event stream');
+    saveTokens(tokensPath, { ...tokens, expiresAt: Date.now() + 3600000 });
+    await service.reconcileNow();
+    assert.strictEqual(streamStarts, 2);
+    assert.deepStrictEqual(service.getStatus(), { stale: false, error: null });
+
+    service.stop();
+    assert.strictEqual(intervals.size, 0);
+    assert.strictEqual(streamStops, 2);
+    fs.unlinkSync(tokensPath);
+    await service.start();
+    assert.strictEqual(service.getStatus().stale, true);
+    assert.strictEqual(intervals.size, 1, 'missing credentials must still schedule retries');
+    saveTokens(tokensPath, { ...tokens, expiresAt: Date.now() + 3600000 });
+    await service.reconcileNow();
+    assert.strictEqual(streamStarts, 3, 'OAuth reconciliation must restart live updates');
+    assert.deepStrictEqual(service.getStatus(), { stale: false, error: null });
+    service.stop();
+    await service.reconcileNow();
+    assert.strictEqual(intervals.size, 1, 'reconnection after disconnect must restore polling');
+    assert.strictEqual(streamStarts, 4);
+    streamOptions.onError(Object.assign(new Error('Beatbot WS authentication permanently failed'), {
+      beatbotAuth: true, code: 'beatbot_reauthentication_required'
+    }));
+    assert.deepStrictEqual(service.getStatus(), { stale: true, error: 'Reconnect Beatbot in the dashboard admin page' });
+    await Array.from(intervals)[0]();
+    assert.strictEqual(streamStarts, 5, 'polling must replace a permanently failed event stream');
+  } finally {
+    service.stop();
+    https.request = originalRequest;
+    BeatbotClient.prototype.getDevices = originalDiscovery;
+    BeatbotClient.prototype.getDeviceStates = originalStates;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+async function testAdminReconnectAction() {
+  const html = fs.readFileSync(path.join(__dirname, '../public/admin.html'), 'utf8');
+  const source = html.match(/      function refreshBeatbot\(\) \{[\s\S]*?\n      \}/);
+  assert.ok(source, 'Beatbot admin refresh function missing');
+  let payload = { authenticated: true, error: 'Reconnect Beatbot in the dashboard admin page', devices: [] };
+  const context = {
+    statusEl: {}, connectBtn: { style: {} }, disconnectBtn: { style: {} }, refreshBtn: { style: {} },
+    renderDevices() {},
+    fetch: async () => ({ json: async () => payload })
+  };
+  vm.createContext(context);
+  vm.runInContext(source[0], context);
+  context.refreshBeatbot();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.strictEqual(context.statusEl.textContent, payload.error);
+  assert.strictEqual(context.connectBtn.style.display, '', 'rejected credentials must expose the reconnect action');
+  payload = { authenticated: true, error: null, region: 'eu', devices: [] };
+  context.refreshBeatbot();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.strictEqual(context.connectBtn.style.display, 'none');
+  assert.ok(context.statusEl.innerHTML.includes('Connected'));
+}
+
+async function testPermanentEventAuthenticationFailure() {
+  let connections = 0;
+  let refreshes = 0;
+  class RejectingSocket extends EventEmitter {
+    constructor() {
+      super();
+      connections += 1;
+      setImmediate(() => this.emit('close', 4001, ''));
+    }
+    terminate() {}
+  }
+  const context = {
+    module: { exports: {} },
+    require(name) { assert.strictEqual(name, 'ws'); return RejectingSocket; },
+    setTimeout, clearTimeout, setInterval, clearInterval, console
+  };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/lib/beatbot/events.js'), 'utf8'), context);
+  let reportError;
+  const reported = new Promise((resolve) => { reportError = resolve; });
+  const client = context.module.exports.createBeatbotEventClient({
+    url: 'wss://example.invalid/events',
+    getAccessToken: async () => 'initial-token',
+    onEvent() {},
+    onTokenRejected: async () => { refreshes += 1; return 'refreshed-token'; },
+    onError: reportError
+  });
+  try {
+    client.start();
+    const err = await reported;
+    assert.strictEqual(connections, 2);
+    assert.strictEqual(refreshes, 1);
+    assert.strictEqual(err.beatbotAuth, true, 'permanent stream failures must be classified as authentication errors');
+    assert.strictEqual(err.code, 'beatbot_reauthentication_required');
+  } finally {
+    client.stop();
+  }
+}
+
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 module.exports = async function run() {
@@ -496,4 +699,7 @@ module.exports = async function run() {
   testNonPoolDeviceProductCategory();
   testWorkModeDynamic();
   testTokensNotInLogs();
+  await testAuthenticationRecovery();
+  await testAdminReconnectAction();
+  await testPermanentEventAuthenticationFailure();
 };

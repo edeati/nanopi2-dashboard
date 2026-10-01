@@ -1117,7 +1117,8 @@ function createApp(options) {
       return sendJson(res, 200, {
         authenticated: true,
         region: tokens.region,
-        devices: beatbotService.getDevices()
+        devices: beatbotService.getDevices(),
+        ...beatbotService.getStatus()
       });
     }
 

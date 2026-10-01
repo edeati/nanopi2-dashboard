@@ -171,7 +171,7 @@
 
       function refreshBeatbot() {
         fetch('/api/beatbot/status').then(function (res) { return res.json(); }).then(function (data) {
-          if (data.authenticated) {
+          if (data.authenticated && !data.error) {
             statusEl.innerHTML = '<span style="color:#2ec4b6">&#10003; Connected</span>' +
               (data.region ? ' · Region: <strong>' + data.region + '</strong>' : '');
             connectBtn.style.display = 'none';
@@ -179,12 +179,11 @@
             refreshBtn.style.display = '';
             renderDevices(data.devices);
           } else {
-            statusEl.innerHTML = '<span style="color:#f39c12">&#9675; Not connected</span> — ' +
-              'open this page on your phone or laptop (not the kiosk) and click Connect.';
+            statusEl.textContent = data.error || 'Not connected — open this page on your phone or laptop and click Connect.';
             connectBtn.style.display = '';
-            disconnectBtn.style.display = 'none';
-            refreshBtn.style.display = 'none';
-            devicesEl.textContent = '';
+            disconnectBtn.style.display = data.authenticated ? '' : 'none';
+            refreshBtn.style.display = data.authenticated ? '' : 'none';
+            renderDevices(data.devices || []);
           }
         }).catch(function () {
           statusEl.textContent = 'Beatbot not enabled in dashboard.json';
