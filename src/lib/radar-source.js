@@ -11,7 +11,9 @@ function fetchBinary(urlString, insecureTLS, logger) {
     method: 'GET',
     insecureTLS,
     logger,
-    service: 'external.radar.source'
+    service: 'external.radar.source',
+    timeoutMs: 12000,
+    maxResponseBytes: 2 * 1024 * 1024
   }).then((result) => ({
     contentType: result.contentType || 'image/png',
     body: result.body

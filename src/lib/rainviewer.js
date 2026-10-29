@@ -8,7 +8,9 @@ function requestBuffer(urlString, insecureTLS, logger, serviceName) {
     method: 'GET',
     insecureTLS,
     logger,
-    service: serviceName || 'radar.rainviewer'
+    service: serviceName || 'radar.rainviewer',
+    timeoutMs: 12000,
+    maxResponseBytes: 2 * 1024 * 1024
   });
 }
 

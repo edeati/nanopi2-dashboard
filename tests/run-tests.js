@@ -14,6 +14,7 @@ const testModules = [
   './radar-animation-cache.test.js',
   './radar-gif.test.js',
   './map-tiles.test.js',
+  './tile-cache-bounds.test.js',
   './fronius-client.test.js',
   './fronius-service.test.js',
   './solar-chart.test.js',

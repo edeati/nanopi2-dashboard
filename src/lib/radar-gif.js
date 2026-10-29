@@ -28,6 +28,30 @@ function toInteger(value, fallback, min, max) {
   return out;
 }
 
+async function mapWithConcurrency(items, limit, mapper) {
+  const results = new Array(items.length);
+  const workerCount = Math.min(items.length, Math.max(1, limit));
+  let nextIndex = 0;
+  let failure = null;
+
+  async function worker() {
+    while (!failure) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) return;
+      try {
+        results[index] = await mapper(items[index], index);
+      } catch (error) {
+        failure = error;
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  if (failure) throw failure;
+  return results;
+}
+
 function execFileAsync(binary, args, opts, execFileImpl) {
   const runner = execFileImpl || execFile;
   return new Promise((resolve, reject) => {
@@ -458,6 +482,7 @@ function createRadarGifRenderer(options) {
     60,
     86400
   );
+  const tileConcurrency = toInteger(radarConfig.gifTileConcurrency, 4, 1, 8);
 
   const GIF_FILENAME = 'radar-latest.gif';
   const GIF_TMP_FILENAME = 'radar-latest.gif.tmp';
@@ -661,9 +686,7 @@ function createRadarGifRenderer(options) {
     });
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanopi2-radar-gif-'));
     try {
-      const mapAssets = [];
-      for (let t = 0; t < plan.tiles.length; t += 1) {
-        const tile = plan.tiles[t];
+      const mapAssets = await mapWithConcurrency(plan.tiles, tileConcurrency, async function (tile, t) {
         const norm = normalizeTileCoords(plan.z, tile.tx, tile.ty);
         try {
           const result = await fetchMapTile({ z: plan.z, x: norm.x, y: norm.y });
@@ -674,13 +697,13 @@ function createRadarGifRenderer(options) {
           }
           const filePath = path.join(tempDir, 'map-' + String(t).padStart(3, '0') + '.png');
           fs.writeFileSync(filePath, result.body);
-          mapAssets.push({ filePath, x: tile.drawX, y: tile.drawY });
+          return { filePath, x: tile.drawX, y: tile.drawY };
         } catch (_error) {
           const mapError = new Error('map_tiles_unavailable');
           mapError.code = 'map_tiles_unavailable';
           throw mapError;
         }
-      }
+      });
       if (mapAssets.length !== plan.tiles.length) {
         const mapCountError = new Error('map_tiles_unavailable');
         mapCountError.code = 'map_tiles_unavailable';
@@ -689,9 +712,7 @@ function createRadarGifRenderer(options) {
 
       for (let i = 0; i < plan.framesSubset.length; i += 1) {
         const frameRef = plan.framesSubset[i] || {};
-        const radarAssets = [];
-        for (let t = 0; t < plan.radarTiles.length; t += 1) {
-          const tile = plan.radarTiles[t];
+        const radarAssets = (await mapWithConcurrency(plan.radarTiles, tileConcurrency, async function (tile, t) {
           const norm = normalizeTileCoords(plan.radarZ, tile.tx, tile.ty);
           let filePath = '';
           let tileOffsetXPx = 0;
@@ -721,7 +742,7 @@ function createRadarGifRenderer(options) {
           } catch (error) {
             if (Number(error && error.statusCode) === 404) {
               // RainViewer may return 404 for "no radar data" tiles; treat as transparent.
-              continue;
+              return null;
             }
             const radarError = new Error('radar_tiles_incomplete');
             radarError.code = 'radar_tiles_incomplete';
@@ -729,14 +750,15 @@ function createRadarGifRenderer(options) {
           }
 
           if (filePath) {
-            radarAssets.push({
+            return {
               filePath,
               x: ((tile.drawX + tileOffsetXPx) / plan.radarScale) + plan.radarOffsetXPx,
               y: ((tile.drawY + tileOffsetYPx) / plan.radarScale) + plan.radarOffsetYPx,
               isRadar: true
-            });
+            };
           }
-        }
+          return null;
+        })).filter(Boolean);
 
         const overlays = mapAssets.concat(radarAssets);
         const framePath = path.join(tempDir, 'frame-' + String(i).padStart(3, '0') + '.png');

@@ -9,6 +9,8 @@ function requestBuffer(urlString, insecureTLS, userAgent, logger, serviceName) {
     insecureTLS,
     logger,
     service: serviceName || 'external.map.tile',
+    timeoutMs: 12000,
+    maxResponseBytes: 2 * 1024 * 1024,
     headers: {
       'User-Agent': userAgent,
       Accept: 'image/png,image/*;q=0.9,*/*;q=0.5'

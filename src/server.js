@@ -19,6 +19,7 @@ const { createRadarGifRenderer, createBomGifRenderer } = require('./lib/radar-gi
 const { createInternetProbeService } = require('./lib/internet-probe');
 const { createLogger, readDebugConfig } = require('./lib/logger');
 const { createDebugEventStore } = require('./lib/debug-events');
+const { createBoundedCache } = require('./lib/bounded-cache');
 const { requestWithDebug } = require('./lib/http-debug');
 const { createBeatbotService } = require('./lib/beatbot/service');
 
@@ -1221,8 +1222,6 @@ function createServer(options) {
   const bomGifClient = (renderMode === 'bom_gif')
     ? ((options && options.bomGifClient) || createBomRadarClient(sharedConfig))
     : null;
-  const radarTileCache = new Map();
-  const mapTileCache = new Map();
   const mapClient = (options && options.mapClient) || createMapTileClient(sharedConfig);
   const mapTileCacheMs = Math.max(
     60,
@@ -1232,6 +1231,20 @@ function createServer(options) {
       86400
     )
   ) * 1000;
+  const tileCacheLimits = (options && options.tileCacheLimits) || {};
+  const cacheNow = options && typeof options.cacheNow === 'function' ? options.cacheNow : Date.now;
+  const radarTileCache = createBoundedCache({
+    ttlMs: tileCacheLimits.radarTtlMs || 120000,
+    maxEntries: tileCacheLimits.radarMaxEntries || 384,
+    maxBytes: tileCacheLimits.radarMaxBytes || 48 * 1024 * 1024,
+    now: cacheNow
+  });
+  const mapTileCache = createBoundedCache({
+    ttlMs: tileCacheLimits.mapTtlMs || mapTileCacheMs,
+    maxEntries: tileCacheLimits.mapMaxEntries || 256,
+    maxBytes: tileCacheLimits.mapMaxBytes || 32 * 1024 * 1024,
+    now: cacheNow
+  });
 
   async function fetchRadarTile(params) {
     if (options && options.radarTileProvider) {
@@ -1241,8 +1254,8 @@ function createServer(options) {
     const frameKey = params.framePath ? ('path=' + String(params.framePath)) : ('index=' + String(params.frameIndex));
     const key = [frameKey, params.z, params.x, params.y, params.color, params.options].join(':');
     const cached = radarTileCache.get(key);
-    if (cached && (Date.now() - cached.at) < 120000) {
-      return cached.value;
+    if (cached) {
+      return cached;
     }
 
     let value;
@@ -1251,7 +1264,7 @@ function createServer(options) {
     } else {
       value = await radarClient.fetchTile(params.frameIndex, params.z, params.x, params.y, params.color, params.options);
     }
-    radarTileCache.set(key, { at: Date.now(), value });
+    radarTileCache.set(key, value);
     return value;
   }
 
@@ -1262,12 +1275,12 @@ function createServer(options) {
 
     const key = [params.z, params.x, params.y].join(':');
     const cached = mapTileCache.get(key);
-    if (cached && (Date.now() - cached.at) < mapTileCacheMs) {
-      return cached.value;
+    if (cached) {
+      return cached;
     }
 
     const value = await mapClient.fetchTile(params.z, params.x, params.y);
-    mapTileCache.set(key, { at: Date.now(), value });
+    mapTileCache.set(key, value);
     return value;
   }
 

@@ -214,6 +214,8 @@ function createBomReflectivityClient(config) {
       insecureTLS,
       logger,
       service,
+      timeoutMs: 12000,
+      maxResponseBytes: 2 * 1024 * 1024,
       headers: {
         Accept: 'image/png,application/xml,text/xml,*/*;q=0.8',
         Referer: DEFAULT_REFERER,

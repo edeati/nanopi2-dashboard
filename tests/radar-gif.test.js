@@ -206,6 +206,51 @@ module.exports = async function run() {
     assert.strictEqual(result.isFallback, false);
 
     // -------------------------------------------------------------------
+    // Test 5a: tile fetching uses a bounded worker pool during a render
+    // -------------------------------------------------------------------
+    {
+      let activeFetches = 0;
+      let peakFetches = 0;
+      async function delayedTile(tile) {
+        activeFetches += 1;
+        peakFetches = Math.max(peakFetches, activeFetches);
+        try {
+          await new Promise(function (resolve) { setTimeout(resolve, 10); });
+          return { contentType: 'image/png', body: tile };
+        } finally {
+          activeFetches -= 1;
+        }
+      }
+      const boundedRenderer = createRadarGifRenderer({
+        fetchMapTile: function () { return delayedTile(fakeTilePng); },
+        fetchRadarTile: function () { return delayedTile(fakeRadarTilePng); },
+        getRadarState: function () { return { frames: [{ time: 1000, path: '/path/0' }] }; },
+        config: {
+          radar: {
+            zoom: 6,
+            providerMaxZoom: 6,
+            lat: -27.47,
+            lon: 153.02,
+            gifWidth: 64,
+            gifHeight: 64,
+            gifCropOverscanPx: 0,
+            gifMaxFrames: 1,
+            gifExtraTiles: 0,
+            gifTileConcurrency: 2,
+            gifFrameDelayMs: 100,
+            color: 3,
+            options: '1_1'
+          }
+        },
+        gifCacheDir: path.join(tempDir, 'bounded-tile-fetches')
+      });
+      const bounded = await boundedRenderer.renderOnce();
+      assert.ok(bounded && Buffer.isBuffer(bounded.body), 'bounded tile render should produce a GIF');
+      assert.ok(peakFetches > 1, 'tile fetches should overlap within the configured limit');
+      assert.ok(peakFetches <= 2, 'tile fetches should not exceed the configured limit');
+    }
+
+    // -------------------------------------------------------------------
     // Test 6: getLatestGif returns the file after renderOnce
     // -------------------------------------------------------------------
     {

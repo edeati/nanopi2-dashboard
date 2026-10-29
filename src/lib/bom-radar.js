@@ -42,6 +42,8 @@ function createBomRadarClient(config) {
         insecureTLS,
         logger,
         service: 'external.bom.loop',
+        timeoutMs: 12000,
+        maxResponseBytes: 2 * 1024 * 1024,
         headers: { 'User-Agent': BOM_USER_AGENT, Accept: 'text/html,*/*;q=0.8' }
       });
       const parsed = parseBomLoopPage(result.body.toString('utf8'));
@@ -64,6 +66,8 @@ function createBomRadarClient(config) {
       insecureTLS,
       logger,
       service: 'external.bom.frame',
+      timeoutMs: 12000,
+      maxResponseBytes: 2 * 1024 * 1024,
       headers: {
         'User-Agent': BOM_USER_AGENT,
         Referer: loopUrl,

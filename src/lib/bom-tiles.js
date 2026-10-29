@@ -84,6 +84,8 @@ function createBomTilesClient(config) {
       insecureTLS,
       logger,
       service: 'external.bom.tile',
+      timeoutMs: 12000,
+      maxResponseBytes: 2 * 1024 * 1024,
       headers: {
         Accept: 'image/png,image/*;q=0.9,*/*;q=0.5',
         'User-Agent': (cfg.map && cfg.map.userAgent) || 'NanoPi2-Dashboard/1.0 (+https://local.nanopi2)'

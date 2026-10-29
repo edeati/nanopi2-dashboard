@@ -39,9 +39,20 @@ function requestWithDebug(options) {
   const headers = Object.assign({}, opts.headers || {});
   const requestId = opts.requestId || generateRequestId();
   const followRedirects = !!opts.followRedirects;
-  const maxRedirects = Math.max(0, Number(opts.maxRedirects || 5));
+  const requestedMaxRedirects = Number(opts.maxRedirects);
+  const maxRedirects = Number.isFinite(requestedMaxRedirects)
+    ? Math.max(0, Math.floor(requestedMaxRedirects))
+    : 5;
+  const requestedTimeoutMs = Number(opts.timeoutMs);
+  const timeoutMs = Number.isFinite(requestedTimeoutMs) && requestedTimeoutMs > 0
+    ? Math.min(Math.floor(requestedTimeoutMs), 120000)
+    : 20000;
+  const requestedMaxResponseBytes = Number(opts.maxResponseBytes);
+  const maxResponseBytes = Number.isFinite(requestedMaxResponseBytes) && requestedMaxResponseBytes > 0
+    ? Math.min(Math.floor(requestedMaxResponseBytes), 64 * 1024 * 1024)
+    : 8 * 1024 * 1024;
 
-  function execute(urlString, redirectCount) {
+  function execute(urlString, redirectCount, deadlineMs) {
     return new Promise((resolve, reject) => {
       const url = new URL(urlString);
       const client = url.protocol === 'https:' ? https : http;
@@ -63,6 +74,26 @@ function requestWithDebug(options) {
         ? logger.getBodyMaxBytes()
         : 65536;
       const startedAt = Date.now();
+      const remainingTimeoutMs = Math.max(1, deadlineMs - startedAt);
+      let completed = false;
+      let timeout = null;
+
+      function finishError(error, responseReceived) {
+        if (completed) return;
+        completed = true;
+        if (timeout) clearTimeout(timeout);
+        if (debugEnabled && logger && typeof logger.warn === 'function') {
+          logger.warn('external_http_error', Object.assign({
+            requestId,
+            service,
+            method,
+            url: url.toString(),
+            durationMs: Date.now() - startedAt,
+            responseReceived: !!responseReceived
+          }, extractErrorDetails(error)));
+        }
+        reject(error);
+      }
 
       if (debugEnabled && logger && typeof logger.debug === 'function') {
         const startFields = {
@@ -84,8 +115,33 @@ function requestWithDebug(options) {
 
       const req = client.request(url, requestOptions, (res) => {
         const chunks = [];
-        res.on('data', (chunk) => chunks.push(chunk));
+        let responseBytes = 0;
+        res.on('error', (error) => finishError(error, true));
+        const contentLength = Number(res.headers && res.headers['content-length']);
+        if (Number.isFinite(contentLength) && contentLength > maxResponseBytes) {
+          const error = new Error('Response exceeds maximum size');
+          error.code = 'external_http_response_too_large';
+          error.maxResponseBytes = maxResponseBytes;
+          res.resume();
+          req.destroy(error);
+          finishError(error, true);
+          return;
+        }
+        res.on('data', (chunk) => {
+          responseBytes += chunk.length;
+          if (responseBytes > maxResponseBytes) {
+            const error = new Error('Response exceeds maximum size');
+            error.code = 'external_http_response_too_large';
+            error.maxResponseBytes = maxResponseBytes;
+            res.destroy(error);
+            req.destroy(error);
+            finishError(error, true);
+            return;
+          }
+          chunks.push(chunk);
+        });
         res.on('end', async () => {
+          if (completed) return;
           const responseBuffer = Buffer.concat(chunks);
           const durationMs = Date.now() - startedAt;
           const responseContentType = res.headers['content-type'] || 'application/octet-stream';
@@ -121,16 +177,18 @@ function requestWithDebug(options) {
             if (redirectCount >= maxRedirects) {
               const redirectError = new Error('Too many redirects');
               redirectError.code = 'too_many_redirects';
-              return reject(redirectError);
+              return finishError(redirectError, true);
             }
             let redirectUrl;
             try {
               redirectUrl = new URL(location, url).toString();
             } catch (_error) {
-              return reject(createHttpStatusError(statusCode));
+              return finishError(createHttpStatusError(statusCode), true);
             }
             try {
-              const redirected = await execute(redirectUrl, redirectCount + 1);
+              completed = true;
+              if (timeout) clearTimeout(timeout);
+              const redirected = await execute(redirectUrl, redirectCount + 1, deadlineMs);
               return resolve(redirected);
             } catch (error) {
               return reject(error);
@@ -138,8 +196,10 @@ function requestWithDebug(options) {
           }
 
           if (statusCode < 200 || statusCode >= 300) {
-            return reject(createHttpStatusError(statusCode));
+            return finishError(createHttpStatusError(statusCode), true);
           }
+          completed = true;
+          if (timeout) clearTimeout(timeout);
           return resolve({
             statusCode: res.statusCode,
             headers: res.headers,
@@ -149,19 +209,14 @@ function requestWithDebug(options) {
         });
       });
 
-      req.on('error', (error) => {
-        if (debugEnabled && logger && typeof logger.warn === 'function') {
-          logger.warn('external_http_error', Object.assign({
-            requestId,
-            service,
-            method,
-            url: url.toString(),
-            durationMs: Date.now() - startedAt,
-            responseReceived: false
-          }, extractErrorDetails(error)));
-        }
-        reject(error);
-      });
+      req.on('error', (error) => finishError(error, false));
+      timeout = setTimeout(() => {
+        const error = new Error('External HTTP request timed out after ' + timeoutMs + 'ms');
+        error.code = 'external_http_timeout';
+        error.timeoutMs = timeoutMs;
+        req.destroy(error);
+        finishError(error, false);
+      }, remainingTimeoutMs);
 
       if (body) {
         req.write(body);
@@ -170,7 +225,7 @@ function requestWithDebug(options) {
     });
   }
 
-  return execute(opts.urlString, 0);
+  return execute(opts.urlString, 0, Date.now() + timeoutMs);
 }
 
 module.exports = {

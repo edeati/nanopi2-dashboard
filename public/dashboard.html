@@ -2538,6 +2538,10 @@
       var radarGifReloadForceQueued = false;
       var radarGifRefreshTimer = null;
       var radarGifRefreshMs = 120000;
+      var radarGifRetryTimer = null;
+      var radarGifRetryAttempts = 0;
+      var RADAR_GIF_RETRY_MAX_ATTEMPTS = 3;
+      var RADAR_GIF_RETRY_BASE_MS = 5000;
       var RADAR_STATUS_REFRESH_MS = 1000;
       var radarBomLastUpdatedAt = '';
       var radarRainLikely = false;
@@ -2649,6 +2653,7 @@
       radarGifImage.onload = function () {
         radarGifLoading = false;
         radarGifReady = true;
+        resetRadarGifRetry();
         setRadarMode(radarRenderMode);
         updateRadarGifStatus();
         if (radarGifReloadQueued) {
@@ -2669,7 +2674,9 @@
           radarGifReloadQueued = false;
           radarGifReloadForceQueued = false;
           loadRadarGif(queuedForce);
+          return;
         }
+        scheduleRadarGifRetry();
       };
 
       function applyTheme(preset) {
@@ -3179,10 +3186,35 @@
           radarGifReloadForceQueued = radarGifReloadForceQueued || !!force;
           return;
         }
+        cancelRadarGifRetry();
         radarGifLoading = true;
         updateRadarGifStatus();
         var src = radarGifUrl;
         radarGifImage.src = src + (src.indexOf('?') > -1 ? '&' : '?') + '_=' + Date.now();
+      }
+
+      function cancelRadarGifRetry() {
+        if (radarGifRetryTimer) {
+          clearTimeout(radarGifRetryTimer);
+          radarGifRetryTimer = null;
+        }
+      }
+
+      function resetRadarGifRetry() {
+        cancelRadarGifRetry();
+        radarGifRetryAttempts = 0;
+      }
+
+      function scheduleRadarGifRetry() {
+        if (radarGifRetryTimer || !radarGifUrl || radarGifRetryAttempts >= RADAR_GIF_RETRY_MAX_ATTEMPTS) {
+          return;
+        }
+        var delayMs = RADAR_GIF_RETRY_BASE_MS * Math.pow(2, radarGifRetryAttempts);
+        radarGifRetryAttempts += 1;
+        radarGifRetryTimer = setTimeout(function () {
+          radarGifRetryTimer = null;
+          loadRadarGif(false);
+        }, delayMs);
       }
 
       function refreshRadarGifMode(force) {
