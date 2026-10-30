@@ -1,6 +1,7 @@
 'use strict';
 
 const { requestWithDebug } = require('./http-debug');
+const { getFormatter } = require('./time-zone');
 
 function formatDateLocal(value) {
   const date = value instanceof Date ? value : new Date(value);
@@ -9,23 +10,9 @@ function formatDateLocal(value) {
     '-' + String(date.getDate()).padStart(2, '0');
 }
 
-function resolveTimeZone(timeZone) {
-  const candidate = String(timeZone || '').trim();
-  if (!candidate) {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  }
-  try {
-    new Intl.DateTimeFormat('en-CA', { timeZone: candidate }).format(new Date(0));
-    return candidate;
-  } catch (_error) {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  }
-}
-
 function formatDateInTimeZone(value, timeZone) {
   const date = value instanceof Date ? value : new Date(value);
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: resolveTimeZone(timeZone),
+  const formatter = getFormatter('en-CA', timeZone, {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit'

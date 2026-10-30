@@ -5,6 +5,7 @@ const testModules = [
   './external-sources.test.js',
   './env-overrides.test.js',
   './logger.test.js',
+  './time-zone.test.js',
   './http-debug.test.js',
   './internet-probe.test.js',
   './rainviewer.test.js',

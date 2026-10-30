@@ -20,40 +20,20 @@ const { createInternetProbeService } = require('./lib/internet-probe');
 const { createLogger, readDebugConfig } = require('./lib/logger');
 const { createDebugEventStore } = require('./lib/debug-events');
 const { createBoundedCache } = require('./lib/bounded-cache');
+const { getFormatter, resolveTimeZone } = require('./lib/time-zone');
 const { requestWithDebug } = require('./lib/http-debug');
 const { createBeatbotService } = require('./lib/beatbot/service');
 
-const formatterCache = new Map();
-
-function resolveTimeZone(timeZone) {
-  const candidate = String(timeZone || '').trim();
-  if (!candidate) {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  }
-  try {
-    new Intl.DateTimeFormat('en-CA', { timeZone: candidate }).format(new Date(0));
-    return candidate;
-  } catch (_error) {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  }
-}
-
 function getTimeFormatter(timeZone) {
-  const tz = resolveTimeZone(timeZone);
-  const key = 'dtf:' + tz;
-  if (!formatterCache.has(key)) {
-    formatterCache.set(key, new Intl.DateTimeFormat('en-CA', {
-      timeZone: tz,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false
-    }));
-  }
-  return formatterCache.get(key);
+  return getFormatter('en-CA', timeZone, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
 }
 
 function getDateTimeParts(value, timeZone) {
