@@ -6,6 +6,7 @@ const path = require('path');
 const { execFile, spawnSync } = require('child_process');
 
 const TILE_SIZE = 256;
+const FFMPEG_TIMEOUT_MS = 30000;
 let sharpProbeState = null;
 let sharpLoadError = null;
 
@@ -52,19 +53,41 @@ async function mapWithConcurrency(items, limit, mapper) {
   return results;
 }
 
-function execFileAsync(binary, args, opts, execFileImpl) {
+function runFfmpeg(binary, args, execFileImpl) {
   const runner = execFileImpl || execFile;
+  const ffmpegArgs = ['-nostdin', '-filter_complex_threads', '1', ...args];
   return new Promise((resolve, reject) => {
-    runner(binary, args, opts || {}, (error, stdout, stderr) => {
+    runner(binary, ffmpegArgs, {
+      maxBuffer: 16 * 1024 * 1024,
+      timeout: FFMPEG_TIMEOUT_MS,
+      // FFmpeg can get stuck while stopping its threads after SIGTERM.
+      killSignal: 'SIGKILL'
+    }, (error, _stdout, stderr) => {
       if (error) {
-        error.stdout = stdout;
+        if (error.killed && !error.code) {
+          error.code = 'ffmpeg_timeout';
+          error.message = 'FFmpeg timed out after ' + FFMPEG_TIMEOUT_MS + ' ms';
+        }
         error.stderr = stderr;
         reject(error);
         return;
       }
-      resolve({ stdout, stderr });
+      resolve();
     });
   });
+}
+
+async function encodeRadarGif(binary, tempDir, frameDelayMs, execFileImpl) {
+  const fps = Math.max(0.2, 1000 / Math.max(50, frameDelayMs));
+  const gifPath = path.join(tempDir, 'radar.gif');
+  await runFfmpeg(binary, [
+    '-y', '-hide_banner', '-loglevel', 'error',
+    '-framerate', String(fps),
+    '-threads', '1', '-i', path.join(tempDir, 'frame-%03d.png'),
+    '-filter_complex', 'split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3',
+    '-loop', '0', '-threads', '1', gifPath
+  ], execFileImpl);
+  return fs.readFileSync(gifPath);
 }
 
 function isPngBuffer(buffer) {
@@ -773,7 +796,7 @@ function createRadarGifRenderer(options) {
           'color=c=0x121820:s=' + plan.renderWidth + 'x' + plan.renderHeight + ':d=1'
         ];
         overlays.forEach((item) => {
-          composeArgs.push('-i', item.filePath);
+          composeArgs.push('-threads', '1', '-i', item.filePath);
         });
         const overlayFilter = buildOverlayFilterWithInputFilters(overlays.map((item) => ({
           x: item.x + plan.overscanPx,
@@ -826,46 +849,17 @@ function createRadarGifRenderer(options) {
           '-map',
           '[vouttxt]'
         );
-        composeArgs.push('-frames:v', '1', framePath);
+        composeArgs.push('-frames:v', '1', '-threads', '1', framePath);
 
-        await execFileAsync(
-          ffmpegBinary,
-          composeArgs,
-          { maxBuffer: 16 * 1024 * 1024 },
-          execFileImpl
-        );
+        await runFfmpeg(ffmpegBinary, composeArgs, execFileImpl);
       }
 
-      const fps = Math.max(0.2, 1000 / Math.max(50, plan.gifFrameDelayMs));
-      const gifPath = path.join(tempDir, 'radar.gif');
-      const encodeArgs = [
-        '-y',
-        '-hide_banner',
-        '-loglevel',
-        'error',
-        '-framerate',
-        String(fps),
-        '-i',
-        path.join(tempDir, 'frame-%03d.png'),
-        '-filter_complex',
-        'split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3',
-        '-loop',
-        '0',
-        gifPath
-      ];
-
-      await execFileAsync(
-        ffmpegBinary,
-        encodeArgs,
-        { maxBuffer: 16 * 1024 * 1024 },
-        execFileImpl
-      );
-
+      const gifBuffer = await encodeRadarGif(ffmpegBinary, tempDir, plan.gifFrameDelayMs, execFileImpl);
       logGif('debug', 'radar_gif_ffmpeg_render_complete', {
         frames: plan.framesSubset.length,
         tiles: plan.tiles.length
       });
-      return fs.readFileSync(gifPath);
+      return gifBuffer;
     } catch (error) {
       const stderr = String((error && error.stderr) || '');
       if (stderr.toLowerCase().indexOf('cannot find a valid font') > -1) {
@@ -1343,8 +1337,8 @@ function createBomGifRenderer(options) {
           '-f', 'lavfi',
           '-i', 'color=c=0x121820:s=' + plan.renderWidth + 'x' + plan.renderHeight + ':d=1'
         ];
-        mapAssets.forEach(function (item) { composeArgs.push('-i', item.filePath); });
-        if (bomFilePath) composeArgs.push('-i', bomFilePath);
+        mapAssets.forEach(function (item) { composeArgs.push('-threads', '1', '-i', item.filePath); });
+        if (bomFilePath) composeArgs.push('-threads', '1', '-i', bomFilePath);
 
         // Build map tile overlay chain
         const mapFinalLabel = bomFilePath ? '[vmapout]' : '[vout]';
@@ -1399,24 +1393,15 @@ function createBomGifRenderer(options) {
           '-filter_complex',
           (overlayFilter ? overlayFilter + ';' : '') + cropFilter + ';' + markerFilter + ';' + timestampFilter + ';' + generatedFilter,
           '-map', '[vouttxt]',
-          '-frames:v', '1', framePath
+          '-frames:v', '1', '-threads', '1', framePath
         );
 
-        await execFileAsync(ffmpegBinary, composeArgs, { maxBuffer: 16 * 1024 * 1024 }, execFileImpl);
+        await runFfmpeg(ffmpegBinary, composeArgs, execFileImpl);
       }
 
-      const fps = Math.max(0.2, 1000 / Math.max(50, plan.gifFrameDelayMs));
-      const gifPath = path.join(tempDir, 'radar.gif');
-      await execFileAsync(ffmpegBinary, [
-        '-y', '-hide_banner', '-loglevel', 'error',
-        '-framerate', String(fps),
-        '-i', path.join(tempDir, 'frame-%03d.png'),
-        '-filter_complex', 'split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3',
-        '-loop', '0', gifPath
-      ], { maxBuffer: 16 * 1024 * 1024 }, execFileImpl);
-
+      const gifBuffer = await encodeRadarGif(ffmpegBinary, tempDir, plan.gifFrameDelayMs, execFileImpl);
       logGif('debug', 'bom_gif_ffmpeg_render_complete', { frames: plan.framesSubset.length });
-      return fs.readFileSync(gifPath);
+      return gifBuffer;
     } catch (error) {
       const stderr = String((error && error.stderr) || '');
       if (stderr.toLowerCase().indexOf('cannot find a valid font') > -1) {

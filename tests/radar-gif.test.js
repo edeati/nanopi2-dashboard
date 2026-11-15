@@ -19,7 +19,47 @@ const {
   normalizeTileCoords
 } = require('../src/lib/radar-gif');
 
+async function testRenderRecoversFromHungFfmpeg() {
+  const tile = {
+    contentType: 'image/png',
+    body: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAACXBIWXMAAAABAAAAAQBPJcTWAAAAFElEQVR4nGNkIBGwjGoY1TB8NQAAYgAAPn161xsAAAAASUVORK5CYII=',
+      'base64'
+    )
+  };
+  const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanopi2-radar-timeout-test-'));
+  let stall = true;
+  try {
+    const renderer = createRadarGifRenderer({
+      execFileImpl(binary, args, options, callback) {
+        if (!stall) return execFile(binary, args, options, callback);
+        stall = false;
+        // Keep the real subprocess deadline short. The child exits on its own if the deadline is missing.
+        return execFile(process.execPath, ['-e', `
+          process.on('SIGTERM', () => {});
+          setTimeout(() => process.exit(11), 3000);
+        `], { ...options, timeout: options.timeout ? Math.min(options.timeout, 500) : 0 }, callback);
+      },
+      fetchMapTile: async () => tile,
+      fetchRadarTile: async () => tile,
+      getRadarState: () => ({ frames: [{ time: Math.floor(Date.now() / 1000), path: '/frame' }] }),
+      config: { radar: { gifWidth: 120, gifHeight: 80, gifExtraTiles: 0, gifMaxFrames: 1 } },
+      gifCacheDir: cacheDir
+    });
+    if (!renderer.canRender()) return;
+
+    await assert.rejects(renderer.renderOnce(), { code: 'ffmpeg_timeout' });
+    assert.strictEqual(renderer.getLatestGif(), null);
+    await renderer.renderOnce();
+    assert.strictEqual(renderer.getLatestGif().body.toString('ascii', 0, 3), 'GIF');
+  } finally {
+    fs.rmSync(cacheDir, { recursive: true, force: true });
+  }
+}
+
 module.exports = async function run() {
+  await testRenderRecoversFromHungFfmpeg();
+
   // If sharp is unavailable in this environment, verify ffmpeg-missing degradation only.
   if (!sharp) {
     const renderer = createRadarGifRenderer({
