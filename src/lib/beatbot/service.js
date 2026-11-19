@@ -1,6 +1,7 @@
 'use strict';
 
 const { BeatbotClient } = require('./client');
+const { createCleaningEstimate } = require('./cleaning-estimate');
 const { createBeatbotEventClient } = require('./events');
 const { getValidAccessToken, saveTokens, loadTokens } = require('./auth');
 const { INTERFACES, PRODUCT_CATEGORY, statusFor, statusLabel, errorsFor, errorLabels } = require('./protocol');
@@ -43,7 +44,7 @@ function normalizeDevice(device) {
   const workModeOptions = device.workModeOptions || {};
   const availableWorkModes = Object.values(workModeOptions);
 
-  const statusKey = statusFor(device.workStatus || 0);
+  const statusKey = statusFor(device.workStatus);
   const errors = errorsFor(device.errorCode || 0);
 
   return {
@@ -51,7 +52,7 @@ function normalizeDevice(device) {
     name: device.name || 'Pool Cleaner',
     model: device.model || 'Unknown',
     online: !!device.isOnline,
-    battery: Number.isFinite(device.batteryLevel) && device.batteryLevel > 0
+    battery: Number.isFinite(device.batteryLevel) && (device.batteryLevel > 0 || device.isOnline)
       ? device.batteryLevel
       : null,
     status: statusKey || null,
@@ -150,6 +151,12 @@ function createBeatbotService(opts) {
   const tokensPath = opts.tokensPath;
   const reconcileMs = opts.reconcileMs || RECONCILE_DEFAULT_MS;
   const logger = opts.logger || { debug() {}, info() {}, warn() {}, error() {} };
+  const cleaningEstimate = createCleaningEstimate({
+    now: opts.now,
+    historyPath: opts.cleaningHistoryPath,
+    cycleMinutes: opts.estimatedCycleMinutes,
+    logger
+  });
   const timers = opts.timers || {
     setTimeout,
     clearTimeout,
@@ -197,9 +204,16 @@ function createBeatbotService(opts) {
     if (!raw) {
       stateCache.delete(deviceId);
       activeSinceByDevice.delete(deviceId);
+      cleaningEstimate.delete(deviceId);
       return;
     }
+    const previous = stateCache.get(deviceId);
     const normalized = normalizeDevice(raw);
+    if (normalized.battery === null) {
+      normalized.battery = previous?.battery ?? null;
+      raw.batteryLevel = normalized.battery;
+    }
+    normalized.estimatedEndAt = cleaningEstimate.update(normalized, previous?.status);
     if (ACTIVE_STATUSES.has(normalized.status)) {
       if (!activeSinceByDevice.has(deviceId)) {
         activeSinceByDevice.set(deviceId, new Date().toISOString());
@@ -259,7 +273,7 @@ function createBeatbotService(opts) {
     for (const id of rawDevices.keys()) {
       if (!seen.has(id)) {
         rawDevices.delete(id);
-        stateCache.delete(id);
+        updateCache(id);
       }
     }
 
@@ -335,8 +349,7 @@ function createBeatbotService(opts) {
     }
     if (event.eventType === 'device_removed') {
       rawDevices.delete(event.deviceId);
-      stateCache.delete(event.deviceId);
-      activeSinceByDevice.delete(event.deviceId);
+      updateCache(event.deviceId);
       return;
     }
     const raw = rawDevices.get(event.deviceId);
@@ -427,6 +440,7 @@ function createBeatbotService(opts) {
       started = false;
       client = null;
       stale = true;
+      cleaningEstimate.clear();
       stopEventStream();
       if (reconcileTimer !== null) {
         timers.clearInterval(reconcileTimer);
@@ -457,6 +471,8 @@ function createBeatbotService(opts) {
     async sendReturn(deviceId) {
       assertControllable(deviceId, 'return', INTERFACES.VACUUM_RETURN);
       await client.sendAction(deviceId, INTERFACES.VACUUM_RETURN);
+      cleaningEstimate.delete(deviceId);
+      updateCache(deviceId);
     },
 
     async setWorkMode(deviceId, modeLabel) {

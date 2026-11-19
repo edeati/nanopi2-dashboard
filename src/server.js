@@ -1155,6 +1155,8 @@ function createServer(options) {
   const beatbotService = (options && options.beatbotService) ||
     (beatbotEnabled ? createBeatbotService({
       tokensPath: beatbotTokensPath,
+      cleaningHistoryPath: path.join(configDir, 'beatbot-cleaning-history.json'),
+      estimatedCycleMinutes: beatbotConfig.estimatedCycleMinutes,
       reconcileMs: Number(beatbotConfig.pollIntervalSeconds || 600) * 1000,
       logger
     }) : null);

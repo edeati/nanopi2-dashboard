@@ -614,6 +614,105 @@ async function testAuthenticationRecovery() {
   }
 }
 
+async function testCleaningEstimate() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'beatbot-cleaning-'));
+  const tokensPath = path.join(dir, 'tokens.json');
+  const historyPath = path.join(dir, 'cleaning-history.json');
+  const originalDiscovery = BeatbotClient.prototype.getDevices;
+  const originalStates = BeatbotClient.prototype.getDeviceStates;
+  const device = makeRawDevice({ workStatus: 0, workModeOptions: { 1: 'fast', 2: 'wall', 3: 'custom' } });
+  let now = Date.now();
+  let state = {};
+  let onEvent;
+  const options = {
+    tokensPath,
+    cleaningHistoryPath: historyPath,
+    estimatedCycleMinutes: { fast: 150, wall: 90 },
+    now: () => now,
+    createEventClient(handlers) {
+      onEvent = handlers.onEvent;
+      return { start() {}, stop() {} };
+    }
+  };
+  let service = createBeatbotService(options);
+  const current = () => service.getDevice(device.deviceId);
+  const advance = (minutes) => { now += minutes * 60000; };
+  const finishAt = (minutes) => new Date(now + minutes * 60000).toISOString();
+  const property = (interfaceInfo, value) => onEvent({
+    deviceId: device.deviceId,
+    eventType: 'properties_changed',
+    payload: { interfaceInfo, value }
+  });
+  try {
+    saveTokens(tokensPath, { accessToken: 'TEST', refreshToken: 'REFRESH', region: 'eu', expiresAt: Date.now() + 3600000 });
+    BeatbotClient.prototype.getDevices = async () => [{ ...device }];
+    BeatbotClient.prototype.getDeviceStates = async () => state;
+    await service.start();
+    assert.strictEqual(current().estimatedEndAt, null);
+
+    state = { [device.deviceId]: { isOnline: false, states: { 'vacuum.state': 12, 'vacuum.battery': 0 } } };
+    await service.reconcileNow();
+    assert.strictEqual(current().battery, 87, 'offline zero should preserve the last reported battery');
+    onEvent({ deviceId: device.deviceId, eventType: 'status', payload: { online: true } });
+    assert.strictEqual(current().battery, 87, 'reconnecting without a battery report should preserve the reading');
+    const firstEstimate = finishAt(150);
+    assert.strictEqual(current().estimatedEndAt, firstEstimate);
+    advance(5);
+    property(INTERFACES.VACUUM_STATE, 5);
+    assert.strictEqual(current().estimatedEndAt, firstEstimate, 'transition from diving must retain the estimate');
+    property(INTERFACES.VACUUM_STATE, 4);
+    assert.strictEqual(current().estimatedEndAt, null, 'pause should suspend the estimate');
+    advance(10);
+    property(INTERFACES.VACUUM_STATE, 5);
+    assert.strictEqual(
+      Date.parse(current().estimatedEndAt),
+      Date.parse(firstEstimate) + 10 * 60000,
+      'resume should add the time spent paused'
+    );
+    advance(107);
+    property(INTERFACES.VACUUM_STATE, 7);
+    assert.strictEqual(current().estimatedEndAt, null, 'returning should clear the estimate');
+    advance(3);
+    property(INTERFACES.VACUUM_STATE, 8);
+    service.stop();
+
+    state = {};
+    service = createBeatbotService(options);
+    await service.start();
+    property(INTERFACES.VACUUM_STATE, 12);
+    assert.strictEqual(current().estimatedEndAt, finishAt(112), 'the learned duration should survive a restart');
+    advance(113);
+    property(INTERFACES.VACUUM_STATE, 5);
+    assert.strictEqual(current().estimatedEndAt, null, 'overdue estimates should no longer be shown');
+    property(INTERFACES.VACUUM_STATE, 4);
+    property(INTERFACES.VACUUM_STATE, 5);
+    assert.strictEqual(current().estimatedEndAt, null, 'resuming a paused run should not create a new start');
+    property(INTERFACES.VACUUM_STATE, 0);
+    property(INTERFACES.WORK_MODE, 2);
+    property(INTERFACES.VACUUM_STATE, 12);
+    assert.strictEqual(current().estimatedEndAt, finishAt(90), 'wall cleaning uses its own duration');
+    property(INTERFACES.VACUUM_STATE, 0);
+    property(INTERFACES.WORK_MODE, 3);
+    property(INTERFACES.VACUUM_STATE, 12);
+    assert.strictEqual(current().estimatedEndAt, null, 'modes without a duration should not borrow another mode’s estimate');
+    service.stop();
+
+    state = { [device.deviceId]: { isOnline: false, states: { 'vacuum.state': 12 } } };
+    service = createBeatbotService(options);
+    await service.start();
+    assert.strictEqual(current().estimatedEndAt, finishAt(112), 'startup during a run supplies a provisional estimate');
+    advance(25);
+    property(INTERFACES.VACUUM_STATE, 8);
+    property(INTERFACES.VACUUM_STATE, 12);
+    assert.strictEqual(current().estimatedEndAt, finishAt(112), 'a partial observation does not replace a measured cycle');
+  } finally {
+    service.stop();
+    BeatbotClient.prototype.getDevices = originalDiscovery;
+    BeatbotClient.prototype.getDeviceStates = originalStates;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 async function testAdminReconnectAction() {
   const html = fs.readFileSync(path.join(__dirname, '../public/admin.html'), 'utf8');
   const source = html.match(/      function refreshBeatbot\(\) \{[\s\S]*?\n      \}/);
@@ -700,6 +799,7 @@ module.exports = async function run() {
   testWorkModeDynamic();
   testTokensNotInLogs();
   await testAuthenticationRecovery();
+  await testCleaningEstimate();
   await testAdminReconnectAction();
   await testPermanentEventAuthenticationFailure();
 };

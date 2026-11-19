@@ -144,8 +144,6 @@ module.exports = async function run() {
   assert.ok(html.indexOf('function renderCombinedStrip(') > -1, 'combined strip renderer missing');
   assert.ok(html.indexOf('function buildReminderStripCards(') > -1, 'reminder strip card builder missing');
   assert.ok(html.indexOf("date: item.dueDate || '',") > -1, 'reminder strip cards should carry the due date');
-  assert.ok(html.indexOf("var combinedStripCards = buildCombinedStripCards(state);") > -1, 'state apply should build combined strip cards');
-  assert.ok(html.indexOf('buildWeatherStripCards(state).concat(buildBinsStripCards(state), buildReminderStripCards(state));') > -1, 'combined strip should render weather first, then bins, then reminders');
   assert.ok(html.indexOf('#binCard {\n      display: none;') > -1, 'legacy bins panel should be hidden once combined into the strip');
   assert.ok(html.indexOf('strip-card-metrics') > -1, 'climate strip cards should render explicit metric rows');
   assert.strictEqual(html.indexOf('Temperature</span>'), -1, 'climate strip cards should remove verbose temperature labels');

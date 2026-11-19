@@ -3,6 +3,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
 module.exports = async function run() {
   const html = fs.readFileSync(path.join(process.cwd(), 'public/dashboard.html'), 'utf8');
@@ -41,4 +42,63 @@ module.exports = async function run() {
   assert.ok(html.indexOf('var pcModeSummaryHtml = \'\';') > -1, 'pool cleaner mode summary guard missing');
   assert.ok(html.indexOf('if (card.workMode && !pcModes.length)') > -1, 'pool cleaner should not duplicate mode text when the selector is available');
   assert.strictEqual(html.indexOf('<span class=\\"pool-cleaner-name\\">' + "' + escapeHtml(card.label"), -1, 'pool cleaner static card should not render device name row');
+
+  const staticPanel = { hidden: true };
+  const staticContent = {};
+  const stripTrack = {};
+  const layout = new Set();
+  const context = vm.createContext({
+    poolCleanerCardNode: staticPanel,
+    poolCleanerStaticNode: staticContent,
+    bottomRowNode: { classList: { toggle(name, show) { if (show) layout.add(name); else layout.delete(name); } } },
+    weatherBinsStripTrackNode: stripTrack,
+    poolCleanerActiveFallback: {},
+    lastPoolCleanerSig: '',
+    lastCombinedStripSig: '',
+    escapeHtml: String,
+    attachPoolCleanerControls() {},
+    buildWeatherStripCards: () => [],
+    buildBinsStripCards: () => [],
+    buildReminderStripCards: () => []
+  });
+  for (const name of [
+    'buildPoolCleanerCard', 'poolCleanerModeLabel', 'poolCleanerIsActive', 'poolCleanerStateIcon',
+    'formatPoolCleanerElapsed', 'poolCleanerActiveSinceMs', 'poolCleanerSignature',
+    'renderPoolCleanerBattery', 'renderPoolCleanerStatic', 'buildCombinedStripCards',
+    'combinedStripSignature', 'renderCombinedStripCard', 'renderCombinedStrip'
+  ]) {
+    vm.runInContext(html.match(new RegExp('^      function ' + name + '\\([^\\n]+\\n[\\s\\S]*?^      \\}', 'm'))[0], context);
+  }
+  const applyStrip = html.slice(html.indexOf('        var nextPoolCleanerCard ='), html.indexOf('        var newsHeadlines ='));
+  const cleaner = { id: 'test', battery: 68, online: false, status: 'standby' };
+  context.state = { beatbot: { devices: [cleaner] } };
+  vm.runInContext(applyStrip, context);
+  assert.ok(staticPanel.hidden && !layout.has('has-static-pool-cleaner'), 'offline strip should reclaim the static column');
+  assert.match(stripTrack.innerHTML, /#i-pc-offline/);
+  assert.match(stripTrack.innerHTML, /68%/);
+  for (const card of stripTrack.innerHTML.match(/<article\b[\s\S]*?<\/article>/g)) {
+    assert.strictEqual(card.replace(/<[^>]*>/g, '').trim(), '68%');
+  }
+
+  cleaner.online = true;
+  vm.runInContext(applyStrip, context);
+  assert.ok(!staticPanel.hidden && layout.has('has-static-pool-cleaner'));
+  assert.doesNotMatch(stripTrack.innerHTML, /#i-pc-offline/);
+
+  cleaner.online = false;
+  cleaner.status = 'diving';
+  cleaner.estimatedEndAt = new Date(Date.now() + 3600000).toISOString();
+  vm.runInContext(applyStrip, context);
+  assert.ok(!staticPanel.hidden, 'underwater cleaner should stay in the static column');
+  assert.ok(staticContent.innerHTML.includes('<time datetime="' + cleaner.estimatedEndAt));
+
+  cleaner.estimatedEndAt = new Date(Date.now() + 7200000).toISOString();
+  vm.runInContext(applyStrip, context);
+  assert.ok(staticContent.innerHTML.includes(cleaner.estimatedEndAt), 'a new estimate should refresh the static card');
+
+  cleaner.status = 'standby';
+  cleaner.battery = null;
+  vm.runInContext(applyStrip, context);
+  assert.ok(staticPanel.hidden && !layout.has('has-static-pool-cleaner'));
+  assert.match(stripTrack.innerHTML, /<strong>--<\/strong>/, 'unknown battery should not appear as zero percent');
 };

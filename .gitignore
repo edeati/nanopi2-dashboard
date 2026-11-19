@@ -7,3 +7,5 @@ config/auth.json
 nohup.out
 froniusapi.pdf
 config/beatbot-tokens.json
+config/beatbot-cleaning-history.json
+config/beatbot-cleaning-history.json.tmp
