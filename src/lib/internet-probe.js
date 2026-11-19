@@ -36,15 +36,13 @@ function createInternetProbeService(options) {
     return cur;
   }
 
-  function toNumber(value) {
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return value;
-    }
+  function parseSpeedMbps(value) {
     if (typeof value === 'string') {
-      const parsed = Number(String(value).replace(/[^0-9.\-]/g, ''));
-      return Number.isFinite(parsed) ? parsed : NaN;
+      const reading = value.trim().replace(/\s*(?:Mbps|Mb\/s)$/i, '').replace(/,/g, '');
+      value = reading.trim() ? Number(reading) : NaN;
     }
-    return NaN;
+    // MySpeed stores negative readings for failed tests.
+    return Number.isFinite(value) && value >= 0 ? value : NaN;
   }
 
   function parseTimestamp(value, fallbackTs) {
@@ -93,13 +91,13 @@ function createInternetProbeService(options) {
     let down = NaN;
     let up = NaN;
     for (let i = 0; i < downCandidates.length; i += 1) {
-      down = toNumber(readNested(payload, downCandidates[i]));
+      down = parseSpeedMbps(readNested(payload, downCandidates[i]));
       if (Number.isFinite(down)) {
         break;
       }
     }
     for (let i = 0; i < upCandidates.length; i += 1) {
-      up = toNumber(readNested(payload, upCandidates[i]));
+      up = parseSpeedMbps(readNested(payload, upCandidates[i]));
       if (Number.isFinite(up)) {
         break;
       }

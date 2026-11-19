@@ -2285,9 +2285,12 @@
       stroke-linejoin: round;
     }
     .strip-card-pool {
-      grid-template-columns: auto auto;
-      place-content: center;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+    .strip-card-pool-body {
+      display: flex;
       align-items: center;
+      justify-content: center;
       gap: 14px;
     }
     .strip-pool-offline-icon { width: 34px; height: 34px; }
@@ -3706,6 +3709,14 @@
         }).join('');
       }
 
+      function isInternetSpeed(value) {
+        return Number.isFinite(value) && value >= 0;
+      }
+
+      function formatInternetSpeed(value, decimals) {
+        return isInternetSpeed(value) ? value.toFixed(decimals) + ' Mbps' : '--';
+      }
+
       function drawWeatherInternetMiniChart(history) {
         var canvas = document.getElementById('stripInternetMiniChart') || document.getElementById('weatherInternetMiniChart');
         if (!canvas || !canvas.getContext) {
@@ -3715,7 +3726,9 @@
         var w = canvas.width;
         var h = canvas.height;
         ctx.clearRect(0, 0, w, h);
-        var samples = Array.isArray(history) ? history.slice(-30) : [];
+        var samples = Array.isArray(history) ? history.filter(function (sample) {
+          return sample && isInternetSpeed(sample.downloadMbps);
+        }).slice(-30) : [];
         if (!samples.length) {
           return;
         }
@@ -3780,13 +3793,13 @@
         }
         if (state.internet) {
           var history = Array.isArray(state.internet.history) ? state.internet.history : [];
-          var downNow = Number.isFinite(Number(state.internet.downloadMbps)) ? Number(state.internet.downloadMbps) : null;
-          var upNow = Number.isFinite(Number(state.internet.uploadMbps)) ? Number(state.internet.uploadMbps) : null;
+          var downNow = isInternetSpeed(state.internet.downloadMbps) ? state.internet.downloadMbps : null;
+          var upNow = isInternetSpeed(state.internet.uploadMbps) ? state.internet.uploadMbps : null;
           if (!history.length && downNow !== null) {
             history = [{
               ts: Date.now(),
               downloadMbps: downNow,
-              uploadMbps: upNow !== null ? upNow : 0,
+              uploadMbps: upNow,
               online: !!state.internet.online
             }];
           }
@@ -3826,8 +3839,8 @@
             }).join(',');
           }
           if (card.kind === 'internet') {
-            var d = Number.isFinite(Number(card.downloadMbps)) ? Number(card.downloadMbps).toFixed(1) : '--';
-            var u = Number.isFinite(Number(card.uploadMbps)) ? Number(card.uploadMbps).toFixed(1) : '--';
+            var d = formatInternetSpeed(card.downloadMbps, 1);
+            var u = formatInternetSpeed(card.uploadMbps, 1);
             var h = Array.isArray(card.history) ? card.history : [];
             var hl = h.length;
             var ht = hl ? String(h[hl - 1].ts || '') : '';
@@ -4283,16 +4296,18 @@
           return '<article class="strip-card strip-card-weather strip-card-stack">' +
             '<div class="strip-card-head"><div class="strip-card-kicker">Network</div><div class="strip-card-tag">' + (card.online ? 'Online' : 'Offline') + '</div></div>' +
             '<div class="strip-card-title has-divider">Internet</div>' +
-            '<div class="strip-card-value">' + (Number.isFinite(Number(card.downloadMbps)) ? Number(card.downloadMbps).toFixed(0) + ' Mbps' : '--') + '</div>' +
-            '<div class="strip-card-sub">Upload <span class="strip-card-sub-value">' + (Number.isFinite(Number(card.uploadMbps)) ? Number(card.uploadMbps).toFixed(0) + ' Mbps' : '--') + '</span></div>' +
+            '<div class="strip-card-value">' + formatInternetSpeed(card.downloadMbps, 0) + '</div>' +
+            '<div class="strip-card-sub">Upload <span class="strip-card-sub-value">' + formatInternetSpeed(card.uploadMbps, 0) + '</span></div>' +
             '<canvas id="stripInternetMiniChart" class="strip-internet-chart" width="196" height="40"></canvas>' +
             '</article>';
         }
         if (card.kind === 'pool_cleaner') {
           return '<article class="strip-card strip-card-pool" aria-label="Pool cleaner offline">' +
+            '<div class="strip-card-head has-divider"><div class="strip-card-kicker">Pool Cleaner</div></div>' +
+            '<div class="strip-card-pool-body">' +
             '<span class="strip-pool-offline-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-pc-offline"></use></svg></span>' +
             renderPoolCleanerBattery(card.battery, true) +
-            '</article>';
+            '</div></article>';
         }
         if (card.kind === 'bin_feature') {
           return '<article class="strip-card strip-card-bin ' + escapeHtml(card.toneClass || '') + '">' +
@@ -4394,10 +4409,8 @@
           return;
         }
         if (card.kind === 'internet') {
-          var hasDown = Number.isFinite(Number(card.downloadMbps)) && Number(card.downloadMbps) > 0.01;
-          var hasUp = Number.isFinite(Number(card.uploadMbps)) && Number(card.uploadMbps) > 0.01;
-          var downText = hasDown ? (Number(card.downloadMbps).toFixed(1) + ' Mbps') : 'Sampling...';
-          var upText = hasUp ? (Number(card.uploadMbps).toFixed(1) + ' Mbps') : '--';
+          var downText = isInternetSpeed(card.downloadMbps) ? formatInternetSpeed(card.downloadMbps, 1) : 'Sampling...';
+          var upText = formatInternetSpeed(card.uploadMbps, 1);
           node.innerHTML =
             '<div class=\"weather-rotator-card\">' +
             '<div class=\"weather-rotator-title\">🌐 Internet</div>' +

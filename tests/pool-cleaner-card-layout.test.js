@@ -75,9 +75,8 @@ module.exports = async function run() {
   vm.runInContext(applyStrip, context);
   assert.ok(staticPanel.hidden && !layout.has('has-static-pool-cleaner'), 'offline strip should reclaim the static column');
   assert.match(stripTrack.innerHTML, /#i-pc-offline/);
-  assert.match(stripTrack.innerHTML, /68%/);
   for (const card of stripTrack.innerHTML.match(/<article\b[\s\S]*?<\/article>/g)) {
-    assert.strictEqual(card.replace(/<[^>]*>/g, '').trim(), '68%');
+    assert.match(card.replace(/<[^>]*>/g, '').trim(), /^Pool Cleaner\s*68%$/);
   }
 
   cleaner.online = true;
