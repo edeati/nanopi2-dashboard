@@ -2004,12 +2004,14 @@
     /* ── Beatbot pool cleaner card ─────────────────────────── */
     #poolCleanerCard.panel-icon {
       grid-template-columns: minmax(0, 1fr);
-      padding: 29px 10px 8px;
+      grid-template-rows: minmax(0, 1fr);
+      padding: 32px 11px 10px;
     }
     .pool-cleaner-card {
       min-width: 0;
-      display: grid;
-      align-content: start;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
       gap: 8px;
       font-family: var(--font-ui);
     }
@@ -2047,7 +2049,7 @@
       display: flex;
       align-items: center;
       gap: 5px;
-      font-size: 17px;
+      font-size: 16px;
       font-weight: 700;
       color: #eef3ef;
     }
@@ -2134,37 +2136,54 @@
     .pool-cleaner-battery.bat-mid { color: var(--orange); }
     .pool-cleaner-battery.bat-low { color: var(--red); }
     .pool-cleaner-finish {
+      flex: 1 0 auto;
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 7px 0;
-      border-top: 1px solid #42575a;
-      border-bottom: 1px solid #42575a;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 5px;
+      padding: 2px 0;
       color: #c9d8d4;
-      line-height: 1.15;
-      font-size: 13px;
+      line-height: 1.25;
+      font-size: 12px;
       font-weight: 600;
     }
-    .pool-cleaner-finish-label { max-width: 10ch; }
     .pool-cleaner-finish time {
       display: block;
-      color: #e4fbeb;
+      color: #eaf5f0;
       font-family: var(--font-data);
-      font-size: clamp(30px, 4.8vh, 36px);
-      font-weight: 800;
+      font-size: clamp(28px, calc(4.8vh - 2px), 34px);
+      font-weight: 700;
       font-variant-numeric: tabular-nums;
       line-height: 1;
       white-space: nowrap;
     }
-    .pool-cleaner-mode-summary {
-      color: #b6c5c3;
-      font-size: 12px;
-      line-height: 1.15;
+    .pool-cleaner-footer {
+      margin-top: auto;
+      padding-top: 7px;
+      border-top: 1px solid #3a5054;
     }
-    .pool-cleaner-mode-summary strong {
+    .pool-cleaner-mode-summary {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 7px;
       color: #eef3ef;
-      font-size: 14px;
+      font-size: 13px;
+      font-weight: 650;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+    .pool-cleaner-mode-icon {
+      width: 20px;
+      height: 20px;
+      flex: 0 0 20px;
+      color: #a6d7cb;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
     .pool-cleaner-error {
       overflow: hidden;
@@ -2210,12 +2229,19 @@
     .strip-card-pool .pool-cleaner-battery strong { font-size: 24px; }
 
     @media (min-width: 1101px) {
-      .pool-cleaner-finish time { font-size: clamp(36px, 5.4vh, 48px); }
+      .pool-cleaner-finish time { font-size: clamp(34px, calc(5.4vh - 2px), 46px); }
     }
 
     @media (max-height: 680px) {
+      #poolCleanerCard.panel-icon { padding-top: 29px; padding-bottom: 8px; }
       .pool-cleaner-card { gap: 5px; }
-      .pool-cleaner-finish { padding: 4px 0; }
+      .pool-cleaner-finish {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .pool-cleaner-footer { padding-top: 4px; }
     }
 
   </style>
@@ -2239,6 +2265,10 @@
     <symbol id="i-pc-sleep" viewBox="0 0 24 24"><path d="M19 15.5A8 8 0 0 1 8.5 5 8.5 8.5 0 1 0 19 15.5Z"/></symbol>
     <symbol id="i-pc-alert" viewBox="0 0 24 24"><path d="m12 3 9 17H3l9-17Zm0 6v5m0 3h.01"/></symbol>
     <symbol id="i-pc-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/></symbol>
+    <symbol id="i-pc-mode-floor" viewBox="0 0 24 24"><path d="M3 6v9a4 4 0 0 0 4 4h10a4 4 0 0 0 4-4V6" opacity=".55"/><path d="M7 15h10"/></symbol>
+    <symbol id="i-pc-mode-standard" viewBox="0 0 24 24"><path d="M3 6v9a4 4 0 0 0 4 4h10a4 4 0 0 0 4-4V6" opacity=".55"/><path d="M7 8v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8"/></symbol>
+    <symbol id="i-pc-mode-eco" viewBox="0 0 24 24"><path d="M20 4v4a10 10 0 0 1-10 10H6v-4A10 10 0 0 1 16 4h4ZM4 20l9-9"/></symbol>
+    <symbol id="i-pc-mode-waterline" viewBox="0 0 24 24"><path d="M3 6v9a4 4 0 0 0 4 4h10a4 4 0 0 0 4-4V6" opacity=".55"/><path d="M6 10c2-2 4-2 6 0s4 2 6 0"/></symbol>
   </svg>
 
   <div class="global-bar">
@@ -3771,18 +3801,20 @@
         };
       }
 
-      function poolCleanerModeLabel(mode) {
+      function renderPoolCleanerMode(mode) {
         var key = String(mode || '').toLowerCase();
-        var labels = {
-          fast: 'Floor',
-          standard: 'Floor + Wall',
-          cec: 'Eco',
-          wall: 'Waterline'
+        var modes = {
+          fast: { label: 'Floor', icon: 'floor' },
+          standard: { label: 'Floor + Wall', icon: 'standard' },
+          cec: { label: 'Eco', icon: 'eco' },
+          wall: { label: 'Waterline', icon: 'waterline' }
         };
-        if (labels[key]) {
-          return labels[key];
-        }
-        return key ? key.replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); }) : '';
+        var selected = Object.prototype.hasOwnProperty.call(modes, key) ? modes[key] : null;
+        var label = selected ? selected.label : key.replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+        var icon = selected ? '<svg class="pool-cleaner-mode-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pc-mode-' +
+          selected.icon + '"></use></svg>' : '';
+        return '<div class="pool-cleaner-mode-summary" role="group" aria-label="Cleaning mode">' +
+          icon + '<span>' + escapeHtml(label || 'Unavailable') + '</span></div>';
       }
 
       function poolCleanerIsActive(status) {
@@ -3910,7 +3942,6 @@
 
         var errors = card.errors.length ? '<div class="pool-cleaner-error" title="' + escapeHtml(card.errors.join(' · ')) + '">' +
           escapeHtml(card.errors[0]) + '</div>' : '';
-        var mode = poolCleanerModeLabel(card.workMode) || '--';
         var park = card.canPark
           ? '<button type="button" class="pool-cleaner-park" data-pc-park="' + escapeHtml(card.id) + '">Park</button>' : '';
 
@@ -3925,7 +3956,7 @@
           '</div>' +
           renderPoolCleanerEstimate(card) +
           '<div class="pool-cleaner-footer">' +
-          '<div class="pool-cleaner-mode-summary">Mode <strong>' + escapeHtml(mode) + '</strong></div>' + park +
+          renderPoolCleanerMode(card.workMode) + park +
           '</div>' + errors +
           '</div>';
         attachPoolCleanerPark(poolCleanerStaticNode);

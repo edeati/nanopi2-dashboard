@@ -26,7 +26,7 @@ module.exports = async function run() {
     buildReminderStripCards: () => []
   });
   for (const name of [
-    'buildPoolCleanerCard', 'poolCleanerModeLabel', 'poolCleanerIsActive', 'poolCleanerStateIcon',
+    'buildPoolCleanerCard', 'renderPoolCleanerMode', 'poolCleanerIsActive', 'poolCleanerStateIcon',
     'renderPoolCleanerEstimate', 'poolCleanerSignature',
     'renderPoolCleanerBattery', 'renderPoolCleanerStatic', 'buildCombinedStripCards',
     'combinedStripSignature', 'renderCombinedStripCard', 'renderCombinedStrip'
@@ -64,11 +64,18 @@ module.exports = async function run() {
   assert.match(staticContent.innerHTML, /Last known/);
   assert.match(staticContent.innerHTML, /68%/);
   assert.match(staticContent.innerHTML, />Floor</);
+  assert.match(staticContent.innerHTML, /href="#i-pc-mode-floor"/);
   assert.doesNotMatch(staticContent.innerHTML, /<(?:button|select)\b/, 'underwater card has no controls');
 
   cleaner.estimatedEndAt = new Date(Date.now() + 7200000).toISOString();
   vm.runInContext(applyStrip, context);
   assert.ok(staticContent.innerHTML.includes(cleaner.estimatedEndAt), 'a new estimate should refresh the static card');
+
+  cleaner.workMode = 'wall';
+  vm.runInContext(applyStrip, context);
+  assert.match(staticContent.innerHTML, />Waterline</);
+  assert.match(staticContent.innerHTML, /href="#i-pc-mode-waterline"/);
+  assert.doesNotMatch(staticContent.innerHTML, /href="#i-pc-mode-floor"/);
 
   cleaner.online = true;
   cleaner.status = 'return_trip';
