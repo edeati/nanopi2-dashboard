@@ -649,6 +649,11 @@ async function testCleaningEstimate() {
     BeatbotClient.prototype.getDeviceStates = async () => state;
     await service.start();
     assert.strictEqual(current().estimatedEndAt, null);
+    assert.strictEqual(current().cleanCompletedAt, null);
+    property(INTERFACES.SENSOR_ERROR, 2);
+    assert.strictEqual(current().basketAlert, 'removed');
+    property(INTERFACES.SENSOR_ERROR, 0);
+    assert.strictEqual(current().basketAlert, null);
 
     state = { [device.deviceId]: { isOnline: false, states: { 'vacuum.state': 12, 'vacuum.battery': 0 } } };
     await service.reconcileNow();
@@ -674,11 +679,17 @@ async function testCleaningEstimate() {
     assert.strictEqual(current().estimatedEndAt, null, 'returning should clear the estimate');
     advance(3);
     property(INTERFACES.VACUUM_STATE, 8);
+    const completedAt = finishAt(0);
+    assert.strictEqual(current().cleanCompletedAt, completedAt);
+    advance(1);
+    property(INTERFACES.VACUUM_STATE, 0);
+    assert.strictEqual(current().cleanCompletedAt, completedAt, 'standby preserves the observed finish time');
     service.stop();
 
     state = {};
     service = createBeatbotService(options);
     await service.start();
+    assert.strictEqual(current().cleanCompletedAt, completedAt, 'the observed finish time survives a restart');
     property(INTERFACES.VACUUM_STATE, 12);
     assert.strictEqual(current().estimatedEndAt, finishAt(112), 'the learned duration should survive a restart');
     advance(113);
@@ -705,6 +716,14 @@ async function testCleaningEstimate() {
     property(INTERFACES.VACUUM_STATE, 8);
     property(INTERFACES.VACUUM_STATE, 12);
     assert.strictEqual(current().estimatedEndAt, finishAt(112), 'a partial observation does not replace a measured cycle');
+    service.stop();
+
+    fs.writeFileSync(historyPath, JSON.stringify({ [JSON.stringify([device.deviceId, 'fast'])]: 112 }));
+    fs.utimesSync(historyPath, new Date(completedAt), new Date(completedAt));
+    state = {};
+    service = createBeatbotService(options);
+    await service.start();
+    assert.strictEqual(current().cleanCompletedAt, completedAt, 'a single legacy completion uses its history timestamp');
   } finally {
     service.stop();
     BeatbotClient.prototype.getDevices = originalDiscovery;

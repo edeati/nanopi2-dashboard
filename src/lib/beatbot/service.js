@@ -17,6 +17,13 @@ const ACTIVE_STATUSES = new Set([
   'self_cleaning'
 ]);
 
+function basketAlertFor(errors) {
+  if (errors.includes('dust_box_loss')) {
+    return 'removed';
+  }
+  return errors.includes('dust_box_full') ? 'full' : null;
+}
+
 /**
  * Normalize a raw Beatbot device object + runtime state into PoolCleanerState.
  * @param {object} device   Parsed discovery device (from BeatbotClient._parseDevice)
@@ -60,6 +67,7 @@ function normalizeDevice(device) {
     workMode: workModeOptions[device.workMode] || null,
     availableWorkModes,
     errors: errorLabels(errors),
+    basketAlert: basketAlertFor(errors),
     supportedActions,
     childLock: caps[INTERFACES.CHILD_LOCK] ? !!device.childLock : null,
     voiceDisturb: caps[INTERFACES.VOICE_DISTURB] ? !!device.voiceDisturb : null,
@@ -151,8 +159,9 @@ function createBeatbotService(opts) {
   const tokensPath = opts.tokensPath;
   const reconcileMs = opts.reconcileMs || RECONCILE_DEFAULT_MS;
   const logger = opts.logger || { debug() {}, info() {}, warn() {}, error() {} };
+  const now = opts.now || Date.now;
   const cleaningEstimate = createCleaningEstimate({
-    now: opts.now,
+    now,
     historyPath: opts.cleaningHistoryPath,
     cycleMinutes: opts.estimatedCycleMinutes,
     logger
@@ -214,6 +223,9 @@ function createBeatbotService(opts) {
       raw.batteryLevel = normalized.battery;
     }
     normalized.estimatedEndAt = cleaningEstimate.update(normalized, previous?.status);
+    const lastCompleted = previous ? previous.cleanCompletedAt : cleaningEstimate.lastCompletedAt(deviceId);
+    normalized.cleanCompletedAt = normalized.status === 'clean_done' && previous?.status !== 'clean_done' &&
+      (previous || !lastCompleted) ? new Date(now()).toISOString() : lastCompleted;
     if (ACTIVE_STATUSES.has(normalized.status)) {
       if (!activeSinceByDevice.has(deviceId)) {
         activeSinceByDevice.set(deviceId, new Date().toISOString());

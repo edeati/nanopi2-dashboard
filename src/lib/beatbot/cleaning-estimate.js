@@ -8,11 +8,31 @@ const CLEANING_STATUSES = new Set(['diving', 'cleaning']);
 const IDLE_STATUSES = new Set(['standby', 'charging', 'charge_done', 'sleep', 'clean_done', 'clean_wait', 'dock_done']);
 const RETURN_STATUSES = new Set(['emerge', 'return_trip', 'auto_dock', 'dock', 'clean_done']);
 
+function normalizeDurationRecord(value, legacyCompletedAt) {
+  const record = typeof value === 'number' ? { minutes: value, completedAt: legacyCompletedAt } : value;
+  const minutes = record?.minutes;
+  if (!Number.isFinite(minutes) || minutes < 5 || minutes > MAX_CYCLE_MINUTES) {
+    return null;
+  }
+  const completedAt = Date.parse(record.completedAt);
+  return { minutes, completedAt: Number.isFinite(completedAt) ? new Date(completedAt).toISOString() : null };
+}
+
 function loadDurations(file, logger) {
   try {
     const entries = Object.entries(JSON.parse(fs.readFileSync(file, 'utf8')));
-    return new Map(entries.filter(([, minutes]) =>
-      Number.isFinite(minutes) && minutes >= 5 && minutes <= MAX_CYCLE_MINUTES));
+    // The original format stored only minutes and wrote the file on completion.
+    // Its modification time identifies the cycle only when there is a single entry.
+    const legacyCompletedAt = entries.length === 1 && typeof entries[0][1] === 'number'
+      ? fs.statSync(file).mtime.toISOString() : null;
+    const durations = new Map();
+    for (const [key, value] of entries) {
+      const record = normalizeDurationRecord(value, legacyCompletedAt);
+      if (record) {
+        durations.set(key, record);
+      }
+    }
+    return durations;
   } catch (err) {
     if (err.code !== 'ENOENT') {
       logger.warn('[beatbot] could not read cleaning history: ' + err.message);
@@ -42,19 +62,19 @@ function createCleaningEstimate({ now = Date.now, historyPath, cycleMinutes = {}
   const runs = new Map();
   const durations = historyPath ? loadDurations(historyPath, logger) : new Map();
 
-  function finishRun(id, run) {
+  function finishRun(id, run, timestamp) {
     const minutes = (run.returningAt - run.startedAt) / MINUTE_MS;
     if (!run.observedStart || !run.mode || minutes < 5 || minutes > MAX_CYCLE_MINUTES) {
       return;
     }
-    durations.set(JSON.stringify([id, run.mode]), minutes);
+    durations.set(JSON.stringify([id, run.mode]), { minutes, completedAt: new Date(timestamp).toISOString() });
     if (historyPath) {
       saveDurations(historyPath, durations, logger);
     }
   }
 
   function endTime(id, run, timestamp) {
-    const minutes = durations.get(JSON.stringify([id, run.mode])) || cycleMinutes[run.mode];
+    const minutes = durations.get(JSON.stringify([id, run.mode]))?.minutes || cycleMinutes[run.mode];
     const endAt = run.startedAt + minutes * MINUTE_MS;
     if (!Number.isFinite(minutes) || minutes <= 0 || minutes > MAX_CYCLE_MINUTES || endAt <= timestamp) {
       return null;
@@ -73,7 +93,7 @@ function createCleaningEstimate({ now = Date.now, historyPath, cycleMinutes = {}
       if (status !== 'clean_done') {
         return;
       }
-      finishRun(id, run);
+      finishRun(id, run, timestamp);
     }
     runs.delete(id);
   }
@@ -113,7 +133,18 @@ function createCleaningEstimate({ now = Date.now, historyPath, cycleMinutes = {}
     return null;
   }
 
-  return { update, delete: (id) => runs.delete(id), clear: () => runs.clear() };
+  function lastCompletedAt(id) {
+    const keyPrefix = JSON.stringify([id]).slice(0, -1) + ',';
+    let latest = null;
+    for (const [key, record] of durations) {
+      if (key.startsWith(keyPrefix) && record.completedAt && (!latest || record.completedAt > latest)) {
+        latest = record.completedAt;
+      }
+    }
+    return latest;
+  }
+
+  return { update, lastCompletedAt, delete: (id) => runs.delete(id), clear: () => runs.clear() };
 }
 
 module.exports = { createCleaningEstimate };

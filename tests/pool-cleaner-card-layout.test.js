@@ -26,9 +26,10 @@ module.exports = async function run() {
     buildReminderStripCards: () => []
   });
   for (const name of [
-    'buildPoolCleanerCard', 'renderPoolCleanerMode', 'poolCleanerIsActive', 'poolCleanerStateIcon',
+    'buildPoolCleanerCard', 'poolCleanerRecentCompletion', 'renderPoolCleanerMode', 'poolCleanerIsActive', 'poolCleanerStateIcon',
     'renderPoolCleanerEstimate', 'poolCleanerSignature',
-    'renderPoolCleanerBattery', 'renderPoolCleanerStatic', 'buildCombinedStripCards',
+    'renderPoolCleanerBattery', 'renderPoolCleanerCompletion', 'renderPoolCleanerAlert',
+    'renderPoolCleanerStatic', 'buildCombinedStripCards',
     'combinedStripSignature', 'renderCombinedStripCard', 'renderCombinedStrip'
   ]) {
     vm.runInContext(html.match(new RegExp('^      function ' + name + '\\([^\\n]+\\n[\\s\\S]*?^      \\}', 'm'))[0], context);
@@ -40,7 +41,8 @@ module.exports = async function run() {
   assert.ok(staticPanel.hidden && !layout.has('has-static-pool-cleaner'), 'offline strip should reclaim the static column');
   assert.match(stripTrack.innerHTML, /#i-pc-offline/);
   for (const card of stripTrack.innerHTML.match(/<article\b[\s\S]*?<\/article>/g)) {
-    assert.match(card.replace(/<[^>]*>/g, '').trim(), /^Pool Cleaner\s*68%$/);
+    assert.match(card, /class="strip-card-tag">Offline</);
+    assert.match(card.replace(/<[^>]*>/g, '').trim(), /^Pool Cleaner\s*Offline\s*68%$/);
   }
 
   cleaner.online = true;
@@ -96,10 +98,31 @@ module.exports = async function run() {
   vm.runInContext(applyStrip, context);
   assert.doesNotMatch(staticContent.innerHTML, /<button\b/, 'a cleaner without the capability has no Park action');
 
-  cleaner.online = false;
   cleaner.status = 'standby';
+  cleaner.statusLabel = 'Standby';
+  cleaner.cleanCompletedAt = new Date(Date.now() - 60000).toISOString();
+  cleaner.basketAlert = 'removed';
+  cleaner.errors = ['Filter missing'];
+  vm.runInContext(applyStrip, context);
+  assert.match(staticContent.innerHTML, /Cleaning finished/);
+  assert.match(staticContent.innerHTML, /href="#i-pc-complete"/);
+  assert.ok(staticContent.innerHTML.includes(cleaner.cleanCompletedAt));
+  assert.match(staticContent.innerHTML, /Basket removed/);
+  assert.match(staticContent.innerHTML, /href="#i-pc-basket"/);
+
+  cleaner.cleanCompletedAt = new Date(Date.now() - 3601000).toISOString();
+  vm.runInContext(applyStrip, context);
+  assert.doesNotMatch(staticContent.innerHTML, /Cleaning finished/, 'the completion notice expires');
+  assert.match(staticContent.innerHTML, /Basket removed/, 'the alert lasts while the robot reports it');
+
+  cleaner.online = false;
   cleaner.battery = null;
   vm.runInContext(applyStrip, context);
   assert.ok(staticPanel.hidden && !layout.has('has-static-pool-cleaner'));
   assert.match(stripTrack.innerHTML, /<strong>--<\/strong>/, 'unknown battery should not appear as zero percent');
+  assert.match(stripTrack.innerHTML, /href="#i-pc-basket"/, 'a reported basket alert remains visible offline');
+  cleaner.basketAlert = null;
+  cleaner.errors = [];
+  vm.runInContext(applyStrip, context);
+  assert.doesNotMatch(stripTrack.innerHTML, /href="#i-pc-basket"/, 'the alert clears after the reading resets');
 };

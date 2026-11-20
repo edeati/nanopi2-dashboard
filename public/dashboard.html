@@ -826,7 +826,7 @@
       gap: 14px;
       align-items: stretch;
       width: max-content;
-      min-height: 100%;
+      height: 100%;
       padding: 4px;
       animation: combined-strip-scroll 90s linear infinite;
       will-change: transform;
@@ -1076,8 +1076,8 @@
 
     .strip-weather-list {
       display: grid;
-      gap: 3px;
-      align-content: start;
+      grid-auto-rows: minmax(min-content, 1fr);
+      min-height: 0;
     }
 
     .strip-battery-list {
@@ -1169,8 +1169,19 @@
       align-self: start;
     }
 
-    .strip-card.strip-card-forecast .strip-card-title {
-      margin-bottom: 8px;
+    .strip-card.strip-card-forecast {
+      /* Include the card's 20px of horizontal padding and borders. */
+      --forecast-rule-width: calc(70% + 14px);
+    }
+
+    .strip-card-forecast .strip-card-title.has-divider {
+      padding-bottom: 5px;
+      margin-bottom: 2px;
+    }
+
+    .strip-card-forecast .strip-card-title.has-divider::after {
+      right: auto;
+      width: var(--forecast-rule-width);
     }
 
     .strip-card-date {
@@ -1194,10 +1205,26 @@
     }
 
     .strip-weather-row {
-      font-size: 15px;
-      gap: 6px;
+      position: relative;
+      grid-template-columns: minmax(0, 1fr) 1.4em 4em;
+      gap: 5px;
+      font-size: 18px;
       line-height: 1;
+      font-variant-numeric: tabular-nums;
     }
+
+    .strip-weather-row + .strip-weather-row::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: var(--forecast-rule-width);
+      height: 1px;
+      background: rgba(176, 190, 208, 0.18);
+    }
+
+    .strip-weather-icon { text-align: center; }
+    .strip-weather-temp { text-align: right; white-space: nowrap; }
 
     .strip-battery-row {
       grid-template-columns: auto 1fr auto;
@@ -1250,6 +1277,73 @@
       display: block;
       border: 0;
       background: transparent;
+    }
+
+    @media (max-height: 680px) and (orientation: landscape) {
+      .strip-card {
+        padding-top: 5px;
+        padding-bottom: 5px;
+      }
+      .strip-card-tag { padding-top: 2px; padding-bottom: 2px; }
+      .strip-card-head.has-divider, .strip-card-title.has-divider {
+        padding-bottom: 3px;
+        margin-bottom: 0;
+      }
+      .strip-card-title { font-size: 16px; }
+      .strip-card-value { font-size: 24px; }
+      .strip-card-bg-icon.is-hero { font-size: 66px; }
+      .strip-card.strip-card-weather-now .strip-card-copy { font-size: 14px; }
+      .strip-card-metrics {
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+        align-items: center;
+      }
+      .strip-card-metric { gap: 4px; }
+      .strip-card-metric-value { font-size: 16px; white-space: nowrap; }
+      .strip-card-metric-value.strip-card-metric-value-temp { font-size: 20px; }
+      .strip-battery-list { align-content: start; gap: 3px; }
+      .strip-battery-row {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 5px;
+        font-size: 12px;
+        line-height: 1.2;
+      }
+      .strip-battery-row > :nth-child(2) {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .strip-card-sub { font-size: 12px; }
+      .strip-card-sub-value { font-size: 17px; }
+      .strip-internet-chart { height: 20px; }
+      .strip-card.strip-card-bin {
+        grid-template-rows: auto auto auto minmax(0, 1fr);
+        gap: 3px;
+      }
+      .strip-card.strip-card-bin .strip-card-bg-icon.is-hero { font-size: 64px; }
+      .strip-card.strip-card-bin .strip-card-title { grid-row: 2; font-size: 20px; }
+      .strip-card-bin-day { grid-row: 3; font-size: 13px; padding: 3px 8px; }
+      .strip-card.strip-card-bin .strip-card-copy { grid-row: 4; font-size: 12px; }
+      .strip-card.strip-card-reminder .strip-card-title { font-size: 21px; }
+      .strip-card.strip-card-reminder .strip-card-copy { font-size: 13px; }
+
+      .strip-card.strip-card-forecast {
+        grid-template-rows: auto minmax(0, 1fr);
+        gap: 2px;
+      }
+      .strip-card-forecast .strip-card-title { display: none; }
+      .strip-card-forecast .strip-card-head {
+        padding-bottom: 2px;
+      }
+      .strip-card-forecast .strip-card-head::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: var(--forecast-rule-width);
+        height: 1px;
+        background: rgba(176, 190, 208, 0.35);
+      }
+      .strip-weather-row { font-size: 15px; }
     }
 
     #binPages {
@@ -2076,6 +2170,7 @@
     }
     .pool-cleaner-reading {
       flex: 0 0 auto;
+      margin-left: auto;
       display: grid;
       justify-items: end;
       gap: 2px;
@@ -2135,8 +2230,13 @@
     .pool-cleaner-battery.bat-full { color: var(--green); }
     .pool-cleaner-battery.bat-mid { color: var(--orange); }
     .pool-cleaner-battery.bat-low { color: var(--red); }
-    .pool-cleaner-finish {
+    .pool-cleaner-activity {
       flex: 1 0 auto;
+      display: grid;
+      align-content: center;
+      gap: 6px;
+    }
+    .pool-cleaner-finish {
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -2185,12 +2285,42 @@
       stroke-linecap: round;
       stroke-linejoin: round;
     }
-    .pool-cleaner-error {
+    .pool-cleaner-result, .pool-cleaner-alert {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      gap: 8px;
+      border-radius: 7px;
+      padding: 6px 8px;
+    }
+    .pool-cleaner-result {
+      border: 1px solid #40645b;
+      background: #203a35;
+      color: #d7f3e3;
+    }
+    .pool-cleaner-result strong { display: block; font-size: 15px; line-height: 1.15; }
+    .pool-cleaner-result time { display: block; font-size: 12px; color: #b2d3c5; margin-top: 2px; }
+    .pool-cleaner-alert {
+      border: 1px solid #685a39;
+      background: #362e21;
+      color: #ffdc93;
+      font-size: 13px;
+      font-weight: 650;
+    }
+    .pool-cleaner-result svg, .pool-cleaner-alert svg {
+      flex: 0 0 20px;
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.7;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .pool-cleaner-alert span {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 12px;
-      color: var(--yellow);
     }
     .pool-cleaner-park {
       flex: 0 0 auto;
@@ -2227,6 +2357,7 @@
     .strip-pool-offline-icon svg { width: 100%; height: 100%; fill: #ffad9f; }
     .strip-card-pool .pool-cleaner-battery-copy { gap: 10px; }
     .strip-card-pool .pool-cleaner-battery strong { font-size: 24px; }
+    .strip-card-pool.has-basket-alert { grid-template-rows: auto minmax(0, 1fr) auto; }
 
     @media (min-width: 1101px) {
       .pool-cleaner-finish time { font-size: clamp(34px, calc(5.4vh - 2px), 46px); }
@@ -2242,6 +2373,13 @@
         gap: 8px;
       }
       .pool-cleaner-footer { padding-top: 4px; }
+      .pool-cleaner-result, .pool-cleaner-alert { padding: 3px 5px; gap: 5px; }
+      .pool-cleaner-result strong, .pool-cleaner-alert { font-size: 12px; }
+      .pool-cleaner-result time { font-size: 11px; }
+    }
+
+    @media (max-height: 680px) and (min-width: 900px) {
+      .pool-cleaner-activity.has-two-items { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
     }
 
   </style>
@@ -2264,6 +2402,8 @@
     <symbol id="i-pc-charge" viewBox="0 0 24 24"><path d="m13 2-7 12h6l-1 8 7-12h-6l1-8Z"/></symbol>
     <symbol id="i-pc-sleep" viewBox="0 0 24 24"><path d="M19 15.5A8 8 0 0 1 8.5 5 8.5 8.5 0 1 0 19 15.5Z"/></symbol>
     <symbol id="i-pc-alert" viewBox="0 0 24 24"><path d="m12 3 9 17H3l9-17Zm0 6v5m0 3h.01"/></symbol>
+    <symbol id="i-pc-complete" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.7 2.7L16 9.5"/></symbol>
+    <symbol id="i-pc-basket" viewBox="0 0 24 24"><path d="M3 8h18m-16 0 1.5 11h11L19 8M8 8l2-4h4l2 4m-6 4v3m4-3v3"/></symbol>
     <symbol id="i-pc-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/></symbol>
     <symbol id="i-pc-mode-floor" viewBox="0 0 24 24"><path d="M3 6v9a4 4 0 0 0 4 4h10a4 4 0 0 0 4-4V6" opacity=".55"/><path d="M7 15h10"/></symbol>
     <symbol id="i-pc-mode-standard" viewBox="0 0 24 24"><path d="M3 6v9a4 4 0 0 0 4 4h10a4 4 0 0 0 4-4V6" opacity=".55"/><path d="M7 8v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V8"/></symbol>
@@ -3795,10 +3935,19 @@
           statusLabel: bd.statusLabel || bd.status || '--',
           workMode: bd.workMode || null,
           errors: Array.isArray(bd.errors) ? bd.errors : [],
+          basketAlert: bd.basketAlert || null,
+          cleanCompletedAt: poolCleanerRecentCompletion(bd),
           canPark: !!bd.id && !state.beatbot.stale && !!bd.online &&
             bd.status === 'clean_done' && actions.indexOf('return') > -1,
           estimatedEndAt: bd.estimatedEndAt || null
         };
+      }
+
+      function poolCleanerRecentCompletion(device) {
+        var timestamp = Date.parse(device.cleanCompletedAt || '');
+        var age = Date.now() - timestamp;
+        var idle = ['standby', 'clean_done', 'charging', 'charge_done', 'dock_done'].indexOf(device.status) > -1;
+        return idle && age >= 0 && age < 3600000 ? device.cleanCompletedAt : null;
       }
 
       function renderPoolCleanerMode(mode) {
@@ -3822,13 +3971,7 @@
         return ['diving', 'cleaning', 'clean_wait', 'emerge', 'return_trip', 'auto_dock', 'dock', 'self_cleaning'].indexOf(key) > -1;
       }
 
-      function poolCleanerStateIcon(status, errors) {
-        var hasFault = Array.isArray(errors) && errors.some(function (e) {
-          return String(e || '').toLowerCase().indexOf('notice') === -1;
-        });
-        if (hasFault) {
-          return 'i-pc-alert';
-        }
+      function poolCleanerStateIcon(status) {
         var key = String(status || '').toLowerCase();
         var icons = {
           standby: 'i-pc-standby',
@@ -3881,6 +4024,8 @@
           card.statusLabel,
           card.workMode || '',
           card.estimatedEndAt || '',
+          card.cleanCompletedAt || '',
+          card.basketAlert || '',
           card.errors.join(','),
           String(card.canPark)
         ].join('|');
@@ -3932,6 +4077,27 @@
           '<strong>' + text + '</strong></div></div>';
       }
 
+      function renderPoolCleanerCompletion(card) {
+        if (card.status !== 'clean_done' && !card.cleanCompletedAt) {
+          return '';
+        }
+        var finished = new Date(card.cleanCompletedAt || '');
+        var time = Number.isFinite(finished.getTime()) ? '<time datetime="' + finished.toISOString() + '">' +
+          finished.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) + '</time>' : '';
+        return '<div class="pool-cleaner-result"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pc-complete"></use></svg>' +
+          '<div><strong>Cleaning finished</strong>' + time + '</div></div>';
+      }
+
+      function renderPoolCleanerAlert(basketAlert, errors) {
+        var label = basketAlert === 'removed' ? 'Basket removed' : (basketAlert === 'full' ? 'Basket full' : errors[0]);
+        if (!label) {
+          return '';
+        }
+        return '<div class="pool-cleaner-alert" role="status" title="' + escapeHtml(errors.join(' · ') || label) + '">' +
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#' + (basketAlert ? 'i-pc-basket' : 'i-pc-alert') +
+          '"></use></svg><span>' + escapeHtml(label) + '</span></div>';
+      }
+
       function renderPoolCleanerStatic(card) {
         poolCleanerCardNode.hidden = !card;
         bottomRowNode.classList.toggle('has-static-pool-cleaner', !!card);
@@ -3940,24 +4106,28 @@
           return;
         }
 
-        var errors = card.errors.length ? '<div class="pool-cleaner-error" title="' + escapeHtml(card.errors.join(' · ')) + '">' +
-          escapeHtml(card.errors[0]) + '</div>' : '';
+        var status = card.status === 'clean_done' ? '' :
+          '<div class="pool-cleaner-status"><span class="pool-cleaner-state-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#' +
+          poolCleanerStateIcon(card.status) + '"></use></svg></span><span class="pool-cleaner-status-label">' +
+          escapeHtml(card.statusLabel) + '</span></div>';
+        var result = renderPoolCleanerCompletion(card) || renderPoolCleanerEstimate(card);
+        var alert = renderPoolCleanerAlert(card.basketAlert, card.errors);
+        var activity = result || alert ? '<div class="pool-cleaner-activity' + (result && alert ? ' has-two-items' : '') + '">' +
+          result + alert + '</div>' : '';
         var park = card.canPark
           ? '<button type="button" class="pool-cleaner-park" data-pc-park="' + escapeHtml(card.id) + '">Park</button>' : '';
 
         poolCleanerStaticNode.innerHTML =
           '<div class="pool-cleaner-card">' +
           '<div class="pool-cleaner-statusbar">' +
-          '<div class="pool-cleaner-status"><span class="pool-cleaner-state-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#' +
-          poolCleanerStateIcon(card.status, card.errors) + '"></use></svg></span><span class="pool-cleaner-status-label">' +
-          escapeHtml(card.statusLabel) + '</span></div>' +
+          status +
           '<div class="pool-cleaner-reading">' + renderPoolCleanerBattery(card.battery) +
           (card.online ? '' : '<small>Last known</small>') + '</div>' +
           '</div>' +
-          renderPoolCleanerEstimate(card) +
+          activity +
           '<div class="pool-cleaner-footer">' +
           renderPoolCleanerMode(card.workMode) + park +
-          '</div>' + errors +
+          '</div>' +
           '</div>';
         attachPoolCleanerPark(poolCleanerStaticNode);
       }
@@ -4024,7 +4194,7 @@
       function buildCombinedStripCards(state, offlinePoolCleaner) {
         var cards = buildWeatherStripCards(state);
         if (offlinePoolCleaner) {
-          cards.push({ kind: 'pool_cleaner', battery: offlinePoolCleaner.battery });
+          cards.push({ kind: 'pool_cleaner', battery: offlinePoolCleaner.battery, basketAlert: offlinePoolCleaner.basketAlert });
         }
         return cards.concat(buildBinsStripCards(state), buildReminderStripCards(state));
       }
@@ -4053,8 +4223,8 @@
         }
         if (card.kind === 'forecast5') {
           var forecastRows = (Array.isArray(card.items) ? card.items : []).slice(0, 5).map(function (item) {
-            return '<div class="strip-weather-row"><span>' + escapeHtml(item.day || '--') + '</span><span>' +
-              escapeHtml(iconForWeather(item.icon, item.summary)) + '</span><span>' +
+            return '<div class="strip-weather-row"><span>' + escapeHtml(item.day || '--') + '</span><span class="strip-weather-icon">' +
+              escapeHtml(iconForWeather(item.icon, item.summary)) + '</span><span class="strip-weather-temp">' +
               Number(item.tempC || 0).toFixed(0) + ' °C</span></div>';
           }).join('');
           return '<article class="strip-card strip-card-weather strip-card-stack strip-card-forecast">' +
@@ -4095,12 +4265,13 @@
             '</article>';
         }
         if (card.kind === 'pool_cleaner') {
-          return '<article class="strip-card strip-card-pool" aria-label="Pool cleaner offline">' +
-            '<div class="strip-card-head has-divider"><div class="strip-card-kicker">Pool Cleaner</div></div>' +
+          var basketNote = renderPoolCleanerAlert(card.basketAlert, []);
+          return '<article class="strip-card strip-card-pool' + (basketNote ? ' has-basket-alert' : '') + '" aria-label="Pool cleaner offline">' +
+            '<div class="strip-card-head has-divider"><div class="strip-card-kicker">Pool Cleaner</div><div class="strip-card-tag">Offline</div></div>' +
             '<div class="strip-card-pool-body">' +
             '<span class="strip-pool-offline-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-pc-offline"></use></svg></span>' +
             renderPoolCleanerBattery(card.battery) +
-            '</div></article>';
+            '</div>' + basketNote + '</article>';
         }
         if (card.kind === 'bin_feature') {
           return '<article class="strip-card strip-card-bin ' + escapeHtml(card.toneClass || '') + '">' +
